@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exp.name }} | Bio-Notebook</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        black: '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #000000;
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
+        }
+
+        h1, h2, h3, h4, .font-heading {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Liquid Glass Styles */
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.02);
+            background-blend-mode: luminosity;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .liquid-glass:hover {
+            border-color: rgba(100, 206, 251, 0.3);
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-2px);
+        }
+
+        .liquid-glass-strong {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
+        }
+
+        .shiny-text {
+            background: linear-gradient(100deg, #64CEFB 20%, #ffffff 50%, #64CEFB 80%);
+            background-size: 200% auto;
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: shine 3s linear infinite;
+        }
+
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+
+        /* Tree Styles */
+        .tree-wrapper {
+            position: relative;
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding-bottom: 4rem;
+        }
+
+        /* SVG canvas for arrows */
+        .arrow-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; overflow: visible;
+        }
+
+        .arrow-svg path {
+            fill: none;
+            stroke: url(#arrowGradient);
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        .arrow-svg .arrow-glow {
+            fill: none;
+            stroke: rgba(100, 206, 251, 0.15);
+            stroke-width: 8;
+            stroke-linecap: round;
+            filter: blur(4px);
+        }
+
+        .arrow-svg .flow-particle {
+            fill: rgba(100, 206, 251, 0.9);
+            filter: drop-shadow(0 0 4px rgba(100, 206, 251, 0.8));
+        }
+
+        .arrow-svg polygon.arrow-head {
+            fill: rgba(100, 206, 251, 0.6);
+            filter: drop-shadow(0 0 3px rgba(100, 206, 251, 0.5));
+        }
+
+        .level-row {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 80px;
+        }
+
+        .level-row:last-of-type { margin-bottom: 0; }
+
+        /* Node Cards */
+        .node-card {
+            flex: 1;
+            min-width: 280px; max-width: 320px;
+            display: flex; flex-direction: column;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .add-parallel-btn {
+            min-width: 48px; max-width: 48px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            border: 2px dashed rgba(100, 206, 251, 0.2);
+            border-radius: 1rem;
+            background: transparent;
+            transition: all 0.3s ease;
+            color: rgba(100, 206, 251, 0.5);
+        }
+
+        .add-parallel-btn:hover {
+            border-color: rgba(100, 206, 251, 0.5);
+            background: rgba(100, 206, 251, 0.1);
+            color: #64CEFB;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 100;
+            justify-content: center; align-items: center;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal.active { display: flex; opacity: 1; }
+        .modal-content {
+            transform: scale(0.95); transition: transform 0.3s ease;
+            width: 100%; max-width: 500px;
+        }
+        .modal.active .modal-content { transform: scale(1); }
+
+        .form-input {
+            width: 100%; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.75rem 1rem; border-radius: 0.5rem;
+            color: white; margin-bottom: 1rem; outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: #64CEFB; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="w-full px-6 lg:px-16 py-6 z-50 flex flex-wrap items-center justify-between gap-4 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0">
+        <div class="flex flex-wrap items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass shrink-0" style="transform: none; border-color: rgba(255,255,255,0.5);">
+                <div class="w-4 h-4 rounded-full bg-[#64CEFB]"></div>
+            </div>
+            {% if not is_public_view %}
+                <a href="/dashboard?user={{ user }}" class="font-bold text-lg md:text-xl tracking-tight font-heading hover:text-[#64CEFB] transition-colors flex items-center gap-2 shrink-0">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i> Назад
+                </a>
+            {% else %}
+                <span class="font-bold text-xl tracking-tight font-heading">Bio-Notebook</span>
+            {% endif %}
+            <span class="text-white/50 font-sans text-sm hidden lg:inline">Дерево эксперимента</span>
+        </div>
+
+        {% if not is_public_view %}
+        <div class="hidden md:flex flex-wrap items-center gap-5 text-sm">
+            <a href="/dashboard?user={{ user }}" class="text-[#64CEFB] font-medium transition-colors">Эксперименты</a>
+            <a href="/projects?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Проекты</a>
+            <a href="/reagents?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Реагенты</a>
+            <a href="/consumables?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Расходники</a>
+        </div>
+        {% endif %}
+
+        <div class="flex items-center gap-6">
+            {% if not is_public_view %}
+                <div class="hidden sm:flex items-center gap-2 text-white/60">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                    <span class="text-sm font-medium">{{ user }}</span>
+                </div>
+                <a href="/" class="text-white/60 hover:text-white text-sm transition-colors flex items-center gap-2">
+                    Выйти
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </a>
+            {% else %}
+                <span class="text-[10px] uppercase tracking-wider px-3 py-1.5 bg-[#10b981]/10 text-[#10b981] rounded-full border border-[#10b981]/20 font-bold">Public View</span>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-4xl md:text-5xl font-heading tracking-tight shiny-text">{{ exp.name }}</h1>
+                </div>
+                <p class="text-white/50 text-sm flex items-center gap-2">
+                    <i data-lucide="hash" class="w-4 h-4"></i> ID: {{ exp.id }} &middot; Владелец: {{ user }}
+                </p>
+            </div>
+            
+            <div class="flex flex-wrap gap-3">
+                {% if not is_public_view %}
+                    <form action="/experiment/{{ user }}/{{ exp.id }}/toggle_public" method="POST" style="display:inline;">
+                        <button type="submit" class="liquid-glass px-5 py-2.5 rounded-full text-sm font-medium text-white hover:bg-white/10 transition-colors flex items-center gap-2">
+                            {% if exp.is_public == 'true' %}
+                                <i data-lucide="lock" class="w-4 h-4"></i> Сделать приватным
+                            {% else %}
+                                <i data-lucide="globe" class="w-4 h-4"></i> Сделать публичным
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% if exp.is_public == 'true' %}
+                        <button onclick="copyShareLink('{{ exp.id }}')" class="liquid-glass border-[#64CEFB]/30 px-5 py-2.5 rounded-full text-sm font-medium text-[#64CEFB] hover:bg-[#64CEFB]/10 transition-colors flex items-center gap-2">
+                            <i data-lucide="share-2" class="w-4 h-4"></i> Поделиться ссылкой
+                        </button>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Tree Area -->
+        <div class="tree-wrapper" id="treeWrapper">
+            <!-- SVG layer for arrows -->
+            <svg class="arrow-svg" id="arrowSvg">
+                <defs>
+                    <linearGradient id="arrowGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="rgba(100, 206, 251, 0.5)"/>
+                        <stop offset="100%" stop-color="rgba(100, 206, 251, 0.1)"/>
+                    </linearGradient>
+                    <marker id="arrowMarker" markerWidth="10" markerHeight="8" refX="5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                        <polygon points="0 0, 10 4, 0 8" fill="rgba(100, 206, 251, 0.5)"/>
+                    </marker>
+                </defs>
+            </svg>
+
+            <!-- Node levels -->
+            {% for level in exp.levels %}
+            {% set level_idx = loop.index0 %}
+            <div class="level-row" data-level="{{ level_idx }}">
+                {% for node in level %}
+                <a href="/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-6 node-card group">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-[#64CEFB]/10 text-[#64CEFB] rounded-md border border-[#64CEFB]/20 font-mono">{{ node.id }}</span>
+                        <div class="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+                    </div>
+                    <h3 class="text-xl font-heading mb-2 group-hover:text-[#64CEFB] transition-colors">{{ node.title }}</h3>
+                    <p class="text-white/50 text-sm mb-6 flex-grow leading-relaxed">{{ node.content }}</p>
+                    
+                    <div class="mt-auto border-t border-white/10 pt-4 flex items-center justify-between">
+                        <span class="text-xs text-white/30 uppercase tracking-widest font-bold">Этап {{ level_idx + 1 }}</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4 text-white/30 group-hover:text-[#64CEFB] group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                </a>
+                {% endfor %}
+                {% if not is_public_view %}
+                <button class="add-parallel-btn" onclick="openAddNodeModal({{ level_idx }})" title="Добавить параллельный блок">
+                    <i data-lucide="plus" class="w-6 h-6"></i>
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- Add new level -->
+            {% if not is_public_view %}
+            <div class="flex justify-center relative z-10 mt-12">
+                <button onclick="openAddNodeModal(-1)" class="liquid-glass border-[#64CEFB]/30 px-6 py-3 rounded-full text-sm font-medium text-[#64CEFB] hover:bg-[#64CEFB]/10 transition-all flex items-center gap-2 group hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(100,206,251,0.15)]">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    Добавить следующий этап
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="addNodeModal" class="modal">
+        <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+            <button onclick="document.getElementById('addNodeModal').classList.remove('active')" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="mb-8">
+                <h2 id="modalTitle" class="text-2xl font-heading font-bold mb-2">Добавить этап</h2>
+                <p class="text-white/60 text-sm">Определите следующий шаг в вашем исследовании</p>
+            </div>
+            
+            <form action="/experiment/{{ user }}/{{ exp.id }}/add_node" method="POST">
+                <input type="hidden" id="levelIdxInput" name="level_idx" value="-1">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-white/80 mb-1">Название</label>
+                    <input type="text" id="title" name="title" class="form-input liquid-glass" required placeholder="Например: Секвенирование">
+                </div>
+                <div class="mb-8">
+                    <label class="block text-sm font-medium text-white/80 mb-1">Описание</label>
+                    <textarea id="content" name="content" rows="4" class="form-input liquid-glass resize-none" required placeholder="Детали работ на этом этапе..."></textarea>
+                </div>
+                <button type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors">
+                    Сохранить этап
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function openAddNodeModal(levelIdx) {
+            document.getElementById('levelIdxInput').value = levelIdx;
+            document.getElementById('modalTitle').innerText =
+                levelIdx === -1 ? 'Добавить новый этап' : 'Добавить параллельный блок';
+            document.getElementById('addNodeModal').classList.add('active');
+        }
+
+        function copyShareLink(expId) {
+            const url = window.location.origin + '/share/' + expId;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Ссылка скопирована в буфер обмена:\n' + url);
+            });
+        }
+
+        // Modal close on outside click
+        document.getElementById('addNodeModal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('active');
+        });
+
+        // ── Draw SVG arrows between levels ──
+        function drawArrows() {
+            const svg = document.getElementById('arrowSvg');
+            const wrapper = document.getElementById('treeWrapper');
+            const levels = wrapper.querySelectorAll('.level-row');
+
+            // Clear old arrows
+            svg.querySelectorAll('.dynamic-arrow').forEach(el => el.remove());
+
+            // Set SVG size to match wrapper
+            const wRect = wrapper.getBoundingClientRect();
+            svg.setAttribute('width', wRect.width);
+            svg.setAttribute('height', wRect.height);
+
+            for (let i = 0; i < levels.length - 1; i++) {
+                const fromCards = levels[i].querySelectorAll('.node-card');
+                const toCards   = levels[i + 1].querySelectorAll('.node-card');
+
+                fromCards.forEach(fromCard => {
+                    toCards.forEach(toCard => {
+                        const fromRect = fromCard.getBoundingClientRect();
+                        const toRect   = toCard.getBoundingClientRect();
+
+                        // Coordinates relative to wrapper
+                        const x1 = fromRect.left + fromRect.width / 2 - wRect.left;
+                        const y1 = fromRect.bottom - wRect.top;
+                        const x2 = toRect.left + toRect.width / 2 - wRect.left;
+                        const y2 = toRect.top - wRect.top;
+
+                        const midY = (y1 + y2) / 2;
+
+                        // Cubic bezier path
+                        const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+
+                        // Glow behind
+                        const glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        glow.setAttribute('d', d);
+                        glow.setAttribute('class', 'arrow-glow dynamic-arrow');
+                        svg.appendChild(glow);
+
+                        // Main path
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute('d', d);
+                        path.setAttribute('class', 'dynamic-arrow');
+                        path.setAttribute('marker-end', 'url(#arrowMarker)');
+                        svg.appendChild(path);
+
+                        // Animated particle
+                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circle.setAttribute('r', '3');
+                        circle.setAttribute('class', 'flow-particle dynamic-arrow');
+                        const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+                        anim.setAttribute('dur', '3s');
+                        anim.setAttribute('repeatCount', 'indefinite');
+                        anim.setAttribute('path', d);
+                        circle.appendChild(anim);
+                        svg.appendChild(circle);
+                    });
+                });
+            }
+        }
+
+        // Draw on load and resize. 
+        // Also wait a bit for webfonts/tailwindcss to finish applying styles
+        window.addEventListener('load', () => {
+            setTimeout(drawArrows, 100);
+            setTimeout(drawArrows, 500); // safety redraw
+        });
+        window.addEventListener('resize', drawArrows);
+    </script>
+</body>
+</html>

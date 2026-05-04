@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
+sqlalchemy
+httpx
+pandas
+numpy
+biopython
+Pillow
+rapidocr-onnxruntime
+faster-whisper
+python-docx

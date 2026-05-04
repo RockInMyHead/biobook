@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Notebook | Ваш Лабораторный Журнал</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        black: '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #000000;
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        h1, h2, h3, h4, .font-heading {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Liquid Glass Styles */
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.01);
+            background-blend-mode: luminosity;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .liquid-glass-strong {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
+        }
+
+        /* Video Background */
+        .video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+            opacity: 0.6;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+            z-index: 1;
+        }
+
+        /* Shiny Text Animation */
+        .shiny-text {
+            background: linear-gradient(
+                100deg, 
+                #64CEFB 20%, 
+                #ffffff 50%, 
+                #64CEFB 80%
+            );
+            background-size: 200% auto;
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: shine 3s linear infinite;
+        }
+
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+
+        /* Scroll Reveal Animations */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Login Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal.active { display: flex; opacity: 1; }
+        .auth-card {
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+            width: 100%; max-width: 400px;
+        }
+        .modal.active .auth-card { transform: scale(1); }
+        .form-input {
+            width: 100%; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.75rem 1rem; border-radius: 0.5rem;
+            color: white; margin-bottom: 1rem; outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: #64CEFB; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- HERO SECTION (100vh) -->
+    <section class="relative min-h-screen w-full flex flex-col items-center justify-center pt-24 pb-12 px-6">
+        <!-- Background Video -->
+        <video class="video-bg" autoplay loop muted playsinline>
+            <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_105406_16f4600d-7a92-4292-b96e-b19156c7830a.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay"></div>
+
+        <!-- Navbar -->
+        <nav class="absolute top-6 left-0 w-full px-6 lg:px-16 z-50 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass">
+                    <div class="w-4 h-4 rounded-full bg-[#0099ff]"></div>
+                </div>
+                <span class="font-bold text-xl tracking-tight">Bio-Notebook</span>
+            </div>
+            
+            <div class="hidden lg:flex items-center gap-8 liquid-glass rounded-full px-8 py-3">
+                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Эксперименты</a>
+                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Машина времени</a>
+                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">AI Ассистент</a>
+                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Интеграции</a>
+            </div>
+
+            <button class="lg:hidden text-white liquid-glass p-2 rounded-full">
+                <i data-lucide="menu"></i>
+            </button>
+        </nav>
+
+        <!-- Hero Content -->
+        <div class="relative z-10 w-full max-w-7xl mx-auto flex flex-col justify-center items-start flex-grow">
+            <div class="liquid-glass rounded-full px-4 py-1.5 mb-6 inline-flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-[#64CEFB] animate-pulse"></span>
+                <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Интеллектуальная система управления лабораторией</span>
+            </div>
+            
+            <h1 class="text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-heading tracking-tighter leading-[0.9] mb-8 max-w-5xl">
+                <div class="text-white mb-2">Ваш</div>
+                <div class="shiny-text">Лабораторный<br>журнал.</div>
+            </h1>
+
+            <p class="text-white/80 text-lg md:text-xl max-w-2xl mb-12 leading-relaxed">
+                Введите этапы, узлы, протоколы и результаты так, чтобы к любому шагу можно было вернуться и повторить его без потери контекста. ИИ-аналитика и версионирование данных.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4 mb-16">
+                <button onclick="openLogin()" class="liquid-glass-strong group flex items-center justify-center gap-2 text-white rounded-full px-8 py-4 font-medium hover:bg-white/10 transition-all">
+                    Открыть журнал
+                    <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                </button>
+                <button class="group flex items-center justify-center gap-2 px-8 py-4 rounded-full text-white/80 hover:text-white font-medium transition-all">
+                    <i data-lucide="play-circle" class="w-5 h-5 text-[#64CEFB]"></i>
+                    Посмотреть примеры
+                </button>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
+                <div class="liquid-glass rounded-2xl p-5">
+                    <div class="text-3xl font-heading font-bold text-white mb-1">99.9%</div>
+                    <div class="text-sm text-white/60">Точность данных</div>
+                </div>
+                <div class="liquid-glass rounded-2xl p-5">
+                    <div class="text-3xl font-heading font-bold text-white mb-1">2.4x</div>
+                    <div class="text-sm text-white/60">Быстрее анализ</div>
+                </div>
+                <div class="liquid-glass rounded-2xl p-5">
+                    <div class="text-3xl font-heading font-bold text-white mb-1">0</div>
+                    <div class="text-sm text-white/60">Ошибок утери контекста</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CAPABILITIES SECTION -->
+    <section class="relative py-24 px-6 bg-black z-10 border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-16 reveal">
+                <p class="text-white/50 text-sm tracking-widest uppercase mb-4">// Интеллектуальные функции</p>
+                <h2 class="text-4xl md:text-6xl font-heading tracking-tight leading-tight">
+                    Умная<br><span class="italic text-[#64CEFB]">лаборатория</span>
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Card 1 -->
+                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal">
+                    <img src="/static/ai-analytics.jpg" alt="AI Analytics" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
+                    <div class="flex justify-between items-start mb-auto">
+                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                            <i data-lucide="trending-up" class="w-6 h-6 text-[#64CEFB]"></i>
+                        </div>
+                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Прогнозы</span>
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">ML</span>
+                        </div>
+                    </div>
+                    <div class="pt-8">
+                        <h3 class="text-2xl font-heading mb-3">AI-Аналитика данных</h3>
+                        <p class="text-white/60 text-sm leading-relaxed">
+                            Алгоритмы машинного обучения анализируют ваши протоколы и помогают прогнозировать результаты экспериментов с высокой точностью.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal" style="transition-delay: 100ms;">
+                    <img src="/static/time-nav.jpg" alt="Time Navigation" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
+                    <div class="flex justify-between items-start mb-auto">
+                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                            <i data-lucide="git-branch" class="w-6 h-6 text-[#64CEFB]"></i>
+                        </div>
+                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Ветки</span>
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Снимки</span>
+                        </div>
+                    </div>
+                    <div class="pt-8">
+                        <h3 class="text-2xl font-heading mb-3">Временная навигация</h3>
+                        <p class="text-white/60 text-sm leading-relaxed">
+                            Инструмент «Машина времени» позволяет мгновенно перемещаться между любыми версиями эксперимента. Ветвите идеи без страха потерять код.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal" style="transition-delay: 200ms;">
+                    <img src="/static/dashboard.jpg" alt="Interactive Dashboard" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
+                    <div class="flex justify-between items-start mb-auto">
+                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                            <i data-lucide="bar-chart-4" class="w-6 h-6 text-[#64CEFB]"></i>
+                        </div>
+                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Реал-тайм</span>
+                        </div>
+                    </div>
+                    <div class="pt-8">
+                        <h3 class="text-2xl font-heading mb-3">Интерактивный дашборд</h3>
+                        <p class="text-white/60 text-sm leading-relaxed">
+                            Контролируйте ход всех исследований. Просматривайте детальные отчеты и графы зависимостей от глобального обзора до одного узла.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS SECTION -->
+    <section class="py-24 px-6 bg-[#050505] relative z-10 border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-16 text-center reveal">
+                <h2 class="text-3xl md:text-5xl font-heading tracking-tight mb-4">Как это работает</h2>
+                <p class="text-white/60 max-w-xl mx-auto">Внедрите систему в вашу исследовательскую рутину за три простых шага.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
+                <!-- Connecting line (desktop) -->
+                <div class="hidden md:block absolute top-8 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                
+                <div class="reveal relative text-center flex flex-col items-center">
+                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
+                        <span class="font-heading text-xl text-[#64CEFB]">01</span>
+                    </div>
+                    <h3 class="text-xl font-heading mb-3">Подключение</h3>
+                    <p class="text-white/60 text-sm max-w-xs">Интегрируйте ваши текущие протоколы и перенесите данные в единое хранилище.</p>
+                </div>
+                
+                <div class="reveal relative text-center flex flex-col items-center" style="transition-delay: 150ms;">
+                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
+                        <span class="font-heading text-xl text-[#64CEFB]">02</span>
+                    </div>
+                    <h3 class="text-xl font-heading mb-3">Автоматизация</h3>
+                    <p class="text-white/60 text-sm max-w-xs">Настройте ИИ-ассистента для автоматического анализа секвенирования и генерации кода.</p>
+                </div>
+                
+                <div class="reveal relative text-center flex flex-col items-center" style="transition-delay: 300ms;">
+                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
+                        <span class="font-heading text-xl text-[#64CEFB]">03</span>
+                    </div>
+                    <h3 class="text-xl font-heading mb-3">Масштабирование</h3>
+                    <p class="text-white/60 text-sm max-w-xs">Сотрудничайте с коллегами и делитесь публичными ссылками на результаты в один клик.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TESTIMONIALS SECTION -->
+    <section class="py-24 px-6 bg-black relative z-10 border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="liquid-glass rounded-[1.25rem] p-8 reveal">
+                    <div class="flex gap-2 text-[#64CEFB] mb-6">
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                    </div>
+                    <p class="text-lg md:text-xl font-medium leading-relaxed mb-8">
+                        "Мы сократили время на поиск старых протоколов на 40% за первые 2 месяца. AI-ассистент — это как дополнительный научный сотрудник в нашей команде."
+                    </p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                            <span class="font-heading font-bold text-white/50">АИ</span>
+                        </div>
+                        <div>
+                            <div class="font-medium">Алексей Иванов</div>
+                            <div class="text-sm text-white/50">Руководитель R&D лаборатории</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="liquid-glass rounded-[1.25rem] p-8 reveal" style="transition-delay: 150ms;">
+                    <div class="flex gap-2 text-[#64CEFB] mb-6">
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
+                    </div>
+                    <p class="text-lg md:text-xl font-medium leading-relaxed mb-8">
+                        "Интеграция версионирования спасла наш проект. Теперь мы можем безопасно проверять смелые гипотезы и моментально откатываться назад без потерь."
+                    </p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                            <span class="font-heading font-bold text-white/50">МС</span>
+                        </div>
+                        <div>
+                            <div class="font-medium">Мария Смирнова</div>
+                            <div class="text-sm text-white/50">Ведущий биоинформатик</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="relative py-32 px-6 flex items-center justify-center border-t border-white/5 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-[#001524] to-black opacity-50 z-0"></div>
+        
+        <div class="relative z-10 liquid-glass-strong rounded-[2rem] p-12 md:p-20 max-w-4xl w-full text-center reveal">
+            <h2 class="text-4xl md:text-6xl font-heading tracking-tight mb-6">Готовы трансформировать вашу лабораторию?</h2>
+            <p class="text-white/60 text-lg mb-10 max-w-2xl mx-auto">Присоединяйтесь к ведущим исследовательским центрам, использующим передовые технологии для ускорения научных открытий.</p>
+            <button onclick="openLogin()" class="bg-white text-black hover:bg-gray-200 px-10 py-5 rounded-full font-bold text-lg transition-colors inline-flex items-center gap-2">
+                Войти в систему
+                <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </section>
+
+    <!-- Auth Modal -->
+    <div id="loginModal" class="modal">
+        <div class="liquid-glass-strong auth-card rounded-[1.5rem] p-8 relative">
+            <button onclick="closeLogin()" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="flex border-b border-white/10 mb-8 mt-2">
+                <button onclick="setAuthMode('login')" id="tab-login" type="button" class="flex-1 pb-3 text-center border-b-2 border-[#64CEFB] font-medium text-white transition-colors">Вход</button>
+                <button onclick="setAuthMode('register')" id="tab-register" type="button" class="flex-1 pb-3 text-center border-b-2 border-transparent text-white/50 hover:text-white font-medium transition-colors">Регистрация</button>
+            </div>
+
+            <div class="mb-6 text-center">
+                <h2 id="auth-title" class="text-2xl font-heading font-bold mb-2">С возвращением</h2>
+                <p id="auth-desc" class="text-white/60 text-sm">Войдите в свой лабораторный журнал</p>
+            </div>
+
+            {% if error %}
+            <div class="bg-red-500/20 border border-red-500/50 text-red-200 text-sm rounded-lg p-3 mb-6 text-center">
+                {% if error == 'UserNotFound' %} Пользователь не найден.
+                {% elif error == 'WrongPassword' %} Неверный пароль.
+                {% elif error == 'UserExists' %} Пользователь уже существует.
+                {% else %} Произошла ошибка. {% endif %}
+            </div>
+            {% endif %}
+            
+            <form id="auth-form" action="/login" method="POST">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-white/80 mb-1">Имя пользователя (Логин)</label>
+                    <input type="text" name="username" class="form-input liquid-glass" required placeholder="Например: admin">
+                </div>
+                
+                <div id="register-fields" style="display: none;">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-white/80 mb-1">Электронная почта</label>
+                        <input type="email" id="email-input" name="email" class="form-input liquid-glass" placeholder="example@mail.com">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-white/80 mb-1">Пароль</label>
+                    <input type="password" id="password-input" name="password" class="form-input liquid-glass" required placeholder="••••••••">
+                </div>
+                
+                <div id="register-password-confirm" style="display: none;">
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-white/80 mb-1">Повторите пароль</label>
+                        <input type="password" id="confirm-password-input" name="confirm_password" class="form-input liquid-glass" placeholder="••••••••">
+                    </div>
+                    <div class="mb-6 space-y-3">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agree_offer" name="agree_offer" class="mt-1" required disabled>
+                            <span class="text-xs text-white/60 leading-tight">Согласен с условиями Публичной оферты</span>
+                        </label>
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agree_privacy" name="agree_privacy" class="mt-1" required disabled>
+                            <span class="text-xs text-white/60 leading-tight">Согласен с условиями Политики конфиденциальности</span>
+                        </label>
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agree_data" name="agree_data" class="mt-1" required disabled>
+                            <span class="text-xs text-white/60 leading-tight">Даю свое Согласие на обработку персональных данных</span>
+                        </label>
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agree_marketing" name="agree_marketing" class="mt-1" disabled>
+                            <span class="text-xs text-white/60 leading-tight">Даю согласие на получение рекламных сообщений.</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="auth-submit" type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors mt-2">
+                    Войти
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Modal Logic
+        function openLogin() {
+            document.getElementById('loginModal').classList.add('active');
+        }
+        function closeLogin() {
+            document.getElementById('loginModal').classList.remove('active');
+        }
+        document.getElementById('loginModal').addEventListener('click', function(e) {
+            if (e.target === this) closeLogin();
+        });
+
+        function setAuthMode(mode) {
+            const form = document.getElementById('auth-form');
+            const title = document.getElementById('auth-title');
+            const desc = document.getElementById('auth-desc');
+            const submitBtn = document.getElementById('auth-submit');
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            const regFields = document.getElementById('register-fields');
+            const regConfirm = document.getElementById('register-password-confirm');
+            const emailInput = document.getElementById('email-input');
+            const confPassInput = document.getElementById('confirm-password-input');
+            const checks = ['agree_offer', 'agree_privacy', 'agree_data', 'agree_marketing'];
+
+            if (mode === 'login') {
+                form.action = '/login';
+                title.innerText = 'С возвращением';
+                desc.innerText = 'Войдите в свой лабораторный журнал';
+                submitBtn.innerText = 'Войти';
+                tabLogin.classList.replace('border-transparent', 'border-[#64CEFB]');
+                tabLogin.classList.replace('text-white/50', 'text-white');
+                tabRegister.classList.replace('border-[#64CEFB]', 'border-transparent');
+                tabRegister.classList.replace('text-white', 'text-white/50');
+                
+                regFields.style.display = 'none';
+                regConfirm.style.display = 'none';
+                emailInput.required = false;
+                confPassInput.required = false;
+                checks.forEach(id => document.getElementById(id).disabled = true);
+            } else {
+                form.action = '/register';
+                title.innerText = 'Создать аккаунт';
+                desc.innerText = 'Присоединяйтесь к новой эре исследований';
+                submitBtn.innerText = 'Зарегистрироваться';
+                tabRegister.classList.replace('border-transparent', 'border-[#64CEFB]');
+                tabRegister.classList.replace('text-white/50', 'text-white');
+                tabLogin.classList.replace('border-[#64CEFB]', 'border-transparent');
+                tabLogin.classList.replace('text-white', 'text-white/50');
+                
+                regFields.style.display = 'block';
+                regConfirm.style.display = 'block';
+                emailInput.required = true;
+                confPassInput.required = true;
+                checks.forEach(id => document.getElementById(id).disabled = false);
+            }
+        }
+        
+        document.getElementById('auth-form').addEventListener('submit', function(e) {
+            if (this.action.includes('register')) {
+                const pass = document.getElementById('password-input').value;
+                const conf = document.getElementById('confirm-password-input').value;
+                if (pass !== conf) {
+                    e.preventDefault();
+                    alert('Пароли не совпадают!');
+                }
+            }
+        });
+        
+        {% if error %}
+        // Auto-open modal if there's an error
+        document.addEventListener('DOMContentLoaded', () => {
+            openLogin();
+            {% if error == 'UserExists' %}
+            setAuthMode('register');
+            {% endif %}
+        });
+        {% endif %}
+
+        // Scroll Reveal Animation (Intersection Observer)
+        document.addEventListener('DOMContentLoaded', () => {
+            const reveals = document.querySelectorAll('.reveal');
+            
+            const revealOptions = {
+                threshold: 0.15,
+                rootMargin: "0px 0px -50px 0px"
+            };
+
+            const revealOnScroll = new IntersectionObserver(function(entries, observer) {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    entry.target.classList.add('active');
+                    observer.unobserve(entry.target);
+                });
+            }, revealOptions);
+
+            reveals.forEach(reveal => {
+                revealOnScroll.observe(reveal);
+            });
+        });
+    </script>
+</body>
+</html>

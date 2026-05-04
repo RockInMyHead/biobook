@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ node.title }} | Bio-Notebook</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Space Grotesk', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    },
+                    colors: {
+                        black: '#000000',
+                        accent: '#64CEFB'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { 
+            background-color: #000000; color: white; margin: 0; 
+            font-family: 'Inter', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
+        }
+
+        h1, h2, h3, h4, .font-heading { font-family: 'Space Grotesk', sans-serif; }
+
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.02); background-blend-mode: luminosity;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .liquid-glass-strong {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
+        }
+
+        /* Layout */
+        .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; gap: 1rem; padding: 1rem; }
+        
+        .workspace { flex: 3; overflow-y: auto; position: relative; scroll-behavior: smooth; border-radius: 1rem; padding: 2rem; }
+        .chat-sidebar { flex: 1.5; display: flex; flex-direction: column; position: relative; overflow: hidden; border-radius: 1rem; }
+
+        .editor-container { max-width: 900px; margin: 0 auto; color: white; }
+        .editable-area { min-height: 50vh; outline: none; font-size: 1.05rem; line-height: 1.7; color: rgba(255,255,255,0.9); padding: 1rem; }
+        .editable-area img { max-width: 100%; border-radius: 12px; margin: 1.5rem 0; box-shadow: 0 10px 30px rgba(0,0,0,0.3); vertical-align: bottom; display: inline-block; }
+
+        /* Toolbars */
+        .workspace-toolbar { 
+            margin-bottom: 1.5rem; display: flex; gap: 0.5rem; position: sticky; top: 0; z-index: 10;
+            padding: 0.5rem; border-radius: 1rem; flex-wrap: wrap;
+        }
+        .tool-btn { 
+            padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; 
+            display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 500;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7);
+        }
+        .tool-btn:hover { background: rgba(100, 206, 251, 0.1); color: #64CEFB; border-color: rgba(100, 206, 251, 0.3); }
+
+        /* Chat */
+        .chat-messages { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+        .chat-input-area { padding: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); }
+        
+        .message { max-width: 90%; padding: 1rem 1.25rem; border-radius: 1rem; font-size: 0.95rem; line-height: 1.5; }
+        .message.user { align-self: flex-end; background: #64CEFB; color: black; font-weight: 500; border-bottom-right-radius: 4px; }
+        .message.assistant { 
+            align-self: flex-start; background: rgba(255,255,255,0.05); color: #e2e8f0; 
+            border-top-left-radius: 4px; border: 1px solid rgba(255,255,255,0.1);
+            font-family: 'Fira Code', monospace; white-space: pre-wrap; font-size: 0.85rem;
+        }
+
+        .chat-field { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; padding: 0.75rem 1rem; outline: none; transition: border-color 0.2s; }
+        .chat-field:focus { border-color: #64CEFB; }
+
+        /* Save State */
+        .save-indicator { position: fixed; bottom: 2rem; right: 42%; padding: 0.5rem 1.5rem; background: rgba(100, 206, 251, 0.2); border: 1px solid #64CEFB; border-radius: 2rem; font-size: 0.8rem; font-weight: bold; color: #64CEFB; opacity: 0; transition: opacity 0.3s; z-index: 50; }
+        .save-indicator.active { opacity: 1; }
+        
+        /* Modals & Tools */
+        .img-toolbar { position: absolute; display: none; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); border: 1px solid #64CEFB; border-radius: 0.75rem; padding: 0.5rem; gap: 0.5rem; z-index: 1000; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        .img-toolbar button { background: none; border: none; color: #fff; padding: 5px 10px; cursor: pointer; border-radius: 0.5rem; transition: background 0.2s; font-size: 1rem;}
+        .img-toolbar button:hover { background: rgba(100, 206, 251, 0.3); }
+        
+        .sketchpad-container { background: rgba(10, 12, 28, 0.95); border: 1px solid #64CEFB; border-radius: 20px; padding: 2rem; display: none; flex-direction: column; align-items: center; gap: 1.5rem; z-index: 2000; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
+        #sketchCanvas { cursor: crosshair; touch-action: none; }
+        
+        /* Overlay sits on top of editor *content* (accounts for editor padding) */
+        .drawing-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            width: calc(100% - 2rem);
+            height: calc(100% - 2rem);
+            display: none;
+            z-index: 50;
+            background: rgba(255,255,255,0.02);
+            cursor: crosshair;
+        }
+        .drawing-controls { position: sticky; top: 80px; z-index: 100; display: none; padding: 0.75rem; border-radius: 1rem; margin-bottom: 1rem; justify-content: center; gap: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .code-cell { background: #0a0a0a; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; margin: 1.5rem 0; overflow: hidden; font-family: 'Fira Code', monospace; display: block; }
+        .code-editor { width: 100%; display: block; background: transparent; border: none; color: #d1d5db; padding: 1.25rem; font-size: 0.9rem; outline: none; resize: none; min-height: 80px; margin-bottom: 0; overflow: hidden; line-height: 1.6; }
+        .code-output { background: rgba(16, 185, 129, 0.05); border-top: 1px solid rgba(255,255,255,0.1); padding: 1rem 1.25rem; font-size: 0.85rem; color: #10b981; white-space: pre-wrap; min-height: 20px; display: block; }
+        .code-actions { background: rgba(255,255,255,0.02); padding: 0.75rem 1.25rem; display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid rgba(255,255,255,0.1); margin-top: -1px; }
+        
+        .anchored-drawing { position: relative; width: 100%; height: 0; overflow: visible; pointer-events: none; z-index: 15; display: inline-block; }
+        .anchored-drawing img { position: absolute; left: 0; top: 0; width: 100%; height: auto; pointer-events: none; }
+        
+        .audio-controls { display: none; align-items: center; gap: 1rem; background: rgba(100, 206, 251, 0.1); border: 1px solid #64CEFB; padding: 0.75rem 1.25rem; border-radius: 1rem; margin-bottom: 1.5rem; position: sticky; top: 80px; z-index: 90; }
+        #audioVisualizer { flex: 1; height: 30px; }
+        
+        .btn-primary { background: #64CEFB; color: black; font-weight: bold; border-radius: 0.5rem; padding: 0.5rem 1rem; border: none; cursor: pointer; transition: background 0.2s; }
+        .btn-primary:hover { background: #4bbdf2; }
+    </style>
+</head>
+<body class="antialiased text-white">
+
+    <!-- Navbar -->
+    <nav class="w-full px-6 lg:px-10 py-4 z-50 flex items-center justify-between border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 flex-shrink-0">
+        <div class="flex items-center gap-4">
+            {% if is_public_view %}
+                <a href="/share/{{ exp.id }}" class="text-white/50 hover:text-[#64CEFB] transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></a>
+            {% else %}
+                <a href="/experiment/{{ user }}/{{ exp.id }}" class="text-white/50 hover:text-[#64CEFB] transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></a>
+            {% endif %}
+            <div>
+                <h1 class="font-bold text-lg tracking-tight font-heading flex items-center gap-2">
+                    {{ node.title }}
+                    {% if is_public_view %}
+                        <span class="text-[10px] uppercase px-2 py-1 bg-[#10b981]/10 text-[#10b981] rounded border border-[#10b981]/20 font-bold">PUBLIC</span>
+                    {% else %}
+                        <div class="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ml-2"></div>
+                    {% endif %}
+                </h1>
+                <p class="text-xs text-white/50 font-mono">{{ exp.name }} | {{ 'ROOT' if node.id == 'root' else 'NODE-' ~ node.id.upper() }}</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="hidden md:flex items-center gap-2 text-white/60 text-sm">
+                <i data-lucide="user" class="w-4 h-4"></i> {{ user }}
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-layout">
+        <!-- Research Workspace -->
+        <section class="workspace liquid-glass-strong">
+            <div class="editor-container">
+                {% if not is_public_view %}
+                <div class="workspace-toolbar liquid-glass">
+                    <button class="tool-btn" onclick="document.getElementById('imageUpload').click()">
+                        <i data-lucide="image" class="w-4 h-4"></i> Фото
+                    </button>
+                    <input type="file" id="imageUpload" style="display:none" accept="image/*" onchange="uploadImage(this)">
+                    
+                    <button class="tool-btn" id="voiceBtn" onclick="toggleRecording()">
+                        <i data-lucide="mic" class="w-4 h-4"></i> Аудио
+                    </button>
+
+                    <button class="tool-btn" onclick="openSketchpad()">
+                        <i data-lucide="pen-tool" class="w-4 h-4"></i> Рисовать
+                    </button>
+
+                    <button class="tool-btn" onclick="addCodeCell()">
+                        <i data-lucide="code" class="w-4 h-4"></i> Код
+                    </button>
+
+                    <button class="tool-btn" onclick="downloadDocx()">
+                        <i data-lucide="download" class="w-4 h-4"></i> Скачать
+                    </button>
+                    
+                    <div class="flex items-center ml-auto bg-white/5 rounded-lg border border-white/10 p-1">
+                        <button type="button" class="tool-btn border-none bg-transparent hover:bg-white/10" onclick="travelTime(1)" title="Назад во времени">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <button type="button" class="tool-btn border-none bg-transparent text-[#64CEFB] hover:bg-white/10 font-bold px-4" title="Ветки">
+                            Ветки
+                        </button>
+                        <button type="button" class="tool-btn border-none bg-transparent hover:bg-white/10" onclick="travelTime(-1)" title="Вперед во времени">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Audio Visualizer Panel -->
+                <div id="audioPanel" class="audio-controls">
+                    <span class="text-xs font-bold text-[#64CEFB] tracking-widest">ТРАНСКРИБАЦИЯ</span>
+                    <canvas id="audioVisualizer"></canvas>
+                    <button class="btn-primary text-xs py-1" onclick="stopRecording()">Стоп</button>
+                </div>
+                
+                <div id="editorWrap" class="relative">
+                    <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}" oninput="autoSave()">
+                        {{ notes.notes_html | safe if notes else '' }}
+                    </div>
+                    <canvas id="drawingCanvas" class="drawing-overlay"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Chat -->
+        <aside class="chat-sidebar liquid-glass">
+            <div class="p-4 border-b border-white/10 flex items-center gap-2">
+                <i data-lucide="bot" class="w-5 h-5 text-[#64CEFB]"></i>
+                <h3 class="text-xs font-bold text-[#64CEFB] tracking-widest">AI АССИСТЕНТ</h3>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                {% if notes and notes.chat_history %}
+                    {% for msg in notes.chat_history %}
+                        <div class="message {{ 'user' if msg.role == 'user' else 'assistant' }}">
+                            {{ msg.content }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            {% if not is_public_view %}
+            <div class="chat-input-area">
+                <form class="flex gap-3" onsubmit="sendMessage(event)">
+                    <input type="text" id="chatInput" class="chat-field" placeholder="Задайте вопрос ассистенту..." autocomplete="off">
+                    <button type="submit" class="btn-primary px-5 flex items-center justify-center">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </aside>
+    </div>
+
+    <div id="saveIndicator" class="save-indicator">Сохранено</div>
+
+    <!-- Drawing Controls -->
+    <div id="drawingControls" class="drawing-controls liquid-glass-strong">
+        <span class="text-[#64CEFB] font-bold text-sm self-center mr-4">РЕЖИМ РИСОВАНИЯ</span>
+        <button class="tool-btn" onclick="cancelDrawing()">Отмена</button>
+        <button class="tool-btn" onclick="clearDrawing()">Очистить</button>
+        <button class="btn-primary" onclick="finishDrawing()">Сохранить рисунок</button>
+    </div>
+
+    <!-- Image Toolbar -->
+    <div id="imgToolbar" class="img-toolbar">
+        <button onclick="rotateImg(-90)" title="Повернуть влево"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+        <button onclick="rotateImg(90)" title="Повернуть вправо"><i data-lucide="rotate-cw" class="w-4 h-4"></i></button>
+        <button onclick="flipImg('H')" title="Отразить горизонтально"><i data-lucide="flip-horizontal" class="w-4 h-4"></i></button>
+        <button onclick="flipImg('V')" title="Отразить вертикально"><i data-lucide="flip-vertical" class="w-4 h-4"></i></button>
+        <button onclick="resizeImg(-50)" title="Уменьшить"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+        <button onclick="resizeImg(50)" title="Увеличить"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+        <button onclick="runOCR()" title="Превратить в текст (AI)" class="text-[#64CEFB] font-bold text-xs px-2">OCR</button>
+        <button onclick="deleteImg()" title="Удалить" class="text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const exp_id = "{{ exp.id }}";
+        const node_id = "{{ node.id }}";
+        let saveTimeout;
+
+        // Voice & Recording Logic (server-side STT for Firefox compatibility)
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioContext;
+        let analyser;
+        let animationId;
+        let sttStream;
+
+        async function toggleRecording() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Микрофон доступен только через HTTPS или на localhost.");
+                return;
+            }
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                stopRecording();
+                return;
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                sttStream = stream;
+                document.getElementById('audioPanel').style.display = 'flex';
+                document.getElementById('voiceBtn').style.background = 'rgba(239, 68, 68, 0.2)';
+                document.getElementById('voiceBtn').innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg> Стоп';
+
+                // Visualizer
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                drawVisualizer();
+
+                audioChunks = [];
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                  ? 'audio/webm;codecs=opus'
+                  : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+                mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+                };
+                mediaRecorder.start();
+            } catch (e) { console.error('Mic access denied', e); }
+        }
+
+        function drawVisualizer() {
+            const canvas = document.getElementById('audioVisualizer');
+            const ctx = canvas.getContext('2d');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                animationId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00A3FF';
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i] / 4;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            }
+            draw();
+        }
+
+        async function stopRecording() {
+            try {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    await new Promise((resolve) => {
+                        mediaRecorder.onstop = resolve;
+                        mediaRecorder.stop();
+                    });
+                }
+            } catch (e) {}
+
+            try {
+                if (sttStream) sttStream.getTracks().forEach(t => t.stop());
+            } catch (e) {}
+
+            try { if (audioContext) await audioContext.close(); } catch (e) {}
+            try { cancelAnimationFrame(animationId); } catch (e) {}
+
+            document.getElementById('audioPanel').style.display = 'none';
+            document.getElementById('voiceBtn').style.background = '';
+            document.getElementById('voiceBtn').innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Аудио';
+
+            // Send to server STT
+            if (audioChunks.length) {
+                try {
+                    appendMessage('assistant', 'Распознаю речь...');
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const fd = new FormData();
+                    fd.append('file', blob, 'audio.webm');
+                    const resp = await fetch('/api/stt', { method: 'POST', body: fd });
+                    const data = await resp.json();
+                    if (data && data.text) {
+                        const editor = document.getElementById('editor');
+                        editor.focus();
+                        document.execCommand('insertText', false, data.text + ' ');
+                        autoSave();
+                        appendMessage('assistant', 'Транскрибация добавлена в заметки.');
+                    } else {
+                        appendMessage('assistant', 'Не удалось получить текст транскрибации.');
+                    }
+                } catch (e) {
+                    appendMessage('assistant', 'Ошибка транскрибации на сервере.');
+                }
+            }
+        }
+
+        // AutoSave Logic with Retry
+        async function autoSave(retries = 3) {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                const html = document.getElementById('editor').innerHTML;
+                const annotationUrl = document.getElementById('editor').dataset.annotationUrl || '';
+                
+                const performSave = async (count) => {
+                    try {
+                        const resp = await fetch('/api/node/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ exp_id, node_id, html, annotation_url: annotationUrl })
+                        });
+                        if (!resp.ok) throw new Error('Server error');
+                        showSaveIndicator();
+                    } catch (e) {
+                        console.error(`Save failed (${count} retries left)`, e);
+                        if (count > 0) {
+                            setTimeout(() => performSave(count - 1), 2000);
+                        } else {
+                            const ind = document.getElementById('saveIndicator');
+                            ind.innerText = 'Ошибка сохранения!';
+                            ind.style.background = '#ef4444';
+                            ind.classList.add('active');
+                        }
+                    }
+                };
+                
+                performSave(retries);
+            }, 1000);
+        }
+
+        function showSaveIndicator() {
+            const ind = document.getElementById('saveIndicator');
+            ind.classList.add('active');
+            setTimeout(() => ind.classList.remove('active'), 2000);
+        }
+
+        // Chat Logic
+        async function chatWithAI(text) {
+            try {
+                const currentHtml = document.getElementById('editor').innerHTML;
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ exp_id, node_id, message: text, html_context: currentHtml })
+                });
+                const data = await resp.json();
+                
+                if (data.edit_html) {
+                    document.getElementById('editor').innerHTML = data.edit_html;
+                    autoSave();
+                    appendMessage('assistant', 'Я внес изменения в ваш документ.');
+                } else if (data.reply) {
+                    appendMessage('assistant', data.reply);
+                }
+            } catch (e) {
+                appendMessage('assistant', 'Произошла ошибка при связи с AI ассистентом.');
+            }
+        }
+
+        async function sendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Add user message to UI
+            appendMessage('user', text);
+            input.value = '';
+
+            await chatWithAI(text);
+        }
+
+        // Image Upload
+        async function uploadImage(input) {
+            if (!input.files || !input.files[0]) return;
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            try {
+                const resp = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                
+                // Insert into editor
+                const img = `<img src="${data.url}" alt="Uploaded image">`;
+                document.getElementById('editor').innerHTML += img;
+                autoSave();
+            } catch (e) { alert('Ошибка загрузки'); }
+        }
+
+        function appendMessage(role, text) {
+            const container = document.getElementById('chatMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            msgDiv.innerText = text;
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Image Editing Logic
+        let activeImg = null;
+        document.getElementById('editor').addEventListener('click', (e) => {
+            if (e.target.tagName === 'IMG') {
+                activeImg = e.target;
+                showImgToolbar(e.target);
+            } else {
+                document.getElementById('imgToolbar').style.display = 'none';
+            }
+        });
+
+        function showImgToolbar(img) {
+            const toolbar = document.getElementById('imgToolbar');
+            const rect = img.getBoundingClientRect();
+            const scrollY = window.scrollY || window.pageYOffset;
+            const scrollX = window.scrollX || window.pageXOffset;
+            
+            toolbar.style.display = 'flex';
+            toolbar.style.top = `${rect.top + scrollY - 50}px`;
+            toolbar.style.left = `${rect.left + scrollX}px`;
+        }
+
+        function rotateImg(deg) {
+            if (!activeImg) return;
+            let current = parseInt(activeImg.dataset.rotate || 0);
+            current += deg;
+            activeImg.dataset.rotate = current;
+            applyImgStyles();
+        }
+
+        function flipImg(dir) {
+            if (!activeImg) return;
+            if (dir === 'H') {
+                activeImg.dataset.flipH = activeImg.dataset.flipH === 'true' ? 'false' : 'true';
+            } else {
+                activeImg.dataset.flipV = activeImg.dataset.flipV === 'true' ? 'false' : 'true';
+            }
+            applyImgStyles();
+        }
+
+        function resizeImg(delta) {
+            if (!activeImg) return;
+            let current = activeImg.width || 300;
+            activeImg.style.width = (current + delta) + 'px';
+            autoSave();
+        }
+
+        function applyImgStyles() {
+            if (!activeImg) return;
+            const rotate = activeImg.dataset.rotate || 0;
+            const flipH = activeImg.dataset.flipH === 'true' ? -1 : 1;
+            const flipV = activeImg.dataset.flipV === 'true' ? -1 : 1;
+            activeImg.style.transform = `rotate(${rotate}deg) scale(${flipH}, ${flipV})`;
+            autoSave();
+        }
+
+        function deleteImg() {
+            if (activeImg) {
+                activeImg.remove();
+                document.getElementById('imgToolbar').style.display = 'none';
+                autoSave();
+            }
+        }
+
+        async function runOCR() {
+            if (!activeImg) return;
+            appendMessage('assistant', 'Анализирую изображение...');
+
+            try {
+                // Convert image to base64 for vision API
+                const canvas = document.createElement('canvas');
+                const imgEl = activeImg;
+                canvas.width = imgEl.naturalWidth || imgEl.width;
+                canvas.height = imgEl.naturalHeight || imgEl.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imgEl, 0, 0);
+                const base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+                const resp = await fetch('/api/ocr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_b64: base64, exp_id, node_id })
+                });
+                const data = await resp.json();
+                
+                const textNode = document.createElement('p');
+                textNode.style.cssText = 'background:rgba(100,206,251,0.08);padding:1rem;border-radius:8px;margin-top:1rem;border:1px solid rgba(100,206,251,0.2);';
+                textNode.innerHTML = `<strong>Результат OCR:</strong><br>${data.text}`;
+                activeImg.after(textNode);
+                appendMessage('assistant', 'Готово! Текст добавлен в заметки под изображением.');
+                autoSave();
+            } catch (e) {
+                appendMessage('assistant', 'Ошибка при распознавании изображения.');
+            }
+        }
+        // Global Annotation Logic
+        const mainCanvas = document.getElementById('drawingCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+        const drawingControls = document.getElementById('drawingControls');
+        const annotationLayer = document.getElementById('annotationLayer');
+        const editor = document.getElementById('editor');
+        const workspace = document.querySelector('.workspace');
+        
+        let isDrawingMode = false;
+        let isDrawing = false;
+
+        let drawingStartTop = 0;
+        let drawingInsertRange = null;
+        let prevWorkspaceOverflowY = '';
+
+        function syncDrawingCanvasSize() {
+            // Ensure internal canvas resolution matches CSS size (fixes offset + blurry lines on retina)
+            const dpr = window.devicePixelRatio || 1;
+            const rect = mainCanvas.getBoundingClientRect();
+            const w = Math.max(1, Math.round(rect.width * dpr));
+            const h = Math.max(1, Math.round(rect.height * dpr));
+            if (mainCanvas.width !== w) mainCanvas.width = w;
+            if (mainCanvas.height !== h) mainCanvas.height = h;
+            mainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function getCanvasPoint(e) {
+            const rect = mainCanvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            };
+        }
+
+        function openSketchpad() {
+            isDrawingMode = true;
+            mainCanvas.style.display = 'block';
+            drawingControls.style.display = 'flex';
+            
+            // Remember caret position to insert drawing back where user was
+            try {
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    const r = sel.getRangeAt(0);
+                    if (editor.contains(r.startContainer)) drawingInsertRange = r.cloneRange();
+                }
+            } catch (e) {
+                drawingInsertRange = null;
+            }
+
+            // Lock workspace scroll during drawing to keep coordinates stable
+            prevWorkspaceOverflowY = workspace.style.overflowY || '';
+            workspace.style.overflowY = 'hidden';
+
+            // Sync overlay height to editor content height (so it covers full note)
+            const targetH = Math.max(editor.scrollHeight, 1000);
+            mainCanvas.style.height = `${targetH}px`;
+            // Width is controlled by CSS (calc(100% - 2rem)), but internal resolution must match
+            syncDrawingCanvasSize();
+            
+            drawingStartTop = workspace.scrollTop;
+            
+            mainCtx.strokeStyle = '#00A3FF';
+            mainCtx.lineWidth = 4;
+            mainCtx.lineCap = 'round';
+            mainCtx.lineJoin = 'round';
+            
+            // Disable editor while drawing
+            editor.contentEditable = "false";
+        }
+
+        function cancelDrawing() {
+            isDrawingMode = false;
+            mainCanvas.style.display = 'none';
+            drawingControls.style.display = 'none';
+            editor.contentEditable = "true";
+            workspace.style.overflowY = prevWorkspaceOverflowY;
+            clearDrawing();
+        }
+
+        function clearDrawing() {
+            mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        }
+
+        mainCanvas.addEventListener('mousedown', startDraw);
+        mainCanvas.addEventListener('mousemove', draw);
+        mainCanvas.addEventListener('mouseup', stopDraw);
+        mainCanvas.addEventListener('mouseleave', stopDraw);
+
+        function startDraw(e) {
+            isDrawing = true;
+            const pt = getCanvasPoint(e);
+            mainCtx.beginPath();
+            mainCtx.moveTo(pt.x, pt.y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pt = getCanvasPoint(e);
+            mainCtx.lineTo(pt.x, pt.y);
+            mainCtx.stroke();
+        }
+
+        function stopDraw() {
+            isDrawing = false;
+        }
+
+        async function finishDrawing() {
+            // Make sure we don't save at wrong resolution after layout changes
+            syncDrawingCanvasSize();
+            const dataURL = mainCanvas.toDataURL('image/png');
+            // Check if canvas is empty to avoid saving blank overlays
+            const pixels = mainCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height).data;
+            let hasContent = false;
+            for(let i=3; i<pixels.length; i+=4) if(pixels[i] > 0) { hasContent = true; break; }
+            if(!hasContent) { cancelDrawing(); return; }
+
+            try {
+                const blob = await (await fetch(dataURL)).blob();
+                const formData = new FormData();
+                formData.append('file', blob, 'sketch.png');
+                
+                const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+                
+                // Insert drawing as a normal image at the remembered caret position
+                editor.contentEditable = "true";
+                editor.focus();
+                try {
+                    const sel = window.getSelection();
+                    if (drawingInsertRange && sel) {
+                        sel.removeAllRanges();
+                        sel.addRange(drawingInsertRange);
+                    }
+                } catch (e) {}
+
+                const imgHTML = `<p><img src="${data.url}" alt="Рисунок"></p><p><br></p>`;
+                document.execCommand('insertHTML', false, imgHTML);
+
+                cancelDrawing();
+                autoSave();
+            } catch (e) {
+                console.error('Save failed', e);
+                alert('Ошибка сохранения');
+            }
+        }
+
+        async function downloadDocx() {
+            try {
+                const resp = await fetch(`/api/node/export_docx?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`);
+                if (!resp.ok) {
+                    alert('Не удалось сформировать DOCX');
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `node_${node_id}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Ошибка скачивания');
+            }
+        }
+        // Code Cell Logic
+        function autoExpand(el) {
+            el.style.height = 'inherit';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        function addCodeCell() {
+            const cellId = 'cell_' + Math.random().toString(36).substr(2, 9);
+            const cellHTML = `
+                <div class="code-cell" id="${cellId}" contenteditable="false">
+                    <textarea
+                        class="code-editor"
+                        placeholder="Введите Python-код… (для автодополнения напишите @@)"
+                        oninput="autoExpand(this)"
+                    >print(\"Hello Bio-Notebook!\")</textarea>
+                    <div class="code-actions">
+                        <button
+                            class="btn"
+                            title="Удалить блок"
+                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.2rem 0.6rem;"
+                            onclick="deleteCodeCell('${cellId}')"
+                        >✕</button>
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.45);font-family: 'Fira Code', monospace; white-space:nowrap;">Подсказка: @@ → автодополнение</span>
+                            <button
+                                class="btn run-btn"
+                                title="Выполнить код"
+                                style="padding: 0.2rem 0.9rem; font-size: 0.8rem; background: rgba(100,206,251,0.15); border: 1px solid rgba(100,206,251,0.25); color: #64CEFB;"
+                                data-cell-id="${cellId}"
+                            >▶ Run</button>
+                        </div>
+                    </div>
+                    <div class="code-output"><span style="color:rgba(255,255,255,0.45)">Вывод появится здесь после запуска.</span></div>
+                </div>
+                <p><br></p>
+            `;
+            const editor = document.getElementById('editor');
+            editor.focus();
+            document.execCommand('insertHTML', false, cellHTML);
+            
+            // Initial expansion for pre-filled code
+            setTimeout(() => {
+                const newArea = document.querySelector(`#${cellId} .code-editor`);
+                if(newArea) autoExpand(newArea);
+            }, 10);
+        }
+
+        function deleteCodeCell(cellId) {
+            const cell = document.getElementById(cellId);
+            if (cell) {
+                cell.remove();
+                autoSave();
+            }
+        }
+
+        // Event delegation for Run buttons and Autocomplete
+        document.getElementById('editor').addEventListener('click', (e) => {
+            if (e.target.classList.contains('run-btn')) {
+                const cellId = e.target.dataset.cellId;
+                runCode(cellId);
+            }
+        });
+
+        let autocompleteTimeout;
+        document.getElementById('editor').addEventListener('keyup', (e) => {
+            if (e.target.classList.contains('code-editor')) {
+                const val = e.target.value;
+                const cursorIndex = e.target.selectionStart;
+                const textBeforeCursor = val.substring(0, cursorIndex);
+                
+                if (textBeforeCursor.includes('@@')) {
+                    clearTimeout(autocompleteTimeout);
+                    autocompleteTimeout = setTimeout(async () => {
+                        const originalBg = e.target.style.background;
+                        e.target.style.background = 'rgba(0, 163, 255, 0.05)';
+                        try {
+                            const resp = await fetch('/api/kernel/autocomplete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ code: textBeforeCursor })
+                            });
+                            const data = await resp.json();
+                            if (data.completion) {
+                                const newContext = textBeforeCursor.substring(0, textBeforeCursor.lastIndexOf('@@'));
+                                const newText = newContext + data.completion + val.substring(cursorIndex);
+                                e.target.value = newText;
+                                const newIdx = newContext.length + data.completion.length;
+                                e.target.setSelectionRange(newIdx, newIdx);
+                                autoExpand(e.target);
+                                autoSave();
+                            }
+                        } catch (err) {
+                            console.error('Autocomplete error', err);
+                        } finally {
+                            e.target.style.background = originalBg;
+                        }
+                    }, 1500);
+                }
+            }
+        });
+
+        async function runCode(cellId) {
+            const cell = document.getElementById(cellId);
+            const code = cell.querySelector('.code-editor').value;
+            const outputArea = cell.querySelector('.code-output');
+            outputArea.innerText = 'Executing...';
+            outputArea.style.color = '#60a5fa';
+
+            try {
+                const resp = await fetch('/api/kernel/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ exp_id, code })
+                });
+                const data = await resp.json();
+                outputArea.innerText = data.output || data.error;
+                outputArea.style.color = data.error ? '#ef4444' : '#10b981';
+                autoSave();
+            } catch (e) {
+                outputArea.innerText = 'Error connecting to kernel.';
+                outputArea.style.color = '#ef4444';
+            }
+        }
+
+        // Paste Handling: Prevent Base64 images
+        document.getElementById('editor').addEventListener('paste', async (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    const blob = item.getAsFile();
+                    const formData = new FormData();
+                    formData.append('file', blob, 'pasted-image.png');
+                    
+                    try {
+                        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+                        const data = await resp.json();
+                        const imgHTML = `<img src="${data.url}" alt="Pasted Image">`;
+                        document.execCommand('insertHTML', false, imgHTML);
+                        autoSave();
+                    } catch (err) {
+                        console.error('Paste upload failed', err);
+                    }
+                }
+            }
+        });
+
+        // --- Time travel (стрелки + подпись «Ветки»; список снимков в UI убран) ---
+        let currentVersions = [];
+        let timeOffset = 0;
+
+        async function travelTime(direction) {
+            try {
+                const resp = await fetch(`/api/node/version/list?exp_id=${exp_id}&node_id=${node_id}`);
+                const data = await resp.json();
+                currentVersions = data.versions || [];
+
+                if (currentVersions.length === 0) {
+                    alert('Нет сохранённых снимков для этого узла.');
+                    return;
+                }
+
+                timeOffset += direction;
+                if (timeOffset < 0) timeOffset = 0;
+                if (timeOffset > currentVersions.length) timeOffset = currentVersions.length;
+
+                if (timeOffset === 0) {
+                    window.location.reload();
+                    return;
+                }
+
+                const version = currentVersions[timeOffset - 1];
+                await applyVersionToUI(version);
+
+                const indicator = document.createElement('div');
+                indicator.id = 'time-travel-indicator';
+                indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; font-size: 0.8rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;';
+                indicator.innerText = `ПРОСМОТР ВЕРСИИ: ${version.message} (${new Date(version.created_at).toLocaleString('ru-RU')})`;
+                const old = document.getElementById('time-travel-indicator');
+                if (old) old.remove();
+                document.body.appendChild(indicator);
+                setTimeout(() => { indicator.style.opacity = '0.7'; }, 2000);
+            } catch (e) {
+                console.error('Time travel error', e);
+            }
+        }
+
+        async function applyVersionToUI(version) {
+            const r = await fetch(`/api/node/version/${version.id}`);
+            if (!r.ok) return;
+            const data = await r.json();
+            const editor = document.getElementById('editor');
+            editor.innerHTML = data.html_snapshot || '';
+            document.querySelectorAll('.code-editor').forEach(autoExpand);
+        }
+    </script>
+</body>
+</html>
