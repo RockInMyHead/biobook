@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Wiki: {{ exp.name }}{% endblock %}
+{% block nav_subtitle %}Wiki{% endblock %}
+
+{% block extra_head %}
+<style>
+    .wiki-page-item {
+        transition: all 0.2s ease;
+    }
+    .wiki-page-item:hover {
+        border-color: var(--primary) !important;
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div>
+        <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}" class="text-sm flex items-center gap-1 mb-3 no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> К эксперименту
+        </a>
+        <h1 class="text-3xl md:text-4xl font-heading tracking-tight">Внутренняя Wiki</h1>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">{{ exp.name }} · {{ pages|length }} страниц</p>
+    </div>
+    {% if is_owner or viewing_user %}
+    <button onclick="openNewPageModal()" class="font-bold py-2.5 px-5 rounded-full transition-colors text-sm" style="background: var(--primary); color: var(--primary-fg);">
+        <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Новая страница
+    </button>
+    {% endif %}
+</div>
+
+{% if pages %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for page in pages %}
+    <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/wiki/{{ page.id }}" class="wiki-page-item liquid-glass rounded-xl p-5 no-underline flex flex-col" style="color: var(--text-main); border-color: var(--glass-border);">
+        <div class="flex items-start justify-between gap-3">
+            <h3 class="text-lg font-heading font-semibold">{{ page.title }}</h3>
+            <i data-lucide="chevron-right" class="w-4 h-4 flex-shrink-0 mt-1" style="color: var(--text-muted);"></i>
+        </div>
+        {% if page.content %}
+        <p class="text-sm mt-2 line-clamp-2 leading-relaxed" style="color: var(--text-muted);">{{ page.content[:200] }}{% if page.content|length > 200 %}...{% endif %}</p>
+        {% else %}
+        <p class="text-sm mt-2 italic" style="color: var(--text-muted); opacity: 0.6;">Пустая страница</p>
+        {% endif %}
+        <div class="mt-3 text-[10px] uppercase tracking-wider" style="color: var(--text-muted); opacity: 0.5;">
+            Обновлена: {{ page.updated_at[:10] if page.updated_at else page.created_at[:10] }}
+            {% if page.created_by %} · {{ page.created_by }}{% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="liquid-glass rounded-2xl p-16 text-center flex flex-col items-center">
+    <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4" style="background: var(--glass-bg);">
+        <i data-lucide="book-open" class="w-8 h-8" style="color: var(--text-muted);"></i>
+    </div>
+    <h3 class="text-xl font-heading mb-2">Wiki пуста</h3>
+    <p class="text-sm mb-6" style="color: var(--text-muted);">Создайте первую страницу с протоколами и инструкциями для этой лаборатории.</p>
+    {% if is_owner or viewing_user %}
+    <button onclick="openNewPageModal()" class="liquid-glass px-6 py-3 rounded-full text-sm transition-colors" style="color: var(--text-main); border-color: var(--glass-border);">
+        Создать страницу
+    </button>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- New Page Modal -->
+<div id="newPageModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeNewPageModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" type="button">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <h2 class="text-2xl font-heading font-bold mb-6">Новая страница Wiki</h2>
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+            <input type="text" id="wikiTitleInput" class="form-input" placeholder="Название страницы">
+        </div>
+        <div class="mb-6">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Содержание</label>
+            <textarea id="wikiContentInput" rows="8" class="form-input resize-none font-mono text-sm" placeholder="Markdown-текст..."></textarea>
+        </div>
+        <button onclick="saveNewPage()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);">
+            Создать
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const BASE_PATH = '{{ base_path }}';
+    const EXP_ID = '{{ exp.id }}';
+    const USER = '{{ viewing_user or user }}';
+
+    function openNewPageModal() {
+        document.getElementById('newPageModal').classList.add('active');
+    }
+    function closeNewPageModal() {
+        document.getElementById('newPageModal').classList.remove('active');
+    }
+    document.getElementById('newPageModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeNewPageModal();
+    });
+
+    async function saveNewPage() {
+        const title = document.getElementById('wikiTitleInput').value.trim();
+        const content = document.getElementById('wikiContentInput').value;
+        if (!title) {
+            alert('Введите название страницы');
+            return;
+        }
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/wiki/save`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({exp_id: EXP_ID, title, content, username: USER}),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                window.location.href = `${BASE_PATH}/experiment/${USER}/${EXP_ID}/wiki/${data.page_id}`;
+            } else {
+                alert('Ошибка: ' + (data.error || 'неизвестная'));
+            }
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+</script>
+{% endblock %}

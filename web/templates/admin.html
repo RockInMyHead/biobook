@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Панель администратора | Bio-Notebook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css">
+    <style>
+        * { box-sizing: border-box; }
+        .stat-card { padding: 1.5rem; border-radius: 1rem; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+        table { width: 100%; border-collapse: collapse; }
+        table th { text-align: left; padding: 0.75rem 0.75rem 0.75rem 0; font-weight: 500; font-size: 0.875rem; color: var(--text-muted); border-bottom: 1px solid var(--table-border); }
+        table td { padding: 0.75rem 0.75rem 0.75rem 0; font-size: 0.875rem; color: var(--text-secondary); border-bottom: 1px solid var(--table-border-light); }
+        table tr:hover td { background: var(--table-hover); }
+        .admin-nav-link { padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s; cursor: pointer; color: var(--text-nav-inactive); font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .admin-nav-link:hover, .admin-nav-link.active { background: var(--status-active-bg); color: var(--status-active-text); }
+        .badge { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:var(--modal-overlay); z-index:100; justify-content:center; align-items:center; opacity:0; transition: opacity .3s; }
+        .modal.active { display:flex; opacity:1; }
+        .modal-content { transform: scale(.95); transition: transform .3s; width:100%; max-width:600px; }
+        .modal.active .modal-content { transform: scale(1); }
+        .section-toggle { display:none; }
+        .section-toggle.active { display:block; }
+        .theme-toggle-btn { background:var(--glass-bg); border:1px solid var(--glass-border); color:var(--text-muted); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .3s; font-size:1rem; }
+        .theme-toggle-btn:hover { background:var(--glass-hover); color:var(--text-main); border-color:var(--primary); }
+        .log-item { padding:10px 14px; border-radius:10px; margin-bottom:6px; border:1px solid var(--glass-border); background:var(--glass-bg); font-size:13px; display:flex; align-items:center; gap:12px; }
+        .log-item:hover { background:var(--glass-hover); }
+        .log-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .user-card { padding:14px 16px; border-radius:12px; border:1px solid var(--glass-border); background:var(--glass-bg); transition:all .2s; display:flex; align-items:center; gap:12px; }
+        .user-card:hover { border-color:var(--glass-border-hover); background:var(--glass-hover); }
+        .ticket-card { padding:16px; border-radius:14px; border:1px solid var(--glass-border); background:var(--glass-bg); transition:all .2s; cursor:pointer; }
+        .ticket-card:hover { border-color:var(--glass-border-hover); }
+        .chart-container { position:relative; height:200px; width:100%; }
+        .bulk-checkbox { width:16px; height:16px; cursor:pointer; accent-color:var(--primary); }
+        .minitable td { padding:0.4rem 0.6rem 0.4rem 0; font-size:0.8rem; }
+        .scroll-x { overflow-x:auto; }
+        .form-input { width:100%; padding:10px 14px; border-radius:12px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-main); font-size:14px; outline:none; transition:border-color .2s; }
+        .form-input:focus { border-color:var(--primary); }
+        .admin-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:1rem; }
+        .admin-toolbar .form-input { max-width:220px; }
+        .activity-feed { max-height:min(70vh,640px); overflow-y:auto; padding-right:4px; }
+        .activity-feed .log-item { margin-bottom:8px; }
+        .user-row-hidden { display:none !important; }
+        .users-layout { display:grid; grid-template-columns:1fr; gap:1.5rem; }
+        .admin-nav-scroll { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .admin-nav-scroll::-webkit-scrollbar { display: none; }
+        .admin-brand-sub { display: inline; }
+        .admin-exit-label { display: inline; }
+        .admin-page { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .admin-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+        .users-table-wrap { position: relative; }
+        .users-table-hint { display: none; font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+        @media (max-width: 1023px) {
+            .admin-main { padding-left: 1rem !important; padding-right: 1rem !important; padding-top: 1.25rem !important; padding-bottom: 2rem !important; }
+            .admin-topbar { padding: 0.75rem 1rem !important; gap: 0.5rem !important; }
+            .admin-exit-label { display: none; }
+            .admin-brand-title { font-size: 1rem !important; }
+            .admin-brand-sub { display: none; }
+            .admin-sidebar-title { font-size: 1.25rem; margin-bottom: 0.25rem; }
+            .admin-sidebar-desc { margin-bottom: 0.75rem !important; }
+            .admin-nav-link { padding: 0.55rem 0.85rem; font-size: 0.8125rem; flex-shrink: 0; }
+            .admin-nav-scroll { margin-left: -0.25rem; margin-right: -0.25rem; padding-bottom: 0.35rem; mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
+            .stat-card { padding: 1rem 1.1rem !important; }
+            .stat-value { font-size: 1.65rem; }
+            .admin-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+            .admin-toolbar .form-input, .admin-toolbar select, .admin-toolbar button { max-width: none !important; width: 100%; }
+            .activity-feed { max-height: 420px; }
+            .section-toggle h2 { font-size: 1.35rem; }
+            .modal { padding: 0; align-items: flex-end; }
+            .modal .modal-content { max-width: none !important; width: 100%; max-height: min(92vh, 720px); overflow-y: auto; border-radius: 1.25rem 1.25rem 0 0; margin: 0; padding: 1.25rem !important; padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important; }
+            #ticketModal .flex.gap-2 { flex-direction: column; align-items: stretch; }
+            #ticketModal .flex.gap-2 button { width: 100%; }
+            #logsSummary { flex-wrap: wrap; gap: 0.5rem 1rem !important; }
+            .section-toggle .flex.items-center.justify-between.mb-6 { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+            #ticketFilters { flex-direction: column; width: 100%; }
+            #ticketFilters select { max-width: none !important; width: 100%; }
+            .log-item { align-items: flex-start; }
+        }
+        /* ── Lab admin: users hub ── */
+        .kpi-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        @media (max-width:639px) { .kpi-grid > .kpi:last-child:nth-child(odd) { grid-column:span 2; } }
+        @media (min-width:640px) { .kpi-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+        @media (min-width:1100px) { .kpi-grid { grid-template-columns:repeat(5,minmax(0,1fr)); } }
+        .kpi { padding:16px 18px; border-radius:18px; border:1px solid var(--glass-border); background:var(--glass-bg); position:relative; overflow:hidden; }
+        .kpi::after { content:''; position:absolute; right:-30px; top:-30px; width:90px; height:90px; border-radius:50%; background:var(--kpi-accent,#64CEFB); opacity:.10; }
+        .kpi-label { font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+        .kpi-value { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:2rem; line-height:1.1; margin-top:6px; color:var(--text-main); }
+        .kpi-hint { font-size:11px; color:var(--text-muted); margin-top:2px; }
+        .chart-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+        @media (min-width:1024px) { .chart-grid { grid-template-columns:2fr 1fr; } .chart-grid.even { grid-template-columns:1fr 1fr; } }
+        .chart-card { padding:18px 18px 14px; border-radius:20px; border:1px solid var(--glass-border); background:var(--glass-bg); min-width:0; }
+        .chart-card h3 { font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px; margin:0 0 2px; }
+        .chart-card .sub { font-size:12px; color:var(--text-muted); margin-bottom:12px; }
+        .chart-box { position:relative; height:240px; }
+        .chart-box.sm { height:220px; }
+        .chart-empty { height:100%; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text-muted); }
+        .u-list { display:flex; flex-direction:column; gap:10px; }
+        .u-row { display:grid; grid-template-columns:20px 44px minmax(170px,1.2fr) minmax(150px,auto) minmax(190px,1.4fr) 90px auto; align-items:center; gap:14px; padding:14px 16px; border-radius:18px; border:1px solid var(--glass-border); background:var(--glass-bg); transition:border-color .2s, transform .2s, background .2s; }
+        .u-row:hover { border-color:var(--glass-border-hover); background:var(--glass-hover); }
+        .u-row.is-hidden { display:none; }
+        .u-row.is-banned { opacity:.6; }
+        .u-avatar { width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:700; font-family:'Space Grotesk',sans-serif; font-size:18px; color:#0b0b12; }
+        .u-name { font-weight:600; color:var(--text-main); font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .u-meta { font-size:12px; color:var(--text-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+        .pill-free { background:color-mix(in srgb,var(--text-muted) 14%,transparent); color:var(--text-secondary); }
+        .pill-student { background:color-mix(in srgb,#64CEFB 16%,transparent); color:#64CEFB; }
+        .pill-corp { background:color-mix(in srgb,#a78bfa 18%,transparent); color:#a78bfa; }
+        .pill-ban { background:color-mix(in srgb,#ef4444 16%,transparent); color:#ef4444; }
+        .u-stats { display:flex; gap:6px; flex-wrap:wrap; }
+        .stat-chip { display:flex; flex-direction:column; align-items:center; min-width:52px; padding:6px 8px; border-radius:12px; background:color-mix(in srgb,var(--text-main) 4%,transparent); }
+        .stat-chip b { font-family:'Space Grotesk',sans-serif; font-size:15px; color:var(--text-main); line-height:1.1; }
+        .stat-chip span { font-size:10px; color:var(--text-muted); }
+        .u-last { display:flex; gap:10px; align-items:flex-start; min-width:0; }
+        .ev-icon { width:30px; height:30px; flex-shrink:0; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+        .ev-icon svg { width:15px; height:15px; }
+        .ev-login { background:color-mix(in srgb,#64CEFB 16%,transparent); color:#64CEFB; }
+        .ev-register { background:color-mix(in srgb,#22c55e 16%,transparent); color:#22c55e; }
+        .ev-experiment { background:color-mix(in srgb,#a78bfa 18%,transparent); color:#a78bfa; }
+        .ev-admin { background:color-mix(in srgb,#f59e0b 16%,transparent); color:#f59e0b; }
+        .ev-delete { background:color-mix(in srgb,#ef4444 16%,transparent); color:#ef4444; }
+        .ev-other, .ev-none { background:color-mix(in srgb,var(--text-muted) 14%,transparent); color:var(--text-muted); }
+        .ev-title { font-size:13px; color:var(--text-main); font-weight:500; }
+        .ev-sub { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+        .ev-time { font-size:11px; color:var(--text-muted); margin-top:1px; }
+        .spark { display:flex; align-items:flex-end; gap:2px; height:26px; }
+        .spark i { flex:1; border-radius:2px; background:color-mix(in srgb,var(--text-muted) 22%,transparent); height:30%; }
+        .spark i.on { background:#64CEFB; height:100%; }
+        .spark-cap { font-size:10px; color:var(--text-muted); margin-top:3px; text-align:center; }
+        .u-actions { display:flex; gap:6px; justify-content:flex-end; }
+        .icon-btn { width:34px; height:34px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--glass-border); background:transparent; color:var(--text-muted); cursor:pointer; transition:all .15s; }
+        .icon-btn:hover { color:var(--text-main); border-color:var(--glass-border-hover); background:var(--glass-hover); }
+        .icon-btn.danger:hover { color:#ef4444; border-color:color-mix(in srgb,#ef4444 40%,transparent); }
+        .icon-btn svg { width:16px; height:16px; }
+        .feed-day { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); margin:14px 2px 8px; }
+        .feed-day:first-child { margin-top:0; }
+        .feed-item { display:flex; gap:10px; padding:10px; border-radius:14px; transition:background .15s; }
+        .feed-item:hover { background:var(--glass-hover); }
+        .feed-user { font-weight:600; color:var(--text-main); }
+        .hub-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; border-radius:18px; border:1px solid var(--glass-border); background:var(--glass-bg); margin-bottom:12px; }
+        .hub-toolbar .search-wrap { position:relative; flex:1 1 220px; }
+        .hub-toolbar .search-wrap svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--text-muted); }
+        .hub-toolbar .search-wrap input { padding-left:36px !important; }
+        .seg { display:inline-flex; padding:3px; border-radius:999px; border:1px solid var(--glass-border); background:color-mix(in srgb,var(--text-main) 3%,transparent); }
+        .seg button { border:none; background:transparent; color:var(--text-muted); font-size:12px; font-weight:600; padding:6px 12px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+        .seg button.on { background:var(--primary); color:var(--primary-fg); }
+        @media (max-width:1279px) {
+            .u-row { grid-template-columns:20px 44px minmax(0,1fr) auto; grid-template-areas:"cb av main actions" "stats stats stats stats" "last last last spark"; row-gap:12px; }
+            .u-row > .u-cb { grid-area:cb; } .u-row > .u-avatar { grid-area:av; } .u-row > .u-main { grid-area:main; min-width:0; }
+            .u-row > .u-stats { grid-area:stats; } .u-row > .u-last { grid-area:last; } .u-row > .u-spark-wrap { grid-area:spark; width:90px; } .u-row > .u-actions { grid-area:actions; }
+        }
+        @media (max-width:640px) {
+            .u-row { grid-template-columns:20px 40px minmax(0,1fr); grid-template-areas:"cb av main" "stats stats stats" "last last last" "spark spark spark" "actions actions actions"; padding:14px; }
+            .u-avatar { width:40px; height:40px; font-size:16px; }
+            .u-row > .u-spark-wrap { width:100%; }
+            .u-actions { justify-content:stretch; } .u-actions .icon-btn { flex:1; height:40px; }
+            .stat-chip { flex:1; }
+            .kpi-value { font-size:1.6rem; }
+            .chart-box { height:210px; }
+            .hub-toolbar .seg { width:100%; overflow-x:auto; } .hub-toolbar .seg button { flex:1; }
+        }
+    </style>
+</head>
+<body class="admin-page antialiased min-h-screen flex flex-col" style="background-color:var(--bg-page);background-image:var(--bg-radial);color:var(--text-main);">
+
+<nav class="admin-topbar w-full px-6 lg:px-16 py-6 z-50 flex items-center justify-between gap-4 border-b sticky top-0" style="background:var(--nav-bg);backdrop-filter:blur(12px);border-color:var(--nav-border);">
+    <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center" style="border-color:rgba(255,255,255,0.5);"><div class="w-4 h-4 rounded-full" style="background:var(--primary);"></div></div>
+        <span class="admin-brand-title font-bold text-xl tracking-tight font-heading" style="color:var(--text-main);">Bio-Notebook <span class="admin-brand-sub font-sans text-sm ml-2" style="color:var(--text-muted);">Lab Admin</span></span>
+    </div>
+    <div class="flex items-center gap-3">
+        <button id="themeToggle" class="theme-toggle-btn"><i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i></button>
+        <a href="{{ base_path }}/" class="text-sm transition-colors flex items-center gap-2 no-underline shrink-0" style="color:var(--text-nav-inactive);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-nav-inactive)'"><i data-lucide="log-out" class="w-4 h-4"></i><span class="admin-exit-label"> Выйти</span></a>
+    </div>
+</nav>
+
+<main class="admin-main flex-grow w-full max-w-7xl mx-auto px-6 py-10">
+    <div class="flex flex-col lg:flex-row gap-8">
+        <!-- Sidebar -->
+        <div class="admin-sidebar lg:w-52 flex-shrink-0">
+            <h1 class="admin-sidebar-title text-2xl font-heading font-bold mb-1">Панель управления</h1>
+            <p class="admin-sidebar-desc text-xs mb-5" style="color:var(--text-muted);">Управление системой</p>
+            <div class="admin-nav-scroll flex flex-row lg:flex-col gap-1.5 overflow-x-auto pb-3 lg:pb-0">
+                <div class="admin-nav-link active" data-section="users" onclick="switchSection('users')"><i data-lucide="users" class="w-4 h-4"></i>Пользователи</div>
+                <div class="admin-nav-link" data-section="overview" onclick="switchSection('overview')"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Обзор</div>
+                <div class="admin-nav-link" data-section="corporate" onclick="switchSection('corporate')"><i data-lucide="building-2" class="w-4 h-4"></i>Корпоративные</div>
+                <div class="admin-nav-link" data-section="referrals" onclick="switchSection('referrals')"><i data-lucide="git-branch" class="w-4 h-4"></i>Рефералы</div>
+                <div class="admin-nav-link" data-section="support" onclick="switchSection('support')"><i data-lucide="headset" class="w-4 h-4"></i>Поддержка</div>
+                <div class="admin-nav-link" data-section="logs" onclick="switchSection('logs')"><i data-lucide="scroll-text" class="w-4 h-4"></i>Логи</div>
+                <div class="admin-nav-link" data-section="analytics" onclick="switchSection('analytics')"><i data-lucide="bar-chart-3" class="w-4 h-4"></i>Аналитика</div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-grow min-w-0">
+
+            <!-- ════ OVERVIEW ════ -->
+            <div id="section-overview" class="section-toggle">
+                <h2 class="text-2xl font-heading font-bold mb-6">Обзор системы</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Пользователей</div><div class="stat-value" style="color:var(--primary);">{{ stats.total_users }}</div></div>
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Экспериментов</div><div class="stat-value" style="color:var(--primary);">{{ stats.total_experiments }}</div></div>
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Проектов</div><div class="stat-value" style="color:var(--primary);">{{ stats.total_projects }}</div></div>
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Реагентов</div><div class="stat-value" style="color:var(--primary);">{{ stats.total_reagents }}</div></div>
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Расходников</div><div class="stat-value" style="color:var(--primary);">{{ stats.total_consumables }}</div></div>
+                    <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Открытых тикетов</div><div class="stat-value" style="color:#f59e0b;">{{ stats.open_tickets }}</div></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="liquid-glass rounded-2xl p-6">
+                        <h3 class="text-lg font-heading font-semibold mb-4">📈 Регистрации за 7 дней</h3>
+                        <div class="chart-container"><canvas id="regChart"></canvas></div>
+                    </div>
+                    <div class="liquid-glass rounded-2xl p-6">
+                        <h3 class="text-lg font-heading font-semibold mb-4">📊 Последние эксперименты</h3>
+                        {% if stats.recent_experiments %}
+                        {% for exp in stats.recent_experiments %}
+                        <div class="flex items-center justify-between py-2 border-b text-sm" style="border-color:var(--table-border-light);">
+                            <div><div class="font-medium">{{ exp.name }}</div><div class="text-xs" style="color:var(--text-muted);">{{ exp.user_id }}</div></div>
+                            <span class="badge text-[10px]" style="background:color-mix(in srgb, var(--primary) 15%, transparent);color:var(--primary);">{{ exp.id[:6] }}</span>
+                        </div>
+                        {% endfor %}
+                        {% else %}<p class="text-sm" style="color:var(--text-muted);">Нет экспериментов</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════ CORPORATE ════ -->
+            <div id="section-corporate" class="section-toggle">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-heading font-bold">Корпоративные аккаунты</h2>
+                    <button onclick="showCreateOrg()" class="text-xs font-bold py-2 px-4 rounded-full transition-colors" style="background:var(--primary);color:var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'"><i data-lucide="plus" class="w-3 h-3 inline mr-1"></i>Создать</button>
+                </div>
+                <div id="corpContent"><div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div></div>
+            </div>
+
+            <!-- ════ USERS ════ -->
+            <div id="section-users" class="section-toggle active">
+                <div class="admin-section-head mb-5">
+                    <div>
+                        <h2 class="text-2xl font-heading font-bold">Пользователи и активность</h2>
+                        <p class="text-sm mt-1" style="color:var(--text-muted);">Лабораторный журнал · время московское · данные за 30 дней</p>
+                    </div>
+                    <button type="button" onclick="exportUsersCSV()" class="text-xs font-bold py-2 px-4 rounded-full inline-flex items-center gap-2" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;"><i data-lucide="download" class="w-4 h-4"></i>Экспорт CSV</button>
+                </div>
+
+                <div class="kpi-grid mb-4">
+                    <div class="kpi" style="--kpi-accent:#64CEFB;"><div class="kpi-label"><i data-lucide="users" class="w-3.5 h-3.5"></i>Пользователей</div><div class="kpi-value">{{ stats.total_users }}</div><div class="kpi-hint">всего аккаунтов</div></div>
+                    <div class="kpi" style="--kpi-accent:#22c55e;"><div class="kpi-label"><i data-lucide="zap" class="w-3.5 h-3.5"></i>Активны сегодня</div><div class="kpi-value">{{ insights.kpi.active_today }}</div><div class="kpi-hint">уникальных пользователей</div></div>
+                    <div class="kpi" style="--kpi-accent:#a78bfa;"><div class="kpi-label"><i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>Активны за 7 дней</div><div class="kpi-value">{{ insights.kpi.active_7d }}</div><div class="kpi-hint">за 30 дней: {{ insights.kpi.active_30d }}</div></div>
+                    <div class="kpi" style="--kpi-accent:#f59e0b;"><div class="kpi-label"><i data-lucide="user-plus" class="w-3.5 h-3.5"></i>Новых за 7 дней</div><div class="kpi-value">{{ insights.kpi.new_7d }}</div><div class="kpi-hint">регистраций</div></div>
+                    <div class="kpi" style="--kpi-accent:#f472b6;"><div class="kpi-label"><i data-lucide="flask-conical" class="w-3.5 h-3.5"></i>Экспериментов</div><div class="kpi-value">{{ stats.total_experiments }}</div><div class="kpi-hint">в среднем {{ stats.avg_experiments_per_user }} на пользователя</div></div>
+                </div>
+
+                <div class="chart-grid mb-4">
+                    <div class="chart-card">
+                        <h3>Активность за 30 дней</h3>
+                        <div class="sub">События по типам и число активных пользователей в день</div>
+                        <div class="chart-box"><canvas id="hubActivityChart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Тарифы</h3>
+                        <div class="sub">Распределение пользователей</div>
+                        <div class="chart-box"><canvas id="hubPlansChart"></canvas></div>
+                    </div>
+                </div>
+                <div class="chart-grid even mb-6">
+                    <div class="chart-card">
+                        <h3>Самые активные</h3>
+                        <div class="sub">Количество событий за 30 дней</div>
+                        <div class="chart-box sm"><canvas id="hubTopChart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Что делают пользователи</h3>
+                        <div class="sub">Типы событий за 30 дней · всего {{ insights.kpi.events_30d }}</div>
+                        <div class="chart-box sm"><canvas id="hubKindsChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="users-layout">
+                    <div class="min-w-0">
+                        <div class="hub-toolbar">
+                            <div class="search-wrap"><i data-lucide="search"></i><input type="search" id="userSearch" class="form-input !py-2 !text-sm" placeholder="Поиск по имени или email" oninput="filterUsersTable()"></div>
+                            <div class="seg" id="planSeg">
+                                <button type="button" class="on" data-plan="">Все</button>
+                                <button type="button" data-plan="free">Бесплатный</button>
+                                <button type="button" data-plan="student">Студент</button>
+                                <button type="button" data-plan="corp">Корп.</button>
+                            </div>
+                            <select id="userStatusFilter" class="form-input !py-2 !text-sm" style="max-width:150px;" onchange="filterUsersTable()">
+                                <option value="">Все статусы</option>
+                                <option value="active">Активные</option>
+                                <option value="banned">Заблокированные</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mb-3 px-1 text-xs" style="color:var(--text-muted);">
+                            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="checkbox" id="selectAll" class="bulk-checkbox" onchange="toggleSelectAll()">Выбрать всех</label>
+                            <span id="usersShown">{{ users|length }} из {{ users|length }}</span>
+                            <button type="button" onclick="bulkAction('ban')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full" style="border:1px solid var(--glass-border);color:#f59e0b;background:transparent;cursor:pointer;"><i data-lucide="lock" class="w-3.5 h-3.5"></i>Заблокировать выбранных</button>
+                        </div>
+
+                        {% if users %}
+                        <div class="u-list" id="usersList">
+                            {% for u in users %}
+                            <div class="u-row{% if u.is_banned == 'true' %} is-banned{% endif %}" data-username="{{ u.username }}"
+                                 data-search="{{ (u.username ~ ' ' ~ (u.email or '') ~ ' ' ~ (u.display_name or ''))|lower }}"
+                                 data-plan="{{ u.plan }}" data-banned="{{ u.is_banned }}">
+                                <div class="u-cb"><input type="checkbox" class="bulk-checkbox user-checkbox" value="{{ u.username }}" aria-label="Выбрать {{ u.username }}"></div>
+                                <div class="u-avatar" data-avatar="{{ u.username }}">{{ u.username[:1]|upper }}</div>
+                                <div class="u-main min-w-0">
+                                    <div class="u-name">{{ u.username }}
+                                        <span class="pill pill-{{ u.plan }}">{{ u.plan_label }}{% if u.plan_expires_at and u.plan != 'free' %} · до {{ u.plan_expires_at }}{% endif %}</span>
+                                        {% if u.is_banned == 'true' %}<span class="pill pill-ban">Заблокирован</span>{% endif %}
+                                    </div>
+                                    <div class="u-meta" title="{{ u.email }}">{{ u.email or 'без email' }}{% if u.registered_text %} · с {{ u.registered_text }}{% endif %}</div>
+                                    <div class="u-meta">{% if u.last_login_text %}Вход: <span data-rel="{{ u.last_login }}">{{ u.last_login_text }}</span>{% else %}Входов не было{% endif %}</div>
+                                </div>
+                                <div class="u-stats">
+                                    <div class="stat-chip"><b>{{ u.exp_count }}</b><span>эксп.</span></div>
+                                    <div class="stat-chip"><b>{{ u.total_nodes }}</b><span>узлов</span></div>
+                                    <div class="stat-chip"><b>{{ u.events_30d }}</b><span>событий</span></div>
+                                </div>
+                                <div class="u-last">
+                                    {% if u.last_activity_title %}
+                                    <div class="ev-icon ev-{{ u.last_activity_kind or 'other' }}" data-kind="{{ u.last_activity_kind or 'other' }}"></div>
+                                    <div class="min-w-0">
+                                        <div class="ev-title">{{ u.last_activity_title }}</div>
+                                        {% if u.last_activity_subtitle %}<div class="ev-sub" title="{{ u.last_activity_subtitle }}">{{ u.last_activity_subtitle }}</div>{% endif %}
+                                        <div class="ev-time" data-rel="{{ u.last_activity_at }}">{{ u.last_activity_text }}</div>
+                                    </div>
+                                    {% else %}
+                                    <div class="ev-icon ev-none" data-kind="none"></div>
+                                    <div class="ev-sub" style="align-self:center;">Нет активности</div>
+                                    {% endif %}
+                                </div>
+                                <div class="u-spark-wrap" title="Активность по дням за 14 дней">
+                                    <div class="spark">{% for d in u.spark %}<i class="{{ 'on' if d else '' }}"></i>{% endfor %}</div>
+                                    <div class="spark-cap">14 дней</div>
+                                </div>
+                                <div class="u-actions">
+                                    <button type="button" class="icon-btn" onclick="focusUserActivity('{{ u.username }}')" title="События пользователя"><i data-lucide="list"></i></button>
+                                    <button type="button" class="icon-btn" onclick="loginAs('{{ u.username }}')" title="Открыть кабинет"><i data-lucide="log-in"></i></button>
+                                    <button type="button" class="icon-btn" onclick="toggleBan('{{ u.username }}', '{{ u.is_banned }}')" title="{% if u.is_banned == 'true' %}Разблокировать{% else %}Заблокировать{% endif %}"><i data-lucide="{% if u.is_banned == 'true' %}unlock{% else %}lock{% endif %}"></i></button>
+                                    <button type="button" class="icon-btn danger" onclick="deleteUser('{{ u.username }}')" title="Удалить"><i data-lucide="trash-2"></i></button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div id="usersEmpty" class="chart-card text-center text-sm" style="display:none;color:var(--text-muted);">Никого не нашлось по фильтру</div>
+                        {% else %}
+                        <div class="chart-card text-center text-sm" style="color:var(--text-muted);">Пользователей пока нет</div>
+                        {% endif %}
+                    </div>
+
+                    <aside class="chart-card min-w-0" style="align-self:start;">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <h3>Лента событий</h3>
+                            <button type="button" onclick="refreshActivityFeed()" class="icon-btn" title="Обновить"><i data-lucide="refresh-cw"></i></button>
+                        </div>
+                        <div class="sub" id="feedSub">Последние события журнала</div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <input type="text" id="activityUserFilter" class="form-input !py-2 !text-sm" placeholder="Фильтр по пользователю" oninput="renderActivityFeed()">
+                            <button type="button" class="icon-btn" title="Сбросить" onclick="document.getElementById('activityUserFilter').value='';renderActivityFeed();"><i data-lucide="x"></i></button>
+                        </div>
+                        <div id="activityFeed" class="activity-feed"></div>
+                    </aside>
+                </div>
+            </div>
+
+            <!-- ════ REFERRALS ════ -->
+            <div id="section-referrals" class="section-toggle">
+                <h2 class="text-2xl font-heading font-bold mb-6">Реферальная система</h2>
+                <div id="refContent"><div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div></div>
+            </div>
+
+            <!-- ════ SUPPORT ════ -->
+            <div id="section-support" class="section-toggle">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-heading font-bold">Поддержка — тикеты</h2>
+                    <div class="flex gap-2" id="ticketFilters">
+                        <select id="ticketStatusFilter" class="form-input !py-1.5 !px-3 !text-xs" style="max-width:140px;" onchange="loadTickets()">
+                            <option value="all">Все статусы</option>
+                            <option value="open">Открытые</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="resolved">Решённые</option>
+                            <option value="closed">Закрытые</option>
+                        </select>
+                        <select id="ticketPriorityFilter" class="form-input !py-1.5 !px-3 !text-xs" style="max-width:140px;" onchange="loadTickets()">
+                            <option value="all">Все приоритеты</option>
+                            <option value="low">Низкий</option>
+                            <option value="medium">Средний</option>
+                            <option value="high">Высокий</option>
+                            <option value="critical">Критичный</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="ticketCounts" class="flex gap-3 mb-4 text-xs" style="color:var(--text-muted);"></div>
+                <div id="ticketContent"><div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div></div>
+            </div>
+
+            <!-- ════ LOGS ════ -->
+            <div id="section-logs" class="section-toggle">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-heading font-bold">Системные логи</h2>
+                    <div class="flex gap-2 items-center">
+                        <input type="text" id="logUserFilter" class="form-input !py-2 !px-3 !text-xs" placeholder="Фильтр по user..." oninput="loadLogs()" style="max-width:150px;">
+                        <div class="flex gap-1 p-1 rounded-full" style="background:var(--glass-bg);border:1px solid var(--glass-border);">
+                            <button id="logTabAll" class="log-tab-btn text-xs font-medium px-4 py-1.5 rounded-full transition-colors" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onclick="switchLogsTab('all')">Все логи</button>
+                            <button id="logTabErrors" class="log-tab-btn text-xs font-medium px-4 py-1.5 rounded-full transition-colors" style="background:transparent;color:var(--text-muted);border:none;cursor:pointer;" onclick="switchLogsTab('errors')">Ошибки</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="logsSummary" class="flex items-center gap-4 mb-4 text-xs" style="color:var(--text-muted);"></div>
+                <div id="logsContent"><div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div></div>
+            </div>
+
+            <!-- ════ ANALYTICS ════ -->
+            <div id="section-analytics" class="section-toggle">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-heading font-bold">Аналитика системы</h2>
+                    <button onclick="loadAnalytics()" class="text-xs font-bold py-2 px-4 rounded-full transition-colors" style="background:var(--primary);color:var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Обновить</button>
+                </div>
+                <div id="analyticsContent"><div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div></div>
+            </div>
+
+        </div>
+    </div>
+</main>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="modal"><div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+    <button onclick="closeConfirmModal()" class="absolute top-4 right-4 p-2" style="color:var(--text-muted);"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="mb-6"><h2 class="text-2xl font-heading font-bold mb-2" id="confirmTitle">Подтверждение</h2><p class="text-sm" id="confirmMessage" style="color:var(--text-muted);">Вы уверены?</p></div>
+    <div class="flex gap-3"><button onclick="closeConfirmModal()" class="flex-1 liquid-glass py-3 rounded-full transition-colors" style="color:var(--text-main);">Отмена</button><button id="confirmActionBtn" class="flex-1 font-bold py-3 rounded-full transition-colors" style="background:var(--low-stock-text);color:white;">Подтвердить</button></div>
+</div></div>
+
+<!-- Ticket Detail Modal -->
+<div id="ticketModal" class="modal"><div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="max-width:640px;">
+    <button onclick="closeTicketModal()" class="absolute top-4 right-4 p-2" style="color:var(--text-muted);"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="mb-4"><h2 class="text-2xl font-heading font-bold" id="tmTitle">Тикет</h2><p class="text-xs" id="tmMeta" style="color:var(--text-muted);"></p></div>
+    <div class="mb-4 p-4 rounded-xl" style="background:var(--glass-bg);border:1px solid var(--glass-border);">
+        <p class="text-sm" id="tmMessage"></p>
+    </div>
+    <div id="tmReplies" class="space-y-3 mb-4 max-h-60 overflow-y-auto pr-1"></div>
+    <div class="flex gap-2">
+        <select id="tmStatus" class="form-input !py-2 !px-3 !text-sm" style="max-width:160px;">
+            <option value="open">Открыт</option><option value="in_progress">В работе</option><option value="resolved">Решён</option><option value="closed">Закрыт</option>
+        </select>
+        <textarea id="tmReply" class="form-input !py-2 !text-sm flex-grow" rows="2" placeholder="Ответ администратора..."></textarea>
+        <button onclick="sendTicketReply()" class="text-xs font-bold py-2 px-4 rounded-full flex-shrink-0" style="background:var(--primary);color:var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Ответить</button>
+    </div>
+</div></div>
+
+<!-- Create Org Modal -->
+<div id="orgModal" class="modal"><div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="max-width:440px;">
+    <button onclick="closeOrgModal()" class="absolute top-4 right-4 p-2" style="color:var(--text-muted);"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="mb-6"><h2 class="text-2xl font-heading font-bold mb-2">Создать организацию</h2></div>
+    <div class="mb-4"><label class="block text-sm font-medium mb-1" style="color:var(--text-secondary);">Название</label><input type="text" id="orgName" class="form-input" placeholder="Например: BioLab Corp"></div>
+    <div class="mb-6"><label class="block text-sm font-medium mb-1" style="color:var(--text-secondary);">Владелец</label><input type="text" id="orgOwner" class="form-input" placeholder="Имя пользователя"></div>
+    <button onclick="createOrg()" class="w-full font-bold py-3 rounded-full transition-colors" style="background:var(--primary);color:var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Создать</button>
+</div></div>
+
+<script>
+const BASE_PATH = '{{ base_path }}';
+const ADMIN_KEY = '{{ admin_key }}';
+const LAB_ADMIN = '{{ lab_admin_path }}';
+
+// ── Theme ──
+(function(){const h=document.documentElement;const t=document.getElementById('themeToggle');const i=document.getElementById('themeIcon');function s(t){h.setAttribute('data-theme',t);localStorage.setItem('biobook-theme',t);if(i)i.setAttribute('data-lucide',t==='dark'?'moon':'sun');if(typeof lucide!=='undefined')setTimeout(()=>lucide.createIcons(),0)}s(localStorage.getItem('biobook-theme')||'dark');if(t)t.addEventListener('click',function(){s(h.getAttribute('data-theme')==='dark'?'light':'dark')})})();
+document.addEventListener('DOMContentLoaded',function(){function t(){if(typeof lucide!=='undefined')lucide.createIcons();else setTimeout(t,100)}t()});
+
+// ── Section Switching ──
+function switchSection(id){
+    if(window.matchMedia('(max-width:1023px)').matches){window.scrollTo({top:0,behavior:'smooth'});}
+    document.querySelectorAll('.admin-nav-link').forEach(e=>e.classList.toggle('active',e.dataset.section===id));
+    document.querySelectorAll('.section-toggle').forEach(e=>e.classList.toggle('active',e.id==='section-'+id));
+    if(id==='users')setTimeout(initHubCharts,30);
+    if(id==='overview')initRegChart();
+    else if(id==='user_dashboard')loadUserDashboard();
+    else if(id==='corporate')loadCorporate();
+    else if(id==='referrals')loadReferrals();
+    else if(id==='support')loadTickets();
+    else if(id==='logs')loadLogs();
+    else if(id==='analytics')loadAnalytics();
+}
+
+// ── Confirm Modal ──
+const confirmModal=document.getElementById('confirmModal');let confirmCallback=null;
+function openConfirmModal(t,m,c){document.getElementById('confirmTitle').textContent=t;document.getElementById('confirmMessage').textContent=m;confirmCallback=c;confirmModal.style.display='flex';setTimeout(()=>confirmModal.style.opacity='1',10)}
+function closeConfirmModal(){confirmModal.style.opacity='0';confirmCallback=null;setTimeout(()=>confirmModal.style.display='none',300)}
+if(confirmModal)confirmModal.addEventListener('click',function(e){if(e.target===this)closeConfirmModal()});
+document.getElementById('confirmActionBtn').addEventListener('click',function(){if(confirmCallback){confirmCallback();confirmCallback=null}closeConfirmModal()});
+
+// ── Overview: Registration Chart ──
+let regChartInstance = null;
+const dailyRegs = {{ stats.daily_registrations|tojson }};
+function initRegChart() {
+    if (typeof Chart === 'undefined') { setTimeout(initRegChart, 500); return; }
+    const canvas = document.getElementById('regChart');
+    if (!canvas) return;
+    if (regChartInstance) { regChartInstance.destroy(); }
+    const labels = dailyRegs.map(d => d.date.slice(5));
+    const data = dailyRegs.map(d => d.count);
+    regChartInstance = new Chart(canvas, {
+        type: 'line',
+        data: { labels, datasets: [{
+            label: 'Регистрации',
+            data,
+            borderColor: '#64CEFB',
+            backgroundColor: 'rgba(100,206,251,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointBackgroundColor: '#64CEFB',
+            pointRadius: 4,
+        }]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 } } } },
+            scales: {
+                x: { ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+                y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.03)' } }
+            }
+        }
+    });
+}
+if (typeof Chart !== 'undefined') { document.addEventListener('DOMContentLoaded', () => setTimeout(initRegChart, 300)); }
+
+// ── User Dashboard ──
+async function loadUserDashboard(){
+    const c=document.getElementById('udContent');const q=document.getElementById('udSearch')?.value||'';
+    c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user_dashboard?key='+ADMIN_KEY+(q?'&user='+q:''));
+        const d=await r.json();if(!d.users||!d.users.length){c.innerHTML='<div class="liquid-glass rounded-2xl p-12 text-center"><p class="text-sm" style="color:var(--text-muted);">Пользователи не найдены</p></div>';return}
+        c.innerHTML='<div class="space-y-3">'+d.users.map(u=>{
+            const active=u.has_experiments;
+            return `
+            <div class="flex items-center gap-5 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style="border:1px solid var(--glass-border);background:var(--glass-bg);">
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-base flex-shrink-0 tracking-tight" style="background:${active?'color-mix(in srgb, var(--primary) 15%, transparent)':'var(--glass-bg)'};color:${active?'var(--primary)':'var(--text-muted)'};border:1px solid ${active?'color-mix(in srgb, var(--primary) 25%, transparent)':'var(--glass-border)'};">${u.username.charAt(0).toUpperCase()}</div>
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center gap-3 mb-1.5">
+                        <span class="font-semibold text-sm" style="color:var(--text-main);">${u.username}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${active?'color-mix(in srgb, #22c55e 12%, transparent)':'color-mix(in srgb, var(--text-muted) 12%, transparent)'};color:${active?'#22c55e':'var(--text-muted)'};">${active?'Активен':'Неактивен'}</span>
+                        ${u.email ? `<span class="text-xs" style="color:var(--text-muted);">${u.email}</span>` : ''}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs" style="color:var(--text-secondary);">
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>${u.experiments} эксп.</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>${u.projects} проектов</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>${u.reagents} реаг.</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>${u.consumables} расх.</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>${u.friends} друзей</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>${u.equipment} оборуд.</span>
+                        <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>${u.total_nodes} узлов</span>
+                    </div>
+                </div>
+                <button onclick="loginAs('${u.username}')" class="flex items-center gap-1.5 text-xs font-semibold py-2 px-4 rounded-full transition-all duration-200 flex-shrink-0 hover:shadow-lg" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    Войти
+                </button>
+            </div>`}).join('')+'</div>';
+        // Re-render lucide icons
+        if(typeof lucide!=='undefined')setTimeout(()=>lucide.createIcons(),0);
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка загрузки</div>'}
+}
+
+// ── Corporate ──
+async function loadCorporate(){
+    const c=document.getElementById('corpContent');
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/corporate?key='+ADMIN_KEY);const d=await r.json();
+        const o=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations?key='+ADMIN_KEY);const od=await o.json();
+        c.innerHTML=`
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Всего пользователей</div><div class="stat-value" style="color:var(--primary);">${d.total_users}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Проектов</div><div class="stat-value" style="color:var(--primary);">${d.total_projects}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Участников проектов</div><div class="stat-value" style="color:var(--primary);">${d.project_members}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Организаций</div><div class="stat-value" style="color:var(--primary);">${(od.organizations||[]).length}</div></div>
+            </div>
+            <div class="liquid-glass rounded-2xl p-6 mb-6">
+                <h3 class="text-lg font-heading font-semibold mb-4">📋 Организации</h3>
+                ${od.organizations?.length?`<div class="scroll-x"><table class="minitable"><thead><tr><th>Название</th><th>Владелец</th><th>Участников</th><th>Создана</th></tr></thead><tbody>
+                ${od.organizations.map(o=>`<tr><td class="font-medium" style="color:var(--text-main);">${o.name}</td><td>${o.owner_id}</td><td>${o.member_count}</td><td class="text-xs">${(o.created_at||'').slice(0,10)}</td></tr>`).join('')}
+                </tbody></table></div>`:'<p class="text-sm" style="color:var(--text-muted);">Нет организаций</p>'}
+            </div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-lg font-heading font-semibold mb-4">👥 Пользователи с проектами</h3>
+                <div class="scroll-x"><table class="minitable"><thead><tr><th>Пользователь</th><th>Email</th><th>Проектов</th></tr></thead><tbody>
+                ${d.corp_users_list.map(u=>`<tr><td class="font-medium" style="color:var(--text-main);">${u.username}</td><td class="text-xs">${u.email}</td><td>${u.projects}</td></tr>`).join('')}
+                </tbody></table></div>
+            </div>`;
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
+}
+
+function showCreateOrg(){document.getElementById('orgModal').style.display='flex';setTimeout(()=>document.getElementById('orgModal').style.opacity='1',10)}
+function closeOrgModal(){document.getElementById('orgModal').style.opacity='0';setTimeout(()=>document.getElementById('orgModal').style.display='none',300)}
+document.getElementById('orgModal')?.addEventListener('click',function(e){if(e.target===this)closeOrgModal()});
+async function createOrg(){
+    const n=document.getElementById('orgName').value.trim();const o=document.getElementById('orgOwner').value.trim();
+    if(!n||!o){alert('Заполните все поля');return}
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,name:n,owner_id:o})});
+    const d=await r.json();if(d.ok){closeOrgModal();loadCorporate()}else alert('Ошибка: '+(d.error||'?'));
+}
+
+// ── Referrals ──
+async function loadReferrals(){
+    const c=document.getElementById('refContent');
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/referrals?key='+ADMIN_KEY);const d=await r.json();
+        const rc=await fetch(BASE_PATH+LAB_ADMIN+'/api/referral_codes?key='+ADMIN_KEY);const rd=await rc.json();
+        c.innerHTML=`
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Всего дружеских связей</div><div class="stat-value" style="color:var(--primary);">${d.total_friendships}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Ожидающих запросов</div><div class="stat-value" style="color:#f59e0b;">${d.pending_requests}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Коэффициент рефералов</div><div class="stat-value" style="color:var(--primary);">${d.referral_rate}%</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Реферальных кодов</div><div class="stat-value" style="color:var(--primary);">${(rd.codes||[]).length}</div></div>
+            </div>
+            <div class="liquid-glass rounded-2xl p-6 mb-6">
+                <h3 class="text-lg font-heading font-semibold mb-4">🏆 Топ пользователей по друзьям</h3>
+                ${d.top_users?.length?`<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Пользователь</th><th>Друзей</th></tr></thead><tbody>
+                ${d.top_users.map((u,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${u.username}</td><td>${u.count}</td></tr>`).join('')}
+                </tbody></table></div>`:'<p class="text-sm" style="color:var(--text-muted);">Нет данных</p>'}
+            </div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-lg font-heading font-semibold mb-4">🔗 Реферальные коды</h3>
+                ${rd.codes?.length?`<div class="scroll-x"><table class="minitable"><thead><tr><th>Код</th><th>Пользователь</th><th>Email</th><th>Переходов</th><th>Регистраций</th></tr></thead><tbody>
+                ${rd.codes.map(c=>`<tr><td class="font-mono text-xs" style="color:var(--text-muted);">${c.code}</td><td class="font-medium">${c.user_id}</td><td class="text-xs">${c.email}</td><td>${c.clicks}</td><td>${c.registrations}</td></tr>`).join('')}
+                </tbody></table></div>`:'<p class="text-sm" style="color:var(--text-muted);">Нет кодов</p>'}
+            </div>`;
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
+}
+
+// ── Support Tickets ──
+async function loadTickets(){
+    const c=document.getElementById('ticketContent');
+    c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
+    try{
+        const st=document.getElementById('ticketStatusFilter')?.value||'all';
+        const pr=document.getElementById('ticketPriorityFilter')?.value||'all';
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?key='+ADMIN_KEY+'&status='+st+'&priority='+pr);
+        const d=await r.json();
+        const tt=d.tickets||[];
+        const cnt=d.counts||{};
+        document.getElementById('ticketCounts').innerHTML=Object.entries(cnt).map(([k,v])=>`<span>${k==='open'?'🟡':k==='in_progress'?'🔵':k==='resolved'?'🟢':'⚪'} ${k}: ${v}</span>`).join('');
+        if(!tt.length){c.innerHTML='<div class="liquid-glass rounded-2xl p-12 text-center"><p class="text-sm" style="color:var(--text-muted);">Нет тикетов</p></div>';return}
+        c.innerHTML='<div class="grid grid-cols-1 gap-3">'+tt.map(t=>`
+            <div class="ticket-card" onclick="openTicket('${t.id}')">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-grow min-w-0">
+                        <div class="font-semibold text-sm">${t.subject} <span class="text-xs font-normal" style="color:var(--text-muted);">от ${t.user_id}</span></div>
+                        <p class="text-xs mt-1 line-clamp-2" style="color:var(--text-secondary);">${(t.message||'').slice(0,200)}</p>
+                    </div>
+                    <div class="flex gap-1.5 flex-shrink-0">
+                        <span class="badge text-[10px]" style="background:${t.priority==='critical'?'rgba(239,68,68,0.15);color:#ef4444':t.priority==='high'?'rgba(245,158,11,0.15);color:#f59e0b':'rgba(100,206,251,0.15);color:#64CEFB'}">${t.priority}</span>
+                        <span class="badge text-[10px]" style="background:${t.status==='open'?'rgba(245,158,11,0.15);color:#f59e0b':t.status==='in_progress'?'rgba(59,130,246,0.15);color:#3b82f6':t.status==='resolved'?'rgba(34,197,94,0.15);color:#22c55e':'rgba(100,206,251,0.15);color:#64CEFB'}">${t.status}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 mt-2 text-[10px]" style="color:var(--text-muted);">
+                    <span>📅 ${(t.created_at||'').slice(0,10)}</span>
+                    <span>💬 ${t.reply_count} ответов</span>
+                </div>
+            </div>`).join('')+'</div>';
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
+}
+
+let currentTicketId=null;
+function openTicket(id){
+    currentTicketId=id;
+    const r=document.getElementById('ticketContent').querySelectorAll('.ticket-card');
+    // Find ticket data from the API data we already have
+    fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?key='+ADMIN_KEY+'&status=all').then(r=>r.json()).then(d=>{
+        const t=d.tickets.find(x=>x.id===id);if(!t)return;
+        document.getElementById('tmTitle').textContent=t.subject;
+        document.getElementById('tmMeta').innerHTML=`<span>От: ${t.user_id}</span> · <span>Приоритет: ${t.priority}</span> · <span>Статус: ${t.status}</span>`;
+        document.getElementById('tmMessage').textContent=t.message||'Нет описания';
+        document.getElementById('tmStatus').value=t.status;
+        const rl=document.getElementById('tmReplies');
+        rl.innerHTML=(t.replies||[]).map(r=>`
+            <div class="p-3 rounded-xl ${r.author==='admin'?'ml-8':'mr-8'}" style="background:${r.author==='admin'?'color-mix(in srgb, var(--primary) 10%, transparent)':'var(--glass-bg)'};border:1px solid var(--glass-border);">
+                <div class="text-xs font-medium mb-1">${r.author==='admin'?'👤 Администратор':'👤 '+r.author}</div>
+                <p class="text-sm">${r.message}</p>
+                <div class="text-[10px] mt-1" style="color:var(--text-muted);">${(r.created_at||'').slice(0,16)}</div>
+            </div>`).join('')||'<p class="text-xs text-center py-4" style="color:var(--text-muted);">Нет ответов</p>';
+        document.getElementById('ticketModal').style.display='flex';setTimeout(()=>document.getElementById('ticketModal').style.opacity='1',10);
+    });
+}
+function closeTicketModal(){document.getElementById('ticketModal').style.opacity='0';currentTicketId=null;setTimeout(()=>document.getElementById('ticketModal').style.display='none',300)}
+document.getElementById('ticketModal')?.addEventListener('click',function(e){if(e.target===this)closeTicketModal()});
+async function sendTicketReply(){
+    if(!currentTicketId)return;
+    const msg=document.getElementById('tmReply').value.trim();const st=document.getElementById('tmStatus').value;
+    if(!msg){alert('Введите ответ');return}
+    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,ticket_id:currentTicketId,message:msg})});
+    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,ticket_id:currentTicketId,status:st})});
+    document.getElementById('tmReply').value='';closeTicketModal();loadTickets();
+}
+
+// ── Logs ──
+let currentLogTab = 'all';
+
+function switchLogsTab(tab) {
+    currentLogTab = tab;
+    document.querySelectorAll('.log-tab-btn').forEach(b => {
+        const isActive = (tab === 'all' && b.id === 'logTabAll') || (tab === 'errors' && b.id === 'logTabErrors');
+        b.style.background = isActive ? 'var(--primary)' : 'transparent';
+        b.style.color = isActive ? 'black' : 'var(--text-muted)';
+        b.style.fontWeight = isActive ? '600' : '400';
+    });
+    loadLogs();
+}
+
+async function loadLogs(){
+    const c=document.getElementById('logsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
+    try{
+        const uf=document.getElementById('logUserFilter')?.value||'';
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?key='+ADMIN_KEY+'&limit=200');const d=await r.json();
+        let logs=d.logs||[];
+        // Filter by error tab
+        if(currentLogTab==='errors')logs=logs.filter(l=>l.level==='error');
+        // Filter by user
+        if(uf)logs=logs.filter(l=>l.user?.toLowerCase().includes(uf.toLowerCase()));
+        
+        // Summary
+        const summary=document.getElementById('logsSummary');
+        const total=d.logs?.length||0;
+        const errors=(d.logs||[]).filter(l=>l.level==='error').length;
+        const warnings=(d.logs||[]).filter(l=>l.level==='warning').length;
+        const info=(d.logs||[]).filter(l=>l.level==='info').length;
+        summary.innerHTML=`<span>📋 Всего: ${total}</span><span style="color:#ef4444;">❌ Ошибки: ${errors}</span><span style="color:#f59e0b;">⚠️ Предупреждения: ${warnings}</span><span style="color:#64CEFB;">ℹ️ Info: ${info}</span><span style="color:var(--text-muted);">| Показано: ${logs.length}</span>`;
+        
+        if(!logs.length){
+            c.innerHTML='<div class="liquid-glass rounded-2xl p-12 text-center"><p class="text-sm" style="color:var(--text-muted);">Нет логов</p></div>';
+            return;
+        }
+        let html='<div class="space-y-1 max-h-[65vh] overflow-y-auto pr-1">';
+        logs.forEach(l=>{
+            const dc=l.level==='error'?'#ef4444':l.level==='warning'?'#f59e0b':'#64CEFB';
+            const bg=l.level==='error'?'rgba(239,68,68,0.05)':'transparent';
+            html+=`<div class="log-item" style="background:${bg};border-color:${l.level==='error'?'rgba(239,68,68,0.15)':'var(--glass-border)'}">
+                <span class="log-dot" style="background:${dc}"></span>
+                <span class="text-xs font-mono flex-shrink-0" style="color:var(--text-muted);width:80px;">${l.timestamp}</span>
+                <span class="text-xs font-medium flex-shrink-0" style="color:var(--text-secondary);width:100px;">${l.user}</span>
+                <span class="flex-grow text-sm">${l.detail}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0" style="background:${dc}20;color:${dc}">${l.event}</span>
+            </div>`;
+        });
+        html+='</div>';
+        c.innerHTML=html;
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
+}
+
+// ── Analytics ──
+let analyticsChart = null;
+let analyticsInvChart = null;
+let visitChartInstances = [];
+function destroyVisitCharts() {
+    visitChartInstances.forEach(ch => { try { ch.destroy(); } catch (_) {} });
+    visitChartInstances = [];
+}
+function chartTickColor() {
+    const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+    return dark ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.55)';
+}
+function chartGridColor() {
+    const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+    return dark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.08)';
+}
+function initVisitCharts(d) {
+    if (typeof Chart === 'undefined') { setTimeout(() => initVisitCharts(d), 300); return; }
+    destroyVisitCharts();
+    const daily = Array.isArray(d.visits_daily) ? d.visits_daily : [];
+    const labels = daily.map(x => (x.date || '').slice(5));
+    const uniqData = daily.map(x => x.visitors_unique ?? 0);
+    const viewsData = daily.map(x => x.visits ?? 0);
+    const lineOpts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { labels: { color: chartTickColor(), font: { size: 10 } } },
+            tooltip: { callbacks: { title: items => { const i = items[0]?.dataIndex; return daily[i]?.date || ''; } } }
+        },
+        scales: {
+            x: { ticks: { color: chartTickColor(), font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { color: chartGridColor() } },
+            y: { beginAtZero: true, ticks: { color: chartTickColor(), font: { size: 9 }, stepSize: 1 }, grid: { color: chartGridColor() } }
+        }
+    };
+    const uCanvas = document.getElementById('visitUniquesChart');
+    if (uCanvas) {
+        visitChartInstances.push(new Chart(uCanvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Уникальные посетители',
+                    data: uniqData,
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34,197,94,0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                }]
+            },
+            options: lineOpts,
+        }));
+    }
+    const vCanvas = document.getElementById('visitViewsChart');
+    if (vCanvas) {
+        visitChartInstances.push(new Chart(vCanvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Просмотры страниц',
+                    data: viewsData,
+                    borderColor: '#64CEFB',
+                    backgroundColor: 'rgba(100,206,251,0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                }]
+            },
+            options: lineOpts,
+        }));
+    }
+    const pCanvas = document.getElementById('visitPeriodChart');
+    if (pCanvas) {
+        visitChartInstances.push(new Chart(pCanvas, {
+            type: 'bar',
+            data: {
+                labels: ['24 ч', '7 дн.', '30 дн.', 'Всё время'],
+                datasets: [
+                    {
+                        label: 'Уникальные',
+                        data: [d.visitors_unique_24h ?? 0, d.visitors_unique_7d ?? 0, d.visitors_unique_30d ?? 0, d.visitors_unique_total ?? 0],
+                        backgroundColor: 'rgba(34,197,94,0.75)',
+                        borderWidth: 0,
+                        borderRadius: 6,
+                    },
+                    {
+                        label: 'Просмотры',
+                        data: [d.visits_24h ?? 0, d.visits_7d ?? 0, d.visits_30d ?? 0, d.visits_total ?? 0],
+                        backgroundColor: 'rgba(100,206,251,0.75)',
+                        borderWidth: 0,
+                        borderRadius: 6,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: chartTickColor(), font: { size: 10 } } } },
+                scales: {
+                    x: { ticks: { color: chartTickColor(), font: { size: 10 } }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: chartTickColor(), font: { size: 9 }, stepSize: 1 }, grid: { color: chartGridColor() } },
+                },
+            },
+        }));
+    }
+}
+async function loadAnalytics(){
+    const c=document.getElementById('analyticsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/analytics?key='+ADMIN_KEY);const d=await r.json();
+        c.innerHTML=`
+            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Посещаемость сервиса</h3>
+            <p class="text-xs mb-3" style="color:var(--text-muted);">Уникальные посетители по cookie <code style="opacity:.8">bio_vid</code> (лендинг, вход, кабинет). Без API и lab-admin.</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за всё время</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_total ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 24 ч</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_24h ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 7 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_7d ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 30 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_30d ?? 0}</div></div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров (всего)</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_total ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 24 ч</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_24h ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 7 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_7d ?? 0}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 30 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_30d ?? 0}</div></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Уникальные посетители по дням</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">Последние 30 дней (Europe/Moscow, по дате визита)</p>
+                    <div class="chart-container" style="height:220px;"><canvas id="visitUniquesChart"></canvas></div>
+                </div>
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Просмотры по дням</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">Каждый GET HTML-страницы = 1 просмотр</p>
+                    <div class="chart-container" style="height:220px;"><canvas id="visitViewsChart"></canvas></div>
+                </div>
+            </div>
+            <div class="liquid-glass rounded-2xl p-6 mb-10">
+                <h3 class="text-base font-heading font-semibold mb-1">Сводка по периодам</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">Сравнение уникальных посетителей и просмотров</p>
+                <div class="chart-container" style="height:200px;"><canvas id="visitPeriodChart"></canvas></div>
+            </div>
+            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Откуда приходят и по каким запросам</h3>
+            <p class="text-xs mb-4" style="color:var(--text-muted);">Источник: Referer + UTM. Запрос: параметры поисковиков (Яндекс <code>text</code>, Google <code>q</code>) или <code>utm_term</code>. Старые визиты без этих полей не учитываются.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Источники трафика</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">За всё время · просмотры / уникальные</p>
+                    ${(d.visit_sources||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Источник</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_sources.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Пока нет данных по источникам</p>'}
+                </div>
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Источники за 30 дней</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">Только свежие визиты с атрибуцией</p>
+                    ${(d.visit_sources_30d||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Источник</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_sources_30d.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Пока нет данных за 30 дней</p>'}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Поисковые запросы</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">По каким словам пришли из поиска / UTM</p>
+                    ${(d.visit_queries||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Запрос</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_queries.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Запросов пока нет (часто поисковики их не передают)</p>'}
+                </div>
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Запросы за 30 дней</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">Свежие поисковые / UTM-термины</p>
+                    ${(d.visit_queries_30d||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Запрос</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_queries_30d.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">За 30 дней запросов пока нет</p>'}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">Домены-рефереры</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">С каких сайтов перешли</p>
+                    ${(d.visit_referrers||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Домен</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_referrers.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Рефереров пока нет</p>'}
+                </div>
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-base font-heading font-semibold mb-1">UTM-кампании</h3>
+                    <p class="text-xs mb-4" style="color:var(--text-muted);">По параметру <code>utm_campaign</code></p>
+                    ${(d.visit_campaigns||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Кампания</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+                    ${d.visit_campaigns.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">UTM-кампаний пока нет</p>'}
+                </div>
+            </div>
+            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Продукт</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Пользователей</div><div class="stat-value" style="color:var(--primary);">${d.total_users}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Экспериментов</div><div class="stat-value" style="color:var(--primary);">${d.total_experiments}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Узлов</div><div class="stat-value" style="color:var(--primary);">${d.total_nodes}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Ср. эксп./юзера</div><div class="stat-value" style="color:var(--primary);">${d.avg_experiments_per_user}</div></div>
+                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Ср. узлов/эксп.</div><div class="stat-value" style="color:var(--primary);">${d.avg_nodes_per_experiment}</div></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-lg font-heading font-semibold mb-4">📊 Статус экспериментов</h3>
+                    <div class="chart-container" style="height:180px;"><canvas id="expPieChart"></canvas></div>
+                </div>
+                <div class="liquid-glass rounded-2xl p-6">
+                    <h3 class="text-lg font-heading font-semibold mb-4">📦 Инвентарь</h3>
+                    <div class="chart-container" style="height:180px;"><canvas id="invBarChart"></canvas></div>
+                </div>
+            </div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-lg font-heading font-semibold mb-4">🏆 Топ пользователей</h3>
+                ${d.user_breakdown?.length?`<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Пользователь</th><th>Экспериментов</th><th>Узлов</th></tr></thead><tbody>
+                ${d.user_breakdown.map((u,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${u.username}</td><td>${u.experiments}</td><td>${u.nodes}</td></tr>`).join('')}
+                </tbody></table></div>`:'<p class="text-sm" style="color:var(--text-muted);">Нет данных</p>'}
+            </div>`;
+        setTimeout(()=>{
+            initVisitCharts(d);
+            if(typeof Chart!=='undefined'){
+            const tick = chartTickColor();
+            const grid = chartGridColor();
+            if(analyticsChart)analyticsChart.destroy();
+            const ec=document.getElementById('expPieChart');if(ec)analyticsChart=new Chart(ec,{type:'doughnut',data:{labels:['Публичные','Приватные'],datasets:[{data:[d.public_experiments,d.private_experiments],backgroundColor:['#22c55e','#f59e0b'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:10}}}}}});
+            if(analyticsInvChart)analyticsInvChart.destroy();
+            const ib=document.getElementById('invBarChart');if(ib)analyticsInvChart=new Chart(ib,{type:'bar',data:{labels:['Реагенты','Расходники','Оборудование','Брони'],datasets:[{data:[d.total_reagents,d.total_consumables,d.total_equipment,d.total_bookings],backgroundColor:['#64CEFB','#a78bfa','#f59e0b','#22c55e'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:10}}}},scales:{x:{ticks:{color:tick,font:{size:9}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:tick,font:{size:9}},grid:{color:grid}}}}});
+        }},300);
+    }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
+}
+
+
+// ── Users hub: search, feed, charts ──
+let hubFeed = {{ recent_activity|tojson }};
+const hubInsights = {{ insights|tojson }};
+const EV_ICONS = { login:'log-in', register:'user-plus', experiment:'flask-conical', admin:'shield', delete:'trash-2', other:'activity', none:'moon' };
+const EV_COLORS = { login:'#64CEFB', register:'#22c55e', experiment:'#a78bfa', admin:'#f59e0b', delete:'#ef4444', other:'#94a3b8' };
+const EV_NAMES = { login:'Входы', register:'Регистрации', experiment:'Эксперименты', admin:'Действия админа', delete:'Удаления', other:'Прочее' };
+const MONTHS = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+let hubPlan = '';
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function hueOf(name){let h=0;for(const ch of String(name))h=(h*31+ch.charCodeAt(0))%360;return h}
+function relTime(iso){
+    if(!iso)return '';
+    const d=new Date(iso);if(isNaN(d))return '';
+    const diff=(Date.now()-d.getTime())/1000;
+    const hm=d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'});
+    if(diff<60)return 'только что';
+    if(diff<3600)return Math.floor(diff/60)+' мин назад';
+    const dayKey=x=>x.toLocaleDateString('ru-RU',{timeZone:'Europe/Moscow'});
+    const now=new Date();const y=new Date(now.getTime()-86400000);
+    if(dayKey(d)===dayKey(now))return 'сегодня в '+hm;
+    if(dayKey(d)===dayKey(y))return 'вчера в '+hm;
+    const p=new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'numeric',timeZone:'Europe/Moscow'}).formatToParts(d);
+    const dd=p.find(x=>x.type==='day')?.value, mm=+(p.find(x=>x.type==='month')?.value||1);
+    return dd+' '+MONTHS[mm-1]+' в '+hm;
+}
+function dayTitle(day){
+    if(!day)return 'Без даты';
+    const fmt=x=>x.toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'});
+    const now=new Date();
+    if(day===fmt(now))return 'Сегодня';
+    if(day===fmt(new Date(now.getTime()-86400000)))return 'Вчера';
+    const [,m,d]=day.split('-');return (+d)+' '+MONTHS[+m-1];
+}
+function iconHtml(kind){return `<div class="ev-icon ev-${kind}"><i data-lucide="${EV_ICONS[kind]||EV_ICONS.other}"></i></div>`}
+function refreshIcons(){if(typeof lucide!=='undefined')lucide.createIcons();else setTimeout(refreshIcons,150)}
+
+function decorateUsers(){
+    document.querySelectorAll('[data-avatar]').forEach(el=>{const h=hueOf(el.dataset.avatar);el.style.background=`linear-gradient(135deg,hsl(${h} 85% 72%),hsl(${(h+40)%360} 80% 62%))`});
+    document.querySelectorAll('.u-last .ev-icon[data-kind]').forEach(el=>{el.innerHTML=`<i data-lucide="${EV_ICONS[el.dataset.kind]||EV_ICONS.other}"></i>`});
+    document.querySelectorAll('[data-rel]').forEach(el=>{const t=relTime(el.dataset.rel);if(t)el.textContent=t});
+}
+
+function filterUsersTable(){
+    const q=(document.getElementById('userSearch')?.value||'').trim().toLowerCase();
+    const st=document.getElementById('userStatusFilter')?.value||'';
+    let shown=0;const rows=document.querySelectorAll('#usersList .u-row');
+    rows.forEach(row=>{
+        const banned=row.dataset.banned==='true';
+        const ok=(!q||(row.dataset.search||'').includes(q))&&(!hubPlan||row.dataset.plan===hubPlan)&&(!st||(st==='banned'?banned:!banned));
+        row.classList.toggle('is-hidden',!ok);if(ok)shown++;
+    });
+    const c=document.getElementById('usersShown');if(c)c.textContent=shown+' из '+rows.length;
+    const e=document.getElementById('usersEmpty');if(e)e.style.display=shown?'none':'block';
+}
+document.getElementById('planSeg')?.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    hubPlan=b.dataset.plan||'';
+    document.querySelectorAll('#planSeg button').forEach(x=>x.classList.toggle('on',x===b));
+    filterUsersTable();
+});
+
+function renderActivityFeed(){
+    const box=document.getElementById('activityFeed');if(!box)return;
+    const f=(document.getElementById('activityUserFilter')?.value||'').trim().toLowerCase();
+    const items=hubFeed.filter(l=>!f||String(l.user||'').toLowerCase().includes(f));
+    const sub=document.getElementById('feedSub');if(sub)sub.textContent=f?`События «${f}»: ${items.length}`:`Последние ${items.length} событий`;
+    if(!items.length){box.innerHTML='<div class="chart-empty" style="height:120px;">Событий нет</div>';return}
+    let html='',cur=null;
+    for(const l of items){
+        if(l.day!==cur){cur=l.day;html+=`<div class="feed-day">${esc(dayTitle(l.day))}</div>`}
+        const kind=l.kind||'other';
+        html+=`<div class="feed-item">${iconHtml(kind)}<div class="min-w-0 flex-grow">
+            <div class="ev-title"><span class="feed-user">${esc(l.user)}</span> · ${esc(l.title||l.detail||'')}</div>
+            ${l.subtitle?`<div class="ev-sub" title="${esc(l.subtitle)}">${esc(l.subtitle)}</div>`:''}
+            <div class="ev-time">${esc(relTime(l.ts_iso)||l.timestamp||'')}</div></div></div>`;
+    }
+    box.innerHTML=html;refreshIcons();
+}
+function filterActivityFeed(){renderActivityFeed()}
+function focusUserActivity(username){
+    const inp=document.getElementById('activityUserFilter');
+    if(inp){inp.value=username;renderActivityFeed()}
+    document.getElementById('activityFeed')?.closest('aside')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function refreshActivityFeed(){
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?key='+encodeURIComponent(ADMIN_KEY)+'&limit=80');
+        const d=await r.json();hubFeed=d.logs||[];renderActivityFeed();
+    }catch(e){const b=document.getElementById('activityFeed');if(b)b.innerHTML='<div class="chart-empty" style="height:120px;color:#ef4444;">Не удалось обновить</div>'}
+}
+
+const hubCharts={};
+function themeColors(){
+    const cs=getComputedStyle(document.documentElement);
+    const muted=(cs.getPropertyValue('--text-muted')||'').trim()||'rgba(255,255,255,.55)';
+    const main=(cs.getPropertyValue('--text-main')||'').trim()||'#fff';
+    const light=document.documentElement.getAttribute('data-theme')==='light';
+    return {muted,main,grid:light?'rgba(0,0,0,.06)':'rgba(255,255,255,.06)',card:light?'#ffffff':'#0d0d16'};
+}
+function emptyChart(id,msg){const c=document.getElementById(id);if(c)c.parentElement.innerHTML=`<div class="chart-empty">${msg}</div>`}
+function initHubCharts(){
+    if(typeof Chart==='undefined'){setTimeout(initHubCharts,300);return}
+    const t=themeColors();
+    Chart.defaults.font.family="Inter, sans-serif";Chart.defaults.color=t.muted;
+    Object.values(hubCharts).forEach(c=>c.destroy());
+    const s=hubInsights.series||{};const labels=hubInsights.labels||[];
+    const tooltip={backgroundColor:t.card,titleColor:t.main,bodyColor:t.main,borderColor:t.grid,borderWidth:1,padding:10,cornerRadius:10,boxPadding:4};
+    const legend={position:'bottom',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:8,padding:14,font:{size:11}}};
+
+    const a=document.getElementById('hubActivityChart');
+    if(a){hubCharts.activity=new Chart(a,{data:{labels,datasets:[
+        {type:'bar',label:'Входы',data:s.login,backgroundColor:EV_COLORS.login,stack:'e',borderRadius:4,maxBarThickness:18},
+        {type:'bar',label:'Регистрации',data:s.register,backgroundColor:EV_COLORS.register,stack:'e',borderRadius:4,maxBarThickness:18},
+        {type:'bar',label:'Эксперименты',data:s.experiment,backgroundColor:EV_COLORS.experiment,stack:'e',borderRadius:4,maxBarThickness:18},
+        {type:'bar',label:'Прочее',data:s.other,backgroundColor:EV_COLORS.other,stack:'e',borderRadius:4,maxBarThickness:18},
+        {type:'line',label:'Активных пользователей',data:s.active_users,stack:'u',borderColor:t.main,backgroundColor:t.main,borderWidth:1.5,borderDash:[4,4],tension:0,pointRadius:s.active_users.map(v=>v?3:0),pointHoverRadius:5,yAxisID:'y'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend,tooltip},
+        scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8,font:{size:10}}},
+                y:{stacked:true,beginAtZero:true,grid:{color:t.grid},border:{display:false},ticks:{precision:0,font:{size:10}}}}}})}
+
+    const pl=hubInsights.plans||{};const planColor={free:'#94a3b8',student:'#64CEFB',corp:'#a78bfa'};
+    const p=document.getElementById('hubPlansChart');
+    if(p){ if(!(pl.values||[]).length)emptyChart('hubPlansChart','Нет данных'); else
+        hubCharts.plans=new Chart(p,{type:'doughnut',data:{labels:pl.labels,datasets:[{data:pl.values,backgroundColor:(pl.keys||[]).map(k=>planColor[k]||'#f59e0b'),borderWidth:0,hoverOffset:6}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend,tooltip}}})}
+
+    const top=hubInsights.top_users||[];
+    const tc=document.getElementById('hubTopChart');
+    if(tc){ if(!top.length)emptyChart('hubTopChart','За 30 дней событий не было'); else
+        hubCharts.top=new Chart(tc,{type:'bar',data:{labels:top.map(x=>x.username),datasets:[{label:'События',data:top.map(x=>x.events),
+            backgroundColor:top.map(x=>`hsl(${hueOf(x.username)} 80% 68%)`),borderRadius:8,maxBarThickness:22}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip},
+            scales:{x:{beginAtZero:true,grid:{color:t.grid},border:{display:false},ticks:{precision:0,font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:12},color:t.main}}}}})}
+
+    const kinds=hubInsights.kinds||{};const kk=Object.keys(kinds).filter(k=>kinds[k]>0);
+    const kc=document.getElementById('hubKindsChart');
+    if(kc){ if(!kk.length)emptyChart('hubKindsChart','Нет событий'); else
+        hubCharts.kinds=new Chart(kc,{type:'doughnut',data:{labels:kk.map(k=>EV_NAMES[k]||k),datasets:[{data:kk.map(k=>kinds[k]),backgroundColor:kk.map(k=>EV_COLORS[k]||EV_COLORS.other),borderWidth:0,hoverOffset:6}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{...legend,position:innerWidth>=640?'right':'bottom'},tooltip}}})}
+}
+document.addEventListener('DOMContentLoaded',()=>{decorateUsers();renderActivityFeed();filterUsersTable();initHubCharts();refreshIcons()});
+document.getElementById('themeToggle')?.addEventListener('click',()=>setTimeout(initHubCharts,50));
+
+// ── User Actions ──
+function deleteUser(n){
+    openConfirmModal('Удалить пользователя','Удалить "'+n+'"? Все данные будут удалены.',
+        async()=>{const r=await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_key:ADMIN_KEY,username:n})});const d=await r.json();if(d.ok)location.reload();else alert(d.error||'Ошибка')});
+}
+function loginAs(n){window.location.href=BASE_PATH+LAB_ADMIN+'/api/login_as?key='+encodeURIComponent(ADMIN_KEY)+'&username='+encodeURIComponent(n)}
+async function toggleBan(n,b){
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,username:n,is_banned:b==='true'?'false':'true'})});
+    const d=await r.json();if(d.ok){location.reload()}else alert('Ошибка');
+}
+async function exportUsersCSV(){
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/export/users?key='+ADMIN_KEY);const d=await r.json();
+    if(d.csv){const b=new Blob([d.csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='users_export.csv';a.click()}
+}
+
+// ── Bulk Actions ──
+function toggleSelectAll(){const c=document.getElementById('selectAll').checked;document.querySelectorAll('.u-row:not(.is-hidden) .user-checkbox').forEach(b=>b.checked=c)}
+function getSelectedUsers(){return Array.from(document.querySelectorAll('.user-checkbox:checked')).map(b=>b.value)}
+async function bulkAction(action){
+    const selected=getSelectedUsers();if(!selected.length){alert('Выберите пользователей');return}
+    const label=action==='delete'?'удалить':action==='ban'?'заблокировать':'разблокировать';
+    openConfirmModal('Массовое действие',`${label} ${selected.length} пользователей?`,async()=>{
+        if(action==='delete'){
+            for(const u of selected){await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_key:ADMIN_KEY,username:u})})}
+        }else{
+            await fetch(BASE_PATH+LAB_ADMIN+'/api/user/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,action,usernames:selected})});
+        }
+        location.reload();
+    });
+}
+</script>
+</body>
+</html>

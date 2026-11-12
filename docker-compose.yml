@@ -7,6 +7,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    environment:
+      BASE_PATH: /bio-notebook
     volumes:
       - ./notebooks:/workspace/notebooks
       - ./web/data:/app/data

@@ -1,366 +1,268 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Расходники | Bio-Notebook</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'], heading: ['Space Grotesk', 'sans-serif'], },
-                    colors: { black: '#000000', }
-                }
-            }
-        }
-    </script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        body {
-            background-color: #000000;
-            color: white;
-            margin: 0;
-            overflow-x: hidden;
-            font-family: 'Inter', sans-serif;
-            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
-        }
-        h1, h2, h3, h4, .font-heading { font-family: 'Space Grotesk', sans-serif; }
-        .liquid-glass {
-            background: rgba(255, 255, 255, 0.02);
-            background-blend-mode: luminosity;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        .liquid-glass:hover {
-            border-color: rgba(100, 206, 251, 0.3);
-            background: rgba(255, 255, 255, 0.04);
-            transform: translateY(-2px);
-        }
-        .liquid-glass-strong {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .modal.active { display: flex; opacity: 1; }
-        .modal-content {
-            transform: scale(0.95);
-            transition: transform 0.3s ease;
-            width: 100%; max-width: 500px;
-        }
-        .modal.active .modal-content { transform: scale(1); }
-        .form-input {
-            width: 100%; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 0.75rem 1rem; border-radius: 0.5rem;
-            color: white; margin-bottom: 1rem; outline: none;
-            transition: border-color 0.2s;
-        }
-        .form-input:focus { border-color: #64CEFB; }
-        .filter2-pill {
-            padding: 0.5rem 0.9rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            color: rgba(255,255,255,0.7);
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.2s ease;
-        }
-        .filter2-pill:hover { background: rgba(255,255,255,0.07); color: white; }
-        .filter2-pill.active {
-            background: rgba(100,206,251,0.12);
-            border-color: rgba(100,206,251,0.35);
-            color: #64CEFB;
-        }
-    </style>
-</head>
-<body class="antialiased min-h-screen flex flex-col">
+{% extends "base.html" %}
 
-    <nav class="w-full px-6 lg:px-16 py-6 z-50 flex flex-wrap items-center justify-between gap-4 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass" style="transform: none; border-color: rgba(255,255,255,0.5);">
-                <div class="w-4 h-4 rounded-full bg-[#64CEFB]"></div>
-            </div>
-            <span class="font-bold text-xl tracking-tight font-heading">Bio-Notebook <span class="text-white/50 font-sans text-sm ml-2">Расходники</span></span>
-        </div>
-        <div class="hidden md:flex flex-wrap items-center gap-6 text-sm">
-            <a href="/dashboard?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Эксперименты</a>
-            <a href="/projects?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Проекты</a>
-            <a href="/reagents?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Реагенты</a>
-            <a href="/consumables?user={{ user }}" class="text-[#64CEFB] font-medium transition-colors">Расходники</a>
-        </div>
-        <div class="flex items-center gap-6">
-            <div class="hidden sm:flex items-center gap-2 text-white/60">
-                <i data-lucide="user" class="w-4 h-4"></i>
-                <span class="text-sm font-medium">{{ user }}</span>
-            </div>
-            <a href="/" class="text-white/60 hover:text-white text-sm transition-colors flex items-center gap-2">
-                Выйти
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-            </a>
-        </div>
-    </nav>
+{% block title %}Расходники{% endblock %}
+{% block nav_subtitle %}Расходники{% endblock %}
 
-    <main class="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
-            <div>
-                <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Расходники</h1>
-                <p class="text-white/50 text-sm">{{ low_consumables }} на низком остатке</p>
-            </div>
-            <button onclick="openConsumableModal()" class="bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap">
-                <i data-lucide="plus" class="w-5 h-5"></i>
-                Добавить расходник
-            </button>
-        </div>
+{% block extra_head %}
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: var(--modal-overlay);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal.active { display: flex; opacity: 1; }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%; max-width: 600px;
+    }
+    .modal.active .modal-content { transform: scale(1); }
+    table th { color: var(--text-muted); }
+    table td { color: var(--text-secondary); }
+    table tr { border-color: var(--table-border-light); }
+    table tr:hover { background: var(--table-hover); }
+</style>
+{% endblock %}
 
-        <div class="liquid-glass rounded-2xl p-6">
-            <div class="flex flex-wrap gap-2 mb-6">
-                <button class="filter2-pill active" data-filter="Все">Все категории</button>
-                <button class="filter2-pill" data-filter="Стекло">Стекло</button>
-                <button class="filter2-pill" data-filter="СИЗ">СИЗ</button>
-                <button class="filter2-pill" data-filter="Пластик">Пластик</button>
-                <button class="filter2-pill" data-filter="Фильтры">Фильтры</button>
-            </div>
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
+    <div>
+        <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Расходники</h1>
+        <p class="text-sm" style="color: var(--text-muted);">{{ low_consumables }} на низком остатке</p>
+    </div>
+    <button onclick="openConsumableModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+        <i data-lucide="plus" class="w-5 h-5"></i>
+        Добавить расходник
+    </button>
+</div>
 
-            {% if consumables|length == 0 %}
-            <div class="text-center py-16">
-                <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="package" class="w-10 h-10 text-white/30"></i>
-                </div>
-                <h3 class="text-2xl font-heading mb-3">Нет расходников</h3>
-                <p class="text-white/50 max-w-md mx-auto mb-8">Добавьте позиции вручную.</p>
-                <button onclick="openConsumableModal()" class="liquid-glass px-8 py-3 rounded-full text-white hover:bg-white/10 transition-colors border border-white/20">
-                    Добавить расходник
-                </button>
-            </div>
-            {% else %}
-            <div class="overflow-x-auto">
-                <table class="min-w-[900px] w-full text-sm">
-                    <thead class="text-white/50">
-                        <tr class="border-b border-white/10">
-                            <th class="text-left py-3 pr-4 font-medium">Название</th>
-                            <th class="text-left py-3 pr-4 font-medium">Категория</th>
-                            <th class="text-left py-3 pr-4 font-medium">Остаток</th>
-                            <th class="text-left py-3 pr-4 font-medium">Мин. остаток</th>
-                            <th class="text-left py-3 pr-4 font-medium">Местоположение</th>
-                            <th class="text-left py-3 pr-4 font-medium">Поставщик</th>
-                            <th class="text-left py-3 pr-4 font-medium">Комментарий</th>
-                            <th class="text-left py-3 pr-0 font-medium"> </th>
-                        </tr>
-                    </thead>
-                    <tbody id="consumablesTable">
-                        {% for c in consumables %}
-                        {% set c_amount = c.amount|float %}
-                        {% set c_min = c.min_amount|float %}
-                        {% set c_low = c_amount <= c_min %}
-                        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors" data-category="{{ c.category }}">
-                            <td class="py-3 pr-4">
-                                <div class="font-semibold text-white">{{ c.name }}</div>
-                            </td>
-                            <td class="py-3 pr-4 text-white/80">{{ c.category }}</td>
-                            <td class="py-3 pr-4 {% if c_low %}text-red-400 font-semibold{% else %}text-white/80{% endif %}">
-                                {{ c.amount }} {{ c.unit }}
-                                {% if c_low %}<span class="text-red-400/70 text-[10px] ml-1">⚠</span>{% endif %}
-                            </td>
-                            <td class="py-3 pr-4 text-white/50">{{ c.min_amount }} {{ c.unit }}</td>
-                            <td class="py-3 pr-4 text-white/80">{{ c.location or '—' }}</td>
-                            <td class="py-3 pr-4 text-white/80">{{ c.supplier or '—' }}</td>
-                            <td class="py-3 pr-4 text-white/50">{{ c.comment or '—' }}</td>
-                            <td class="py-3 pr-0 text-right whitespace-nowrap">
-                                <button type="button" class="text-white/60 hover:text-white text-xs px-2" onclick="editConsumable('{{ c.id }}')">Изм.</button>
-                                <button type="button" class="text-red-400 hover:text-red-300 text-xs px-2" onclick="deleteConsumable('{{ c.id }}')">Уд.</button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% endif %}
-        </div>
-    </main>
-
-    <div id="consumableModal" class="modal">
-        <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-            <button type="button" onclick="closeConsumableModal()" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            <div class="mb-6">
-                <h2 class="text-2xl font-heading font-bold mb-2">Добавить расходник</h2>
-                <p class="text-white/60 text-sm">Заполните минимум название и остаток</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input id="c_name" class="form-input liquid-glass" placeholder="Название" />
-                <select id="c_category" class="form-input liquid-glass">
-                    <option>Стекло</option>
-                    <option>СИЗ</option>
-                    <option>Пластик</option>
-                    <option>Фильтры</option>
-                </select>
-                <input id="c_location" class="form-input liquid-glass" placeholder="Местоположение" />
-                <input id="c_supplier" class="form-input liquid-glass" placeholder="Поставщик" />
-                <input id="c_comment" class="form-input liquid-glass md:col-span-2" placeholder="Комментарий" />
-                <div class="grid grid-cols-3 gap-3 md:col-span-2">
-                    <input id="c_amount" class="form-input liquid-glass" placeholder="Остаток" />
-                    <input id="c_min" class="form-input liquid-glass" placeholder="Мин. остаток" />
-                    <input id="c_unit" class="form-input liquid-glass" placeholder="Ед. (шт/пар)" value="шт" />
-                </div>
-            </div>
-            <div class="mt-6">
-                <button type="button" onclick="createConsumable()" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors">Добавить</button>
-            </div>
-        </div>
+<div class="liquid-glass rounded-2xl p-6">
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button class="filter2-pill active" data-filter="Все">Все категории</button>
+        <button class="filter2-pill" data-filter="Стекло">Стекло</button>
+        <button class="filter2-pill" data-filter="СИЗ">СИЗ</button>
+        <button class="filter2-pill" data-filter="Пластик">Пластик</button>
+        <button class="filter2-pill" data-filter="Фильтры">Фильтры</button>
     </div>
 
-    <div id="editConsumableModal" class="modal">
-        <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-            <button type="button" onclick="closeEditConsumableModal()" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            <div class="mb-6">
-                <h2 class="text-2xl font-heading font-bold mb-2">Изменить расходник</h2>
-                <p class="text-white/60 text-sm">Отредактируйте поля расходника</p>
-            </div>
-            <input type="hidden" id="ec_id" />
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input id="ec_name" class="form-input liquid-glass" placeholder="Название" />
-                <select id="ec_category" class="form-input liquid-glass">
-                    <option>Стекло</option>
-                    <option>СИЗ</option>
-                    <option>Пластик</option>
-                    <option>Фильтры</option>
-                </select>
-                <input id="ec_location" class="form-input liquid-glass" placeholder="Местоположение" />
-                <input id="ec_supplier" class="form-input liquid-glass" placeholder="Поставщик" />
-                <input id="ec_comment" class="form-input liquid-glass md:col-span-2" placeholder="Комментарий" />
-                <div class="grid grid-cols-3 gap-3 md:col-span-2">
-                    <input id="ec_amount" class="form-input liquid-glass" placeholder="Остаток" />
-                    <input id="ec_min" class="form-input liquid-glass" placeholder="Мин. остаток" />
-                    <input id="ec_unit" class="form-input liquid-glass" placeholder="Ед. (шт/пар)" value="шт" />
-                </div>
-            </div>
-            <div class="mt-6">
-                <button type="button" onclick="saveEditConsumable()" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors">Сохранить</button>
+    {% if consumables|length == 0 %}
+    <div class="text-center py-16">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+            <i data-lucide="package" class="w-10 h-10" style="color: var(--text-muted);"></i>
+        </div>
+        <h3 class="text-2xl font-heading mb-3">Нет расходников</h3>
+        <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Добавьте позиции вручную.</p>
+        <button onclick="openConsumableModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors border" style="color: var(--text-main); border-color: var(--glass-border);">
+            Добавить расходник
+        </button>
+    </div>
+    {% else %}
+    <div class="overflow-x-auto">
+        <table class="min-w-[900px] w-full text-sm">
+            <thead>
+                <tr class="border-b" style="border-color: var(--table-border);">
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Название</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Категория</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Мин. остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Местоположение</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Поставщик</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Комментарий</th>
+                    <th class="text-left py-3 pr-0 font-medium" style="color: var(--text-muted);"> </th>
+                </tr>
+            </thead>
+            <tbody id="consumablesTable">
+                {% for c in consumables %}
+                {% set c_amount = c.amount|float %}
+                {% set c_min = c.min_amount|float %}
+                {% set c_low = c_amount <= c_min %}
+                <tr class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ c.category }}">
+                    <td class="py-3 pr-4">
+                        <div class="font-semibold" style="color: var(--text-main);">{{ c.name }}</div>
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.category }}</td>
+                    <td class="py-3 pr-4 {% if c_low %}font-semibold{% endif %}" style="{% if c_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
+                        {{ c.amount }} {{ c.unit }}
+                        {% if c_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.min_amount }} {{ c.unit }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '—' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '—' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '—' }}</td>
+                    <td class="py-3 pr-0 text-right whitespace-nowrap">
+                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editConsumable('{{ c.id }}')">Изм.</button>
+                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteConsumable('{{ c.id }}')">Уд.</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Consumable Modal -->
+<div id="consumableModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeConsumableModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Добавить расходник</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Заполните минимум название и остаток</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="c_name" class="form-input" placeholder="Название" />
+            <select id="c_category" class="form-input">
+                <option>Стекло</option>
+                <option>СИЗ</option>
+                <option>Пластик</option>
+                <option>Фильтры</option>
+            </select>
+            <input id="c_location" class="form-input" placeholder="Местоположение" />
+            <input id="c_supplier" class="form-input" placeholder="Поставщик" />
+            <input id="c_comment" class="form-input md:col-span-2" placeholder="Комментарий" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="c_amount" class="form-input" placeholder="Остаток" />
+                <input id="c_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="c_unit" class="form-input" placeholder="Ед. (шт/пар)" value="шт" />
             </div>
         </div>
+        <div class="mt-6">
+            <button type="button" onclick="createConsumable()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Добавить</button>
+        </div>
     </div>
+</div>
 
-    <script>
-        lucide.createIcons();
+<!-- Edit Consumable Modal -->
+<div id="editConsumableModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeEditConsumableModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Изменить расходник</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Отредактируйте поля расходника</p>
+        </div>
+        <input type="hidden" id="ec_id" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="ec_name" class="form-input" placeholder="Название" />
+            <select id="ec_category" class="form-input">
+                <option>Стекло</option>
+                <option>СИЗ</option>
+                <option>Пластик</option>
+                <option>Фильтры</option>
+            </select>
+            <input id="ec_location" class="form-input" placeholder="Местоположение" />
+            <input id="ec_supplier" class="form-input" placeholder="Поставщик" />
+            <input id="ec_comment" class="form-input md:col-span-2" placeholder="Комментарий" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="ec_amount" class="form-input" placeholder="Остаток" />
+                <input id="ec_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="ec_unit" class="form-input" placeholder="Ед. (шт/пар)" value="шт" />
+            </div>
+        </div>
+        <div class="mt-6">
+            <button type="button" onclick="saveEditConsumable()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-        function setActivePill(groupSelector, btn) {
-            document.querySelectorAll(groupSelector).forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        }
+{% block extra_scripts %}
+<script>
+    function setActivePill(groupSelector, btn) {
+        document.querySelectorAll(groupSelector).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
 
-        document.querySelectorAll('.filter2-pill').forEach(btn => {
-            btn.addEventListener('click', () => {
-                setActivePill('.filter2-pill', btn);
-                const filter = btn.dataset.filter;
-                document.querySelectorAll('#consumablesTable tr').forEach(row => {
-                    row.style.display = (filter === 'Все' || row.dataset.category === filter) ? '' : 'none';
-                });
+    document.querySelectorAll('.filter2-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setActivePill('.filter2-pill', btn);
+            const filter = btn.dataset.filter;
+            document.querySelectorAll('#consumablesTable tr').forEach(row => {
+                row.style.display = (filter === 'Все' || row.dataset.category === filter) ? '' : 'none';
             });
         });
+    });
 
-        const consumableModal = document.getElementById('consumableModal');
-        const editConsumableModal = document.getElementById('editConsumableModal');
+    const consumableModal = document.getElementById('consumableModal');
+    const editConsumableModal = document.getElementById('editConsumableModal');
 
-        function openConsumableModal(){ consumableModal.style.display='flex'; setTimeout(()=>consumableModal.style.opacity='1',10); }
-        function closeConsumableModal(){ consumableModal.style.opacity='0'; setTimeout(()=>consumableModal.style.display='none',300); }
-        function openEditConsumableModal() {
-            editConsumableModal.style.display = 'flex';
-            setTimeout(() => editConsumableModal.style.opacity = '1', 10);
-        }
-        function closeEditConsumableModal() {
-            editConsumableModal.style.opacity = '0';
-            setTimeout(() => editConsumableModal.style.display = 'none', 300);
-        }
+    function openConsumableModal(){ openModalFn(consumableModal); }
+    function closeConsumableModal(){ closeModalFn(consumableModal); }
+    function openEditConsumableModal() { openModalFn(editConsumableModal); }
+    function closeEditConsumableModal() { closeModalFn(editConsumableModal); }
 
-        consumableModal.addEventListener('click', function(e){ if(e.target===this) closeConsumableModal(); });
-        editConsumableModal.addEventListener('click', function (e) {
-            if (e.target === this) closeEditConsumableModal();
-        });
+    if (consumableModal) consumableModal.addEventListener('click', function(e){ if(e.target===this) closeConsumableModal(); });
+    if (editConsumableModal) editConsumableModal.addEventListener('click', function (e) { if (e.target === this) closeEditConsumableModal(); });
 
-        async function deleteConsumable(id){
-            if(!confirm('Удалить расходник?')) return;
-            await fetch(`/api/consumables/${id}`, { method:'DELETE' });
-            location.reload();
-        }
+    async function deleteConsumable(id){
+        if(!confirm('Удалить расходник?')) return;
+        await fetch(`{{ base_path }}/api/consumables/${id}`, { method:'DELETE' });
+        location.reload();
+    }
 
-        async function createConsumable(){
-            const payload = {
-                user: "{{ user }}",
-                name: document.getElementById('c_name').value,
-                supplier: document.getElementById('c_supplier').value,
-                category: document.getElementById('c_category').value,
-                amount: document.getElementById('c_amount').value,
-                min_amount: document.getElementById('c_min').value,
-                unit: document.getElementById('c_unit').value,
-                location: document.getElementById('c_location').value,
-                comment: document.getElementById('c_comment').value,
-            };
-            await fetch('/api/consumables', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            closeConsumableModal();
-            location.reload();
-        }
+    async function createConsumable(){
+        const payload = {
+            user: "{{ user }}",
+            name: document.getElementById('c_name').value,
+            supplier: document.getElementById('c_supplier').value,
+            category: document.getElementById('c_category').value,
+            amount: document.getElementById('c_amount').value,
+            min_amount: document.getElementById('c_min').value,
+            unit: document.getElementById('c_unit').value,
+            location: document.getElementById('c_location').value,
+            comment: document.getElementById('c_comment').value,
+        };
+        await fetch('{{ base_path }}/api/consumables', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        closeConsumableModal();
+        location.reload();
+    }
 
-        async function fetchConsumableData(id) {
-            const resp = await fetch(`/api/consumables?user={{ user }}`);
-            const data = await resp.json();
-            return data.items.find(i => i.id === id);
-        }
+    async function fetchConsumableData(id) {
+        const resp = await fetch(`{{ base_path }}/api/consumables?user={{ user }}`);
+        const data = await resp.json();
+        return data.items.find(i => i.id === id);
+    }
 
-        async function editConsumable(id) {
-            const c = await fetchConsumableData(id);
-            if (!c) return;
-            document.getElementById('ec_id').value = c.id;
-            document.getElementById('ec_name').value = c.name;
-            document.getElementById('ec_category').value = c.category;
-            document.getElementById('ec_amount').value = c.amount;
-            document.getElementById('ec_min').value = c.min_amount;
-            document.getElementById('ec_unit').value = c.unit;
-            document.getElementById('ec_location').value = c.location;
-            document.getElementById('ec_supplier').value = c.supplier;
-            document.getElementById('ec_comment').value = c.comment;
-            openEditConsumableModal();
-        }
+    async function editConsumable(id) {
+        const c = await fetchConsumableData(id);
+        if (!c) return;
+        document.getElementById('ec_id').value = c.id;
+        document.getElementById('ec_name').value = c.name;
+        document.getElementById('ec_category').value = c.category;
+        document.getElementById('ec_amount').value = c.amount;
+        document.getElementById('ec_min').value = c.min_amount;
+        document.getElementById('ec_unit').value = c.unit;
+        document.getElementById('ec_location').value = c.location;
+        document.getElementById('ec_supplier').value = c.supplier;
+        document.getElementById('ec_comment').value = c.comment;
+        openEditConsumableModal();
+    }
 
-        async function saveEditConsumable() {
-            const id = document.getElementById('ec_id').value;
-            const payload = {
-                name: document.getElementById('ec_name').value,
-                supplier: document.getElementById('ec_supplier').value,
-                category: document.getElementById('ec_category').value,
-                amount: document.getElementById('ec_amount').value,
-                min_amount: document.getElementById('ec_min').value,
-                unit: document.getElementById('ec_unit').value,
-                location: document.getElementById('ec_location').value,
-                comment: document.getElementById('ec_comment').value,
-            };
-            await fetch(`/api/consumables/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            closeEditConsumableModal();
-            location.reload();
-        }
-    </script>
-</body>
-</html>
+    async function saveEditConsumable() {
+        const id = document.getElementById('ec_id').value;
+        const payload = {
+            name: document.getElementById('ec_name').value,
+            supplier: document.getElementById('ec_supplier').value,
+            category: document.getElementById('ec_category').value,
+            amount: document.getElementById('ec_amount').value,
+            min_amount: document.getElementById('ec_min').value,
+            unit: document.getElementById('ec_unit').value,
+            location: document.getElementById('ec_location').value,
+            comment: document.getElementById('ec_comment').value,
+        };
+        await fetch(`{{ base_path }}/api/consumables/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        closeEditConsumableModal();
+        location.reload();
+    }
+</script>
+{% endblock %}

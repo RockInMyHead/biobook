@@ -1,0 +1,40 @@
+<style>
+    :root {
+        --pub-teal: #0e7490;
+        --pub-ink: #14181f;
+        --pub-muted: #5c6570;
+        --pub-cream: #f6f3ed;
+        --pub-cream-2: #efeae1;
+    }
+    .pub-header {
+        position: sticky; top: 0; z-index: 40;
+        background: rgba(5, 7, 10, .88);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .pub-nav {
+        max-width: 72rem; margin: 0 auto;
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+        gap: .75rem 1rem; padding: .95rem 1.5rem;
+    }
+    .pub-logo {
+        font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+        color: #fff; text-decoration: none; letter-spacing: -.02em; font-size: 1.05rem;
+    }
+    .pub-links { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .7rem; font-size: .85rem; }
+    .pub-links a {
+        color: rgba(255,255,255,.82); text-decoration: none;
+        padding: .45rem .9rem; border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.04);
+        transition: background .2s, color .2s;
+    }
+    .pub-links a:hover { background: rgba(255,255,255,.1); color: #fff; text-decoration: none; }
+    .pub-cta {
+        display: inline-flex !important; padding: .5rem 1rem !important; border-radius: 999px !important;
+        background: #0e7490 !important; color: #fff !important; font-weight: 700 !important;
+        border-color: transparent !important;
+    }
+    .pub-cta:hover { filter: brightness(1.1); }
+    body.has-pub-header { padding-top: 0; }
+</style>

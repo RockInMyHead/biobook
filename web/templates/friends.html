@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}Друзья{% endblock %}
+{% block nav_subtitle %}Сообщество{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-image: var(--bg-radial) !important;
+    }
+    .friends-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+    }
+    .friend-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 20px;
+        border-radius: 16px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        transition: all 0.2s ease;
+        min-width: 0;
+    }
+    .friend-card:hover {
+        border-color: var(--glass-border-hover);
+        background: var(--glass-hover);
+    }
+    .friend-card--request,
+    .friend-card--member {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        grid-template-rows: auto auto;
+        column-gap: 14px;
+        row-gap: 12px;
+        align-items: center;
+    }
+    .friend-card--request .friend-avatar-link,
+    .friend-card--member .friend-avatar-link {
+        grid-row: 1;
+        grid-column: 1;
+    }
+    .friend-card--request .friend-card-info,
+    .friend-card--member .friend-card-info {
+        grid-row: 1;
+        grid-column: 2;
+        min-width: 0;
+    }
+    .friend-card--request .friend-card-actions,
+    .friend-card--member .friend-card-actions {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+    }
+    .friend-card-info {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .friend-card-info a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .friend-card-info a:hover {
+        color: var(--primary);
+    }
+    .friend-card-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .friend-card-actions button,
+    .friend-card-actions a {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .friend-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 18px;
+        flex-shrink: 0;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        color: var(--primary);
+        border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    }
+    .friend-avatar-link {
+        display: block;
+        flex-shrink: 0;
+        text-decoration: none;
+        color: inherit;
+    }
+    .friend-avatar-link:hover .friend-avatar {
+        border-color: var(--primary);
+    }
+    .request-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        padding: 2px 10px;
+        border-radius: 9999px;
+        background: var(--primary);
+        color: var(--primary-fg);
+        font-weight: 600;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        border-radius: 24px;
+        border: 1px dashed var(--glass-border);
+        background: var(--glass-bg);
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--modal-overlay);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        padding: 16px;
+        box-sizing: border-box;
+    }
+    .modal.active {
+        display: flex;
+        opacity: 1;
+    }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%;
+        max-width: 520px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+    }
+    .modal.active .modal-content {
+        transform: scale(1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+    <div>
+        <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Друзья <span class="shiny-text">и коллеги</span></h1>
+        <p class="text-sm" style="color: var(--text-muted);">Добавляйте коллег в друзья, чтобы обмениваться экспериментами и проектами</p>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+        <a href="{{ base_path }}/chat?user={{ user }}" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap no-underline" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted);" onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--glass-border)'; this.style.color='var(--text-muted)'">
+            <i data-lucide="message-circle" class="w-5 h-5"></i>
+            Чаты
+        </a>
+        <button onclick="openSearchModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            <i data-lucide="search" class="w-5 h-5"></i>
+            Найти пользователей
+        </button>
+    </div>
+</div>
+
+<!-- Pending requests -->
+{% if pending_in %}
+<div class="mb-10">
+    <h2 class="text-lg font-heading font-bold mb-4 flex items-center gap-2">
+        <i data-lucide="bell" class="w-5 h-5" style="color: var(--primary);"></i>
+        Входящие заявки <span class="request-badge">{{ pending_in|length }}</span>
+    </h2>
+    <div class="friends-grid">
+        {% for p in pending_in %}
+        <div class="friend-card friend-card--request" id="pending-{{ p.username }}">
+            <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="friend-avatar-link" title="Открыть профиль">
+                <div class="friend-avatar">{{ p.username[:1].upper() }}</div>
+            </a>
+            <div class="friend-card-info">
+                <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="font-semibold truncate block">{{ p.username }}</a>
+                <div class="text-xs" style="color: var(--text-muted);">хочет добавить вас в друзья</div>
+            </div>
+            <div class="friend-card-actions">
+                <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="text-xs py-2 px-4 rounded-full transition-colors no-underline" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted);" onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--glass-border)'; this.style.color='var(--text-muted)'">
+                    Профиль
+                </a>
+                <button onclick="acceptFriend('{{ p.username }}')" class="text-xs font-bold py-2 px-4 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                    Принять
+                </button>
+                <button onclick="rejectFriend('{{ p.username }}')" class="text-xs py-2 px-4 rounded-full transition-colors" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted);" onmouseover="this.style.borderColor='var(--text-muted)'" onmouseout="this.style.borderColor='var(--glass-border)'">
+                    Отклонить
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending outgoing -->
+{% if pending_out %}
+<div class="mb-10">
+    <h2 class="text-lg font-heading font-bold mb-4 flex items-center gap-2">
+        <i data-lucide="clock" class="w-5 h-5" style="color: #f59e0b;"></i>
+        Ожидают ответа
+    </h2>
+    <div class="friends-grid">
+        {% for fname in pending_out %}
+        <div class="friend-card">
+            <a href="{{ base_path }}/profile/{{ fname }}?user={{ user }}" class="friend-avatar-link" title="Открыть профиль">
+                <div class="friend-avatar">{{ fname[:1].upper() }}</div>
+            </a>
+            <div class="friend-card-info">
+                <a href="{{ base_path }}/profile/{{ fname }}?user={{ user }}" class="font-semibold truncate block">{{ fname }}</a>
+                <div class="text-xs" style="color: #f59e0b;">ожидает подтверждения</div>
+            </div>
+            <a href="{{ base_path }}/profile/{{ fname }}?user={{ user }}" class="text-xs px-3 py-1 rounded-full whitespace-nowrap flex-shrink-0 no-underline" style="background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2);">Профиль</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- My friends -->
+<h2 class="text-lg font-heading font-bold mb-4 flex items-center gap-2">
+    <i data-lucide="users" class="w-5 h-5" style="color: var(--primary);"></i>
+    Мои друзья <span class="text-sm font-normal" style="color: var(--text-muted);">({{ friends|length }})</span>
+</h2>
+
+{% if friends|length == 0 and not pending_in and not pending_out %}
+<div class="empty-state">
+    <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+        <i data-lucide="user-plus" class="w-10 h-10" style="color: var(--text-muted);"></i>
+    </div>
+    <h3 class="text-2xl font-heading mb-3">У вас пока нет друзей</h3>
+    <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Найдите коллег по имени пользователя и отправьте запрос в друзья, чтобы сотрудничать.</p>
+    <button onclick="openSearchModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors" style="color: var(--text-main); border-color: var(--glass-border);">
+        Найти коллег
+    </button>
+</div>
+{% elif friends|length == 0 %}
+<div class="text-center py-12">
+    <p style="color: var(--text-muted);">Пока нет подтверждённых друзей</p>
+</div>
+{% else %}
+<div class="friends-grid">
+    {% for f in friends %}
+    <div class="friend-card friend-card--member" id="friend-{{ f.username }}">
+        <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="friend-avatar-link" title="Открыть профиль">
+            <div class="friend-avatar">{{ f.username[:1].upper() }}</div>
+        </a>
+        <div class="friend-card-info">
+            <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="font-semibold truncate block">{{ f.username }}</a>
+            {% if f.email %}
+            <div class="text-xs truncate" style="color: var(--text-muted);">{{ f.email }}</div>
+            {% endif %}
+        </div>
+        <div class="friend-card-actions">
+            <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="text-xs py-2 px-4 rounded-full transition-colors no-underline" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted);" onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--glass-border)'; this.style.color='var(--text-muted)'" title="Профиль">
+                Профиль
+            </a>
+            <a href="{{ base_path }}/chat/{{ f.username }}?user={{ user }}" class="text-xs py-2 px-3 rounded-full transition-colors flex items-center gap-1 no-underline" style="color: var(--primary); background: transparent; border: 1px solid transparent; cursor: pointer;" onmouseover="this.style.background='rgba(0,153,255,0.1)'; this.style.borderColor='rgba(0,153,255,0.3)'" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent'" title="Чат">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                Чат
+            </a>
+            <button onclick="removeFriend('{{ f.username }}')" class="text-xs py-2 px-3 rounded-full transition-colors flex items-center gap-1" style="color: var(--text-muted); background: transparent; border: 1px solid var(--glass-border); cursor: pointer;" onmouseover="this.style.color='#ef4444'; this.style.borderColor='#ef4444'" onmouseout="this.style.color='var(--text-muted)'; this.style.borderColor='var(--glass-border)'" title="Удалить из друзей">
+                <i data-lucide="user-x" class="w-3.5 h-3.5"></i>
+                Удалить
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Search Users Modal -->
+<div id="searchModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="max-width: 520px;">
+        <button onclick="closeSearchModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Поиск пользователей</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Введите имя пользователя, чтобы найти и добавить в друзья</p>
+        </div>
+        
+        <div class="relative mb-4">
+            <input type="text" id="userSearchInput" class="form-input" placeholder="Введите имя пользователя..." oninput="searchUsers(this.value)" autocomplete="off">
+            <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                <i data-lucide="search" class="w-4 h-4" style="color: var(--text-muted);"></i>
+            </div>
+        </div>
+        
+        <div id="searchResults" class="space-y-2 min-h-[60px]">
+            <p class="text-sm text-center py-6" style="color: var(--text-muted);">Начните вводить имя пользователя</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const BASE_PATH = '{{ base_path }}';
+    const CURRENT_USER = '{{ user }}';
+    const KNOWN_FRIENDS = new Set([{% for f in friends %}'{{ f.username }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
+    const PENDING_OUT = new Set([{% for fname in pending_out %}'{{ fname }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
+    const PENDING_IN = new Set([{% for p in pending_in %}'{{ p.username }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
+
+    function openSearchModal() {
+        const m = document.getElementById('searchModal');
+        m.classList.add('active');
+        setTimeout(() => document.getElementById('userSearchInput')?.focus(), 50);
+    }
+    function closeSearchModal() {
+        const m = document.getElementById('searchModal');
+        m.classList.remove('active');
+        const input = document.getElementById('userSearchInput');
+        const results = document.getElementById('searchResults');
+        if (input) input.value = '';
+        if (results) {
+            results.innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Начните вводить имя пользователя</p>';
+        }
+    }
+    (function() {
+        const m = document.getElementById('searchModal');
+        if (m) {
+            m.addEventListener('click', function(e) {
+                if (e.target === this) closeSearchModal();
+            });
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeSearchModal();
+        });
+    })();
+
+    function relationBadge(username) {
+        if (KNOWN_FRIENDS.has(username)) {
+            return `<span class="text-xs flex items-center gap-1 px-3 py-2 rounded-full" style="background: rgba(34,197,94,0.12); color: #22c55e;">✓ В друзьях</span>`;
+        }
+        if (PENDING_OUT.has(username)) {
+            return `<span class="text-xs px-3 py-2 rounded-full" style="background: rgba(245,158,11,0.12); color: #f59e0b;">Ожидает ответа</span>`;
+        }
+        if (PENDING_IN.has(username)) {
+            return `<a href="${BASE_PATH}/profile/${username}?user=${CURRENT_USER}" class="text-xs font-bold py-2 px-4 rounded-full no-underline" style="background: var(--primary); color: var(--primary-fg);">Ответить</a>`;
+        }
+        return `<button onclick="sendRequest('${username}', this)" class="friend-action-btn text-xs font-bold py-2 px-4 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;">+ В друзья</button>`;
+    }
+
+    let searchTimer = null;
+    async function searchUsers(q) {
+        if (searchTimer) clearTimeout(searchTimer);
+        const results = document.getElementById('searchResults');
+        q = q.trim();
+        if (q.length < 1) {
+            results.innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Начните вводить имя пользователя</p>';
+            return;
+        }
+        results.innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Поиск...</p>';
+        searchTimer = setTimeout(async () => {
+            try {
+                const resp = await fetch(`${BASE_PATH}/api/users/search?q=${encodeURIComponent(q)}`);
+                const data = await resp.json();
+                if (data.users && data.users.length > 0) {
+                    const rows = data.users.filter(u => u.username !== CURRENT_USER).map(u => `
+                        <div class="flex items-center justify-between p-3 rounded-xl gap-3" style="border: 1px solid var(--glass-border); background: var(--glass-bg);">
+                            <a href="${BASE_PATH}/profile/${u.username}?user=${CURRENT_USER}" class="flex items-center gap-3 min-w-0 flex-grow no-underline" style="color: inherit;">
+                                <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0" style="background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary);">
+                                    ${u.username.charAt(0).toUpperCase()}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-medium text-sm truncate">${u.username}</div>
+                                    ${u.email ? `<div class="text-xs truncate" style="color: var(--text-muted);">${u.email}</div>` : ''}
+                                </div>
+                            </a>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <a href="${BASE_PATH}/profile/${u.username}?user=${CURRENT_USER}" class="text-xs py-2 px-3 rounded-full no-underline" style="border: 1px solid var(--glass-border); color: var(--text-muted);">Профиль</a>
+                                ${relationBadge(u.username)}
+                            </div>
+                        </div>
+                    `);
+                    results.innerHTML = rows.length
+                        ? rows.join('')
+                        : '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Пользователи не найдены</p>';
+                } else {
+                    results.innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Пользователи не найдены</p>';
+                }
+            } catch (e) {
+                results.innerHTML = '<p class="text-sm text-center py-6" style="color: #ef4444;">Ошибка поиска</p>';
+            }
+        }, 300);
+    }
+
+    async function sendRequest(friendId, btn) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                if (btn) {
+                    btn.textContent = '✓ Отправлено';
+                    btn.style.background = 'rgba(34,197,94,0.2)';
+                    btn.style.color = '#22c55e';
+                    btn.disabled = true;
+                    btn.style.cursor = 'default';
+                }
+                PENDING_OUT.add(friendId);
+                setTimeout(() => {
+                    closeSearchModal();
+                    location.reload();
+                }, 600);
+            } else {
+                alert(data.error || 'Ошибка');
+            }
+        } catch (e) {
+            alert('Ошибка отправки запроса');
+        }
+    }
+
+    async function acceptFriend(friendId) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/accept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.ok) {
+                document.getElementById('pending-' + friendId)?.remove();
+                location.reload();
+                return;
+            }
+            alert(data.error || data.message || `Не удалось принять заявку (${resp.status})`);
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function rejectFriend(friendId) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.ok) {
+                document.getElementById('pending-' + friendId)?.remove();
+                location.reload();
+                return;
+            }
+            alert(data.error || data.message || `Не удалось отклонить (${resp.status})`);
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function removeFriend(friendId) {
+        if (!confirm(`Удалить ${friendId} из друзей?`)) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.ok) location.reload();
+            else alert(data.error || data.message || 'Ошибка');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+</script>
+{% endblock %}

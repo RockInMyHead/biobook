@@ -1,59 +1,58 @@
-# Развертывание Bio-Notebook (Deploy Guide)
+# Развертывание Bio-Notebook
 
-Этот документ описывает процесс автоматизированного развертывания проекта `bio-notebook` на удаленном сервере.
+> Актуальные реквизиты доступа, инфраструктура и ключи — в корневом [`../deploy.md`](../deploy.md).
 
-## Текущая инфраструктура
-
-- **Сервер (IP):** `62.113.108.47`
-- **Протокол:** `HTTPS`
-- **Порт:** `3000`
-- **Окружение:** `Docker` и `Docker Compose`
-- **Рабочая директория на сервере:** `~/bio-notebook` (в домашней папке пользователя `root`)
-
-## Как происходит деплой
-
-Обычно процесс деплоя сводится к упаковке текущей локальной версии проекта, отправке её на сервер и перезапуску контейнеров. 
-
-Шаги, которые я выполняю "под капотом":
-
-### 1. Архивация проекта
-Я создаю локальный архив исходного кода проекта, чтобы быстро передать его на сервер.
-```bash
-tar -czf bio-notebook-deploy.tar.gz .
-```
-
-### 2. Отправка на сервер (SCP)
-Копирую созданный архив на сервер в директорию `/root/` по SSH (с использованием SCP).
-```bash
-scp bio-notebook-deploy.tar.gz root@62.113.108.47:/root/
-```
-
-### 3. Локальная очистка
-Удаляю локальный архив, так как он больше не нужен.
-```bash
-rm bio-notebook-deploy.tar.gz
-```
-
-### 4. Выполнение команд на сервере (SSH)
-Я подключаюсь к серверу по SSH и выполняю цепочку команд:
-1. Переход в директорию проекта.
-2. Распаковка загруженного архива с заменой старых файлов.
-3. Удаление архива с сервера.
-4. Пересборка и перезапуск Docker-контейнера `web` в фоновом режиме.
+## Быстрый деплой
 
 ```bash
-ssh root@62.113.108.47 "cd bio-notebook && tar -xzf ~/bio-notebook-deploy.tar.gz && rm ~/bio-notebook-deploy.tar.gz && docker compose up --build -d web"
+# Актуальный сервер: ubuntu@95.163.215.131 (VK Cloud), ключ ./anticus-front.pem
+# Не заливать venv и data — на сервере своё окружение и пользовательские данные.
+tar -czf /tmp/bio-notebook-deploy.tar.gz \
+  -C biobook --exclude=venv --exclude='*/venv' --exclude=.git --exclude=data --exclude='*/data' .
+scp -i ./anticus-front.pem /tmp/bio-notebook-deploy.tar.gz ubuntu@95.163.215.131:/tmp/
+ssh -i ./anticus-front.pem ubuntu@95.163.215.131 \
+  "sudo tar -xzf /tmp/bio-notebook-deploy.tar.gz -C /opt/bio-notebook && \
+   sudo rm /tmp/bio-notebook-deploy.tar.gz && sudo systemctl restart biobook"
+rm /tmp/bio-notebook-deploy.tar.gz
 ```
 
-## Полная команда деплоя в одну строку
+## На сервере
 
-Для удобства все эти действия объединяются в одну цепочку:
+- **URL:** https://anticus.tech/bio-notebook/
+- **Путь:** `/opt/bio-notebook/web`
+- **Сервис:** `biobook.service` (uvicorn, порт `127.0.0.1:3001`)
+- **Админка лаб. журнала (отдельно от сайта):** https://anticus.tech/bio-notebook/lab-admin — ключ `ADMIN_KEY` (`admin123` по умолчанию)
+- Старый URL `/bio-notebook/admin` перенаправляет на `/lab-admin`
+
+## Яндекс ID (OAuth)
+
+1. Создайте приложение: https://oauth.yandex.ru/client/new  
+   - **Redirect URI:** `https://bionotebook.ru/auth/yandex/callback`
+   - (legacy, если ещё нужен) `https://anticus.tech/bio-notebook/auth/yandex/callback`
+   - Права: login:email, login:info
+
+2. Добавьте в env сервиса `biobook` (или `/etc/biobook.env`):
 
 ```bash
-tar -czf ../bio-notebook-deploy.tar.gz . && \
-scp ../bio-notebook-deploy.tar.gz root@62.113.108.47:/root/ && \
-rm ../bio-notebook-deploy.tar.gz && \
-ssh root@62.113.108.47 "mkdir -p bio-notebook && cd bio-notebook && tar -xzf ~/bio-notebook-deploy.tar.gz && rm ~/bio-notebook-deploy.tar.gz && docker compose up --build -d web"
+YANDEX_CLIENT_ID=ваш_client_id
+YANDEX_CLIENT_SECRET=ваш_client_secret
+SITE_ORIGIN=https://bionotebook.ru
+LEGAL_BASE_URL=https://anticus.tech
 ```
 
-> **Примечание:** База данных (Milvus, PostgreSQL/SQLite) и конфигурационные данные привязаны к локальным томам (volumes), поэтому они сохраняются между пересборками контейнера. Обновляется только логика самого приложения (`web`).
+3. Перезапуск: `systemctl restart biobook`
+
+Кнопка «Быстрая регистрация через Яндекс» появляется только когда заданы оба ключа.
+
+## OCR через OpenRouter
+
+В `/etc/biobook.env` (права `600`, не коммитить):
+
+```bash
+OCR_API_KEY=sk-or-v1-...
+OCR_API_URL=https://openrouter.ai/api/v1/chat/completions
+OCR_VISION_MODEL=qwen/qwen-2.5-vl-7b-instruct
+AI_HTTP_PROXY=http://USER:PASS@HOST:PORT
+```
+
+`AI_HTTP_PROXY` используют и OCR, и ИИ-чат (httpx). После изменений: `sudo systemctl restart biobook`.

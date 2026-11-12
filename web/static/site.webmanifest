@@ -1,0 +1,14 @@
+{
+  "name": "Bio-Notebook — электронный лабораторный журнал",
+  "short_name": "Bio-Notebook",
+  "start_url": "/bio-notebook/",
+  "scope": "/bio-notebook/",
+  "display": "standalone",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
+  "lang": "ru",
+  "icons": [
+    { "src": "/bio-notebook/static/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/bio-notebook/static/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

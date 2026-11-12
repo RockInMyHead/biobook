@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set page_url = site_origin ~ base_path ~ '/guides/' %}
+    {% set hero_src = base_path ~ '/static/guide-vesti-hero.jpg' %}
+    <title>Статьи о лабораторном журнале и отчётах — Bio-Notebook</title>
+    <meta name="description" content="Практические статьи для студентов и лаборантов: отчёты по лабораторным работам, протоколы, цифровой журнал.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="{{ page_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:title" content="Статьи о лабораторном журнале и отчётах — Bio-Notebook">
+    <meta property="og:description" content="Практические статьи для студентов и лаборантов: отчёты, протоколы, цифровой журнал.">
+    <meta property="og:image" content="{{ site_origin }}{{ hero_src }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Статьи Bio-Notebook о лабораторном журнале">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Статьи о лабораторном журнале и отчётах — Bio-Notebook">
+    <meta name="twitter:description" content="Практические статьи для студентов и лаборантов: отчёты, протоколы, цифровой журнал.">
+    <meta name="twitter:image" content="{{ site_origin }}{{ hero_src }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    {% if guides_json_ld %}
+    <script type="application/ld+json">{{ guides_json_ld | safe }}</script>
+    {% endif %}
+    {% include 'public_site_styles.html' %}
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Inter, system-ui, sans-serif;
+            color: #1d232e;
+            background: #05070a;
+            min-height: 100svh;
+        }
+        h1, h2, .font-heading { font-family: 'Space Grotesk', sans-serif; }
+
+        .guides-hero {
+            position: relative;
+            min-height: clamp(20rem, 48vw, 28rem);
+            display: flex;
+            align-items: flex-end;
+            overflow: hidden;
+            background: #0b1018;
+        }
+        .guides-hero img {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .guides-hero::after {
+            content: "";
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(5,7,10,.35) 0%, rgba(5,7,10,.55) 40%, rgba(5,7,10,.92) 100%);
+        }
+        .guides-hero-inner {
+            position: relative; z-index: 1;
+            width: 100%;
+            max-width: 72rem;
+            margin: 0 auto;
+            padding: clamp(5.5rem, 10vw, 7rem) 1.5rem 2.75rem;
+            color: #fff;
+        }
+        .guides-kicker {
+            margin: 0 0 1rem;
+            font-size: .75rem;
+            letter-spacing: .28em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,.55);
+        }
+        .guides-hero h1 {
+            margin: 0 0 1rem;
+            font-size: clamp(2rem, 5vw, 3.4rem);
+            line-height: 1.05;
+            letter-spacing: -.02em;
+            max-width: 14ch;
+        }
+        .guides-hero h1 em { font-style: italic; color: #64CEFB; }
+        .guides-lead {
+            margin: 0;
+            max-width: 36rem;
+            color: rgba(255,255,255,.78);
+            font-size: 1.05rem;
+            line-height: 1.65;
+        }
+
+        .guides-shell {
+            background: linear-gradient(180deg, #f6f3ed 0%, #efeae1 100%);
+            border-top: 1px solid rgba(255,255,255,.06);
+        }
+        .wrap {
+            max-width: 48rem;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 3rem;
+        }
+        nav.crumbs ol {
+            list-style: none; padding: 0; margin: 0 0 1.75rem;
+            display: flex; flex-wrap: wrap; gap: .35rem .5rem;
+            font-size: .8rem; color: #8b93a0;
+        }
+        nav.crumbs li:not(:last-child)::after { content: "›"; margin-left: .5rem; color: #c4c9d1; }
+        nav.crumbs a { color: #0e7490; text-decoration: none; }
+        nav.crumbs [aria-current="page"] { color: #5c6570; }
+
+        .guides-list {
+            display: flex;
+            flex-direction: column;
+            gap: .85rem;
+        }
+        .guides-list article a {
+            display: block;
+            background: #fff;
+            border: 1px solid rgba(29,35,46,.09);
+            border-radius: 1.25rem;
+            padding: 1.35rem 1.4rem;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 18px 40px -34px rgba(29,35,46,.45);
+            transition: border-color .2s, transform .2s;
+        }
+        .guides-list article a:hover {
+            border-color: rgba(14,116,144,.35);
+            transform: translateY(-2px);
+        }
+        .guides-list h2 {
+            margin: 0 0 .45rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #14181f;
+            letter-spacing: -.02em;
+        }
+        .guides-list p {
+            margin: 0;
+            color: #5c6570;
+            font-size: .92rem;
+            line-height: 1.55;
+        }
+        .guides-list .meta {
+            margin-top: .7rem;
+            font-size: .78rem;
+            color: #9aa1ac;
+        }
+        .guides-empty {
+            margin: 0;
+            color: #5c6570;
+            line-height: 1.6;
+        }
+
+        .guides-cta {
+            margin-top: 2.5rem;
+            padding: 1.75rem 1.5rem;
+            text-align: center;
+            background: #fff;
+            border: 1px solid rgba(29,35,46,.09);
+            border-radius: 1.35rem;
+        }
+        .guides-cta h2 {
+            margin: 0 0 .5rem;
+            font-size: 1.35rem;
+            color: #14181f;
+        }
+        .guides-cta p {
+            margin: 0 0 1.15rem;
+            color: #5c6570;
+            font-size: .95rem;
+            line-height: 1.55;
+        }
+        .guides-cta a {
+            display: inline-flex;
+            padding: .95rem 1.6rem;
+            border-radius: 999px;
+            background: #0e7490;
+            color: #fff;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .guides-cta a:hover { filter: brightness(1.08); }
+
+        .site-footer {
+            margin: 0;
+            padding: 2.25rem 1.5rem 2.75rem;
+            background: #05070a;
+            border-top: 1px solid rgba(255,255,255,.08);
+            font-size: .8rem;
+            color: rgba(255,255,255,.45);
+            text-align: center;
+            line-height: 1.6;
+        }
+        .site-footer a { color: #64CEFB; text-decoration: none; }
+        .site-footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="has-pub-header">
+    {% include 'public_site_nav.html' %}
+
+    <header class="guides-hero">
+        <img src="{{ hero_src }}" width="1280" height="720" alt="" decoding="async" fetchpriority="high">
+        <div class="guides-hero-inner">
+            <p class="guides-kicker">// Статьи Bio-Notebook</p>
+            <h1>Статьи о лабораторном<br><em>журнале</em></h1>
+            <p class="guides-lead">Отчёты, протоколы и практика ведения записей — материалы для студентов и лаборантов.</p>
+        </div>
+    </header>
+
+    <div class="guides-shell">
+        <main id="main" class="wrap">
+            <nav class="crumbs" aria-label="Хлебные крошки">
+                <ol>
+                    <li><a href="{{ base_path }}/">Bio-Notebook</a></li>
+                    <li><span aria-current="page">Статьи</span></li>
+                </ol>
+            </nav>
+
+            <div class="guides-list">
+            {% for a in articles %}
+                <article>
+                    <a href="{{ base_path }}/guides/{{ a.slug }}/">
+                        <h2>{{ a.title }}</h2>
+                        <p>{{ a.description }}</p>
+                        <p class="meta">Обновлено <time datetime="{{ a.updated }}">{{ a.updated | ru_date }}</time> · {{ a.author }}</p>
+                    </a>
+                </article>
+            {% else %}
+                <p class="guides-empty">Скоро появятся новые материалы.</p>
+            {% endfor %}
+            </div>
+
+            <section class="guides-cta" aria-labelledby="guides-cta-heading">
+                <h2 id="guides-cta-heading">Ведите журнал в Bio-Notebook</h2>
+                <p>OCR, ИИ-агент и отчёт DOCX/PDF — Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
+                <a href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
+            </section>
+        </main>
+        {% include 'public_site_footer.html' %}
+    </div>
+{% include "yandex_metrika.html" %}
+</body>
+</html>

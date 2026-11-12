@@ -5,4 +5,5 @@ __pycache__/
 .venv/
 web/__pycache__/
 web/data/
+web/node_modules/
 *.tar.gz

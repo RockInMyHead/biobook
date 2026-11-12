@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Тарифы{% endblock %}
+{% block nav_subtitle %}Тарифы{% endblock %}
+
+{% block extra_head %}
+<style>
+    body { background-image: var(--bg-radial) !important; }
+    .pricing-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+        align-items: stretch;
+    }
+    .pricing-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 24px;
+        border-radius: 24px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .pricing-card:hover {
+        border-color: var(--glass-border-hover);
+    }
+    .pricing-card.highlight {
+        border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+        background: color-mix(in srgb, var(--primary) 8%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+    }
+    .pricing-badge {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--primary);
+        color: var(--primary-fg);
+    }
+    .pricing-features {
+        list-style: none;
+        padding: 0;
+        margin: 20px 0 28px;
+        flex-grow: 1;
+    }
+    .pricing-features li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+    }
+    .pricing-features li i {
+        color: var(--primary);
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    .pricing-cta {
+        width: 100%;
+        padding: 12px 18px;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        border: none;
+        transition: filter 0.15s ease;
+    }
+    .pricing-cta.primary {
+        background: var(--primary);
+        color: var(--primary-fg);
+    }
+    .pricing-cta.ghost {
+        background: transparent;
+        color: var(--text-main);
+        border: 1px solid var(--glass-border);
+    }
+    .pricing-cta:disabled {
+        opacity: 0.7;
+        cursor: default;
+    }
+    .pricing-cta:not(:disabled):hover {
+        filter: brightness(1.08);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-10 text-center max-w-2xl mx-auto">
+    <div class="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full mb-4" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);">
+        Ваш уровень: {{ plan_label }}
+    </div>
+    <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-3">Тарифы <span class="shiny-text">Bio-Notebook</span></h1>
+    <p class="text-sm leading-relaxed" style="color: var(--text-muted);">
+        Free — 0 ₽. Pro — 319 ₽/мес (агент и все фишки). LabOS — обсудим условия.
+    </p>
+</div>
+
+<div class="pricing-grid">
+    {% for p in plans %}
+    <div class="pricing-card {% if p.highlight %}highlight{% endif %}">
+        {% if p.highlight %}<span class="pricing-badge">Популярный</span>{% endif %}
+        <div class="text-sm font-medium mb-2" style="color: var(--text-muted);">{{ p.name }}</div>
+        <div class="flex items-baseline gap-2 mb-2">
+            <span class="text-4xl font-heading font-bold" style="color: var(--text-main);">{{ p.price }}</span>
+            <span class="text-sm" style="color: var(--text-muted);">{{ p.period }}</span>
+        </div>
+        <p class="text-sm" style="color: var(--text-muted);">{{ p.desc }}</p>
+        <ul class="pricing-features">
+            {% for f in p.features %}
+            <li>
+                <i data-lucide="check" class="w-4 h-4"></i>
+                <span>{{ f }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if current_plan == p.id %}
+        <button type="button" class="pricing-cta ghost" disabled>{{ p.cta }}</button>
+        {% else %}
+        <button type="button" class="pricing-cta {% if p.highlight %}primary{% else %}ghost{% endif %}" onclick="requestPlan('{{ p.id }}', '{{ p.name }}')">
+            {{ p.cta }}
+        </button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="mt-10 text-center text-sm" style="color: var(--text-muted);">
+    Вопросы по тарифам — напишите на <a href="mailto:anticus.tech@internet.ru" style="color: var(--primary);">anticus.tech@internet.ru</a>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function requestPlan(planId, planName) {
+        if (planId === 'corp') {
+            window.location.href = '{{ base_path }}/#ceny';
+            return;
+        }
+        if (planId === 'free') {
+            window.location.href = '{{ base_path }}/login?mode=register';
+            return;
+        }
+        alert(`Тариф «${planName}» — 319 ₽/мес.\nОплата подписки скоро будет доступна. Сейчас можно пользоваться на Free.`);
+    }
+</script>
+{% endblock %}

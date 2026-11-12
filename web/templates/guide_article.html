@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set page_url = site_origin ~ base_path ~ '/guides/' ~ article.slug ~ '/' %}
+    {% set hero_src = (base_path ~ '/static/' ~ article.hero_image) if article.hero_image else (base_path ~ '/static/og-image.png') %}
+    <title>{{ article.seo_title }} — Bio-Notebook</title>
+    <meta name="description" content="{{ article.description }}">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="{{ page_url }}">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:title" content="{{ article.seo_title }}">
+    <meta property="og:description" content="{{ article.description }}">
+    <meta property="og:image" content="{{ site_origin }}{{ hero_src }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ article.h1 }} — Bio-Notebook">
+    <meta property="article:published_time" content="{{ article.published }}">
+    <meta property="article:modified_time" content="{{ article.updated }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ article.seo_title }}">
+    <meta name="twitter:description" content="{{ article.description }}">
+    <meta name="twitter:image" content="{{ site_origin }}{{ hero_src }}">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    {% if article_json_ld %}
+    <script type="application/ld+json">{{ article_json_ld | safe }}</script>
+    {% endif %}
+    {% include 'public_site_styles.html' %}
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Inter, system-ui, sans-serif;
+            color: #1d232e;
+            background: #05070a;
+            min-height: 100svh;
+        }
+        h1, h2, h3, .font-heading { font-family: 'Space Grotesk', sans-serif; }
+
+        .guide-hero {
+            position: relative;
+            min-height: clamp(22rem, 52vw, 30rem);
+            display: flex;
+            align-items: flex-end;
+            overflow: hidden;
+            background: #0b1018;
+        }
+        .guide-hero img {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .guide-hero::after {
+            content: "";
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(5,7,10,.35) 0%, rgba(5,7,10,.55) 40%, rgba(5,7,10,.92) 100%);
+        }
+        .guide-hero-inner {
+            position: relative; z-index: 1;
+            width: 100%;
+            max-width: 72rem;
+            margin: 0 auto;
+            padding: clamp(5.5rem, 10vw, 7rem) 1.5rem 2.75rem;
+            color: #fff;
+        }
+        .guide-kicker {
+            margin: 0 0 1rem;
+            font-size: .75rem;
+            letter-spacing: .28em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,.55);
+        }
+        .guide-hero h1 {
+            margin: 0 0 1rem;
+            font-size: clamp(2rem, 5vw, 3.4rem);
+            line-height: 1.05;
+            letter-spacing: -.02em;
+            max-width: 16ch;
+        }
+        .guide-hero h1 em { font-style: italic; color: #64CEFB; }
+        .guide-lead {
+            margin: 0;
+            max-width: 38rem;
+            color: rgba(255,255,255,.78);
+            font-size: 1.05rem;
+            line-height: 1.65;
+        }
+        .guide-meta {
+            margin-top: 1.25rem;
+            font-size: .85rem;
+            color: rgba(255,255,255,.5);
+        }
+        .guide-meta time { color: rgba(255,255,255,.72); }
+
+        .guide-shell {
+            background: linear-gradient(180deg, #f6f3ed 0%, #efeae1 100%);
+            border-top: 1px solid rgba(255,255,255,.06);
+        }
+        .wrap {
+            max-width: 48rem;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 3rem;
+        }
+        nav.crumbs ol {
+            list-style: none; padding: 0; margin: 0 0 1.75rem;
+            display: flex; flex-wrap: wrap; gap: .35rem .5rem;
+            font-size: .8rem; color: #8b93a0;
+        }
+        nav.crumbs li:not(:last-child)::after { content: "›"; margin-left: .5rem; color: #c4c9d1; }
+        nav.crumbs a { color: #0e7490; text-decoration: none; }
+        nav.crumbs [aria-current="page"] { color: #5c6570; }
+
+        article.prose {
+            background: #fff;
+            border: 1px solid rgba(29,35,46,.09);
+            border-radius: 1.5rem;
+            padding: clamp(1.5rem, 3vw, 2.35rem);
+            line-height: 1.7;
+            font-size: 1.02rem;
+            color: #3f4652;
+            box-shadow: 0 30px 70px -52px rgba(29,35,46,.35);
+        }
+        .prose > p:first-child {
+            font-size: 1.08rem;
+            color: #1d232e;
+        }
+        .prose h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(1.35rem, 2.5vw, 1.7rem);
+            line-height: 1.2;
+            letter-spacing: -.02em;
+            margin: 2.25rem 0 .9rem;
+            color: #14181f;
+        }
+        .prose h2:first-child { margin-top: 0; }
+        .prose h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            margin: 1.5rem 0 .55rem;
+            color: #1d232e;
+        }
+        .prose p { margin: 0 0 1.05rem; }
+        .prose ul, .prose ol { margin: 0 0 1.15rem; padding-left: 1.35rem; }
+        .prose li { margin: .35rem 0; }
+        .prose a { color: #0e7490; font-weight: 600; text-decoration: none; }
+        .prose a:hover { text-decoration: underline; }
+        .prose table {
+            width: 100%; border-collapse: collapse; margin: 1.25rem 0 1.5rem;
+            font-size: .92rem; overflow: hidden; border-radius: .9rem;
+        }
+        .prose caption {
+            caption-side: bottom; text-align: left; padding-top: .65rem;
+            font-size: .8rem; color: #8b93a0;
+        }
+        .prose th, .prose td {
+            border: 1px solid rgba(29,35,46,.1);
+            padding: .7rem .8rem; text-align: left; vertical-align: top;
+        }
+        .prose th {
+            background: rgba(14,116,144,.08);
+            color: #0e7490;
+            font-weight: 700;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .prose blockquote {
+            margin: 1.25rem 0;
+            padding: 1rem 1.15rem;
+            border-left: 3px solid #0e7490;
+            background: rgba(14,116,144,.06);
+            border-radius: 0 .9rem .9rem 0;
+            color: #1d232e;
+        }
+        .prose details {
+            margin: .85rem 0;
+            border: 1px solid rgba(29,35,46,.1);
+            border-radius: 1rem;
+            padding: 1rem 1.15rem;
+            background: #fbfaf7;
+        }
+        .prose summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: #0e7490;
+        }
+        .prose details[open] summary { margin-bottom: .65rem; }
+        .prose figure.guide-figure {
+            margin: 1.75rem 0;
+            border-radius: 1.15rem;
+            overflow: hidden;
+            border: 1px solid rgba(29,35,46,.08);
+            background: #f3f0ea;
+        }
+        .prose figure.guide-figure img {
+            display: block; width: 100%; height: auto;
+        }
+        .prose figure.guide-figure figcaption {
+            padding: .85rem 1rem 1rem;
+            font-size: .86rem;
+            color: #8b93a0;
+            line-height: 1.45;
+        }
+
+        .guide-cta {
+            margin: 2.5rem 0 0;
+            padding: clamp(2rem, 4vw, 3rem);
+            border-radius: 1.5rem;
+            background: #fff;
+            border: 1px solid rgba(29,35,46,.08);
+            text-align: center;
+            box-shadow: 0 30px 70px -52px rgba(29,35,46,.35);
+        }
+        .guide-cta h2 {
+            margin: 0 0 .75rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            color: #14181f;
+            letter-spacing: -.02em;
+        }
+        .guide-cta p {
+            margin: 0 auto 1.5rem;
+            max-width: 32rem;
+            color: #5c6570;
+            line-height: 1.6;
+        }
+        .guide-cta a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .45rem;
+            padding: .95rem 1.6rem;
+            border-radius: 999px;
+            background: #0e7490;
+            color: #fff;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .guide-cta a:hover { filter: brightness(1.08); }
+
+        .site-footer {
+            margin: 0;
+            padding: 2.25rem 1.5rem 2.75rem;
+            background: #05070a;
+            border-top: 1px solid rgba(255,255,255,.08);
+            font-size: .8rem;
+            color: rgba(255,255,255,.45);
+            text-align: center;
+            line-height: 1.6;
+        }
+        .site-footer a { color: #64CEFB; text-decoration: none; }
+        .site-footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="has-pub-header">
+    {% include 'public_site_nav.html' %}
+
+    <header class="guide-hero">
+        <img src="{{ hero_src }}" width="1280" height="720" alt="" decoding="async" fetchpriority="high">
+        <div class="guide-hero-inner">
+            <p class="guide-kicker">{{ article.kicker|default('// Статья Bio-Notebook') }}</p>
+            <h1>{{ article.h1 }}{% if article.h1_em %}<br><em>{{ article.h1_em }}</em>{% endif %}</h1>
+            <p class="guide-lead">{{ article.description }}</p>
+            <p class="guide-meta">
+                Опубликовано <time datetime="{{ article.published }}">{{ article.published | ru_date }}</time>
+                {% if article.updated != article.published %}
+                · обновлено <time datetime="{{ article.updated }}">{{ article.updated | ru_date }}</time>
+                {% endif %}
+                · {{ article.author }}
+            </p>
+        </div>
+    </header>
+
+    <div class="guide-shell">
+        <main id="main" class="wrap">
+            <nav class="crumbs" aria-label="Хлебные крошки">
+                <ol>
+                    <li><a href="{{ base_path }}/">Bio-Notebook</a></li>
+                    <li><a href="{{ base_path }}/guides/">Статьи</a></li>
+                    <li><span aria-current="page">{{ article.h1 }}</span></li>
+                </ol>
+            </nav>
+            <article>
+                <div class="prose">{{ article.body_html | safe }}</div>
+            </article>
+            <section class="guide-cta" aria-labelledby="guide-cta-heading">
+                <h2 id="guide-cta-heading">Ведите журнал в Bio-Notebook</h2>
+                <p>OCR с фото тетради, версии правок и экспорт отчёта в DOCX/PDF — Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
+                <a href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
+            </section>
+        </main>
+        {% include 'public_site_footer.html' %}
+    </div>
+{% include "yandex_metrika.html" %}
+</body>
+</html>

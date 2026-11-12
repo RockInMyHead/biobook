@@ -3,31 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bio-Notebook | Ваш Лабораторный Журнал</title>
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        heading: ['Space Grotesk', 'sans-serif'],
-                    },
-                    colors: {
-                        black: '#000000',
-                    }
+    {% set seo_url = site_origin ~ base_path ~ '/' %}
+    {% set seo_title = 'Электронный лабораторный журнал с ИИ и OCR — Bio-Notebook' %}
+    {% set seo_desc = 'Электронный лабораторный журнал: эксперименты, OCR, ИИ-агент и отчёты DOCX/PDF. Free — 0 ₽; Pro — 319 ₽/мес; LabOS — по заявке. НДС не облагается.' %}
+    <title>{{ seo_title }}</title>
+    <meta name="description" content="{{ seo_desc }}">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="{{ seo_url }}">
+    <meta name="theme-color" content="#05070a">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ seo_url }}">
+    <meta property="og:title" content="{{ seo_title }}">
+    <meta property="og:description" content="{{ seo_desc }}">
+    <meta property="og:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Bio-Notebook — электронный лабораторный журнал">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ seo_title }}">
+    <meta name="twitter:description" content="{{ seo_desc }}">
+    <meta name="twitter:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
+
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ base_path }}/static/apple-touch-icon.png">
+    <link rel="manifest" href="{{ base_path }}/static/site.webmanifest">
+
+    {% set schema_product_desc = 'Bio-Notebook — электронный лабораторный журнал (ELN) для студентов и преподавателей с OCR записей и выгрузкой отчёта в DOCX и PDF.' %}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "{{ site_origin }}/#organization",
+          "name": "Антикусь",
+          "legalName": "Общество с ограниченной ответственностью «АНТИКУСЬ»",
+          "url": "{{ site_origin }}/",
+          "logo": "{{ site_origin }}{{ base_path }}/static/icon-512.png",
+          "email": "anticus.tech@internet.ru",
+          "sameAs": ["https://github.com/RockInMyHead/biobook"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "{{ site_origin }}/#website",
+          "url": "{{ site_origin }}/",
+          "name": "Антикусь",
+          "publisher": { "@id": "{{ site_origin }}/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "{{ seo_url }}#software",
+          "name": "Bio-Notebook",
+          "alternateName": "Электронный лабораторный журнал Bio-Notebook",
+          "url": "{{ seo_url }}",
+          "description": {{ schema_product_desc | tojson }},
+          "applicationCategory": "EducationalApplication",
+          "applicationSubCategory": "Electronic Lab Notebook",
+          "operatingSystem": "Web",
+          "inLanguage": "ru",
+          "image": "{{ site_origin }}{{ base_path }}/static/og-image.png",
+          "publisher": { "@id": "{{ site_origin }}/#organization" },
+          "featureList": [
+            "Ведение этапов, узлов, протоколов и результатов эксперимента",
+            "Распознавание рукописных записей и фото приборов (OCR)",
+            "ИИ-чат по эксперименту",
+            "Экспорт отчётов в DOCX и PDF",
+            "Презентация из отчёта (PPTX и PDF)",
+            "Голосовой ввод"
+          ],
+          "offers": {
+            "@type": "AggregateOffer",
+            "priceCurrency": "RUB",
+            "lowPrice": "0",
+            "highPrice": "319",
+            "offerCount": 3,
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Free",
+                "price": "0",
+                "priceCurrency": "RUB",
+                "description": "Журнал без ИИ-агента — 0 ₽, без карты."
+              },
+              {
+                "@type": "Offer",
+                "name": "Pro",
+                "price": "319",
+                "priceCurrency": "RUB",
+                "description": "319 ₽ в месяц: ИИ-агент и все возможности.",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "319",
+                  "priceCurrency": "RUB",
+                  "unitCode": "MON",
+                  "billingDuration": 1
                 }
-            }
+              },
+              {
+                "@type": "Offer",
+                "name": "LabOS",
+                "priceCurrency": "RUB",
+                "description": "Для кафедр и лабораторий — условия обсуждаем по заявке.",
+                "availability": "https://schema.org/InStock"
+              }
+            ]
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "{{ seo_url }}#faq",
+          "mainEntity": [
+            {%- for item in faq_landing %}
+            {
+              "@type": "Question",
+              "name": {{ item.question | tojson }},
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": {{ item.answer | tojson }}
+              }
+            }{% if not loop.last %},{% endif %}
+            {%- endfor %}
+          ]
         }
+      ]
+    }
     </script>
+    <!-- Google Fonts (non-blocking) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
     
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
 
     <style>
         body {
@@ -36,6 +151,45 @@
             margin: 0;
             overflow-x: hidden;
             font-family: 'Inter', sans-serif;
+        }
+
+        /* Critical layout — works even if Tailwind fails to load */
+        .hero-section {
+            position: relative;
+            min-height: 100svh;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6rem 1.5rem 3rem;
+            box-sizing: border-box;
+        }
+        .hero-inner {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 80rem;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .hero-nav {
+            position: absolute;
+            top: 1.5rem;
+            left: 0;
+            right: 0;
+            padding: 0 1.5rem;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+        }
+        @media (scripting: none) {
+            .reveal { opacity: 1 !important; transform: none !important; }
         }
 
         h1, h2, h3, h4, .font-heading {
@@ -118,444 +272,1372 @@
         .modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(6px);
             z-index: 100;
             justify-content: center;
             align-items: center;
+            padding: 1rem;
             opacity: 0;
             transition: opacity 0.3s ease;
         }
         .modal.active { display: flex; opacity: 1; }
         .auth-card {
-            transform: scale(0.95);
-            transition: transform 0.3s ease;
-            width: 100%; max-width: 400px;
+            transform: scale(0.96) translateY(8px);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.3s ease;
+            width: 100%; max-width: 420px;
+            overflow: visible;
         }
-        .modal.active .auth-card { transform: scale(1); }
+        .auth-card.register-mode {
+            max-width: 520px;
+            padding: 1rem 1.25rem !important;
+        }
+        .modal.active .auth-card { transform: scale(1) translateY(0); }
+
+        .auth-card.register-mode .auth-tabs { margin-bottom: 0.75rem; }
+        .auth-card.register-mode .auth-header { margin-bottom: 0.75rem; }
+        .auth-card.register-mode .auth-header h2 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+        .auth-card.register-mode .auth-header p { font-size: 0.75rem; }
+        .auth-card.register-mode .auth-field { margin-bottom: 0.5rem; }
+        .auth-card.register-mode .auth-label { font-size: 0.75rem; margin-bottom: 0.2rem; }
+        .auth-card.register-mode .form-input {
+            padding: 0.5rem 0.75rem 0.5rem 2.125rem;
+            font-size: 0.8125rem;
+            border-radius: 0.625rem;
+        }
+        .auth-card.register-mode .auth-hint { font-size: 0.6875rem; margin-top: 0.125rem; }
+
+        .auth-row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .auth-row-2.login-mode { grid-template-columns: 1fr; }
+        @media (max-width: 480px) {
+            .auth-row-2 { grid-template-columns: 1fr; }
+        }
+
+        .auth-tabs {
+            display: flex;
+            background: rgba(255,255,255,0.04);
+            border-radius: 9999px;
+            padding: 4px;
+            margin-bottom: 1.5rem;
+        }
+        .auth-tab {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.5);
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        .auth-tab.active {
+            background: rgba(14,116,144,0.15);
+            color: #fff;
+            box-shadow: 0 0 0 1px rgba(14,116,144,0.3);
+        }
+
+        .auth-field { margin-bottom: 1rem; }
+        .auth-label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.75);
+            margin-bottom: 0.375rem;
+        }
+        .auth-input-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .auth-input-wrap .field-icon {
+            position: absolute;
+            left: 0.875rem;
+            width: 1rem; height: 1rem;
+            color: rgba(255,255,255,0.35);
+            pointer-events: none;
+        }
         .form-input {
-            width: 100%; background: rgba(255,255,255,0.05);
+            width: 100%;
+            background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
-            padding: 0.75rem 1rem; border-radius: 0.5rem;
-            color: white; margin-bottom: 1rem; outline: none;
-            transition: border-color 0.2s;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border-radius: 0.75rem;
+            color: white;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-size: 0.9375rem;
         }
-        .form-input:focus { border-color: #64CEFB; }
+        .form-input.no-icon { padding-left: 1rem; }
+        .form-input:focus {
+            border-color: rgba(14,116,144,0.6);
+            box-shadow: 0 0 0 3px rgba(14,116,144,0.12);
+        }
+        .form-input::placeholder { color: rgba(255,255,255,0.3); }
+        .toggle-pass {
+            position: absolute;
+            right: 0.75rem;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+        }
+        .toggle-pass:hover { color: rgba(255,255,255,0.7); }
+
+        .auth-hint {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.4);
+            margin-top: 0.25rem;
+        }
+        .auth-hint.error { color: #f87171; }
+        .auth-hint.ok { color: #4ade80; }
+
+        .consent-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 0.625rem;
+            padding: 0.5rem 0.625rem;
+            margin-bottom: 0.5rem;
+        }
+        .consent-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.125rem 0.5rem;
+        }
+        @media (max-width: 480px) {
+            .consent-grid { grid-template-columns: 1fr; }
+        }
+        .consent-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+            cursor: pointer;
+            padding: 0.2rem 0;
+        }
+        .consent-item + .consent-item { border-top: none; }
+        .consent-item input[type="checkbox"] {
+            appearance: none;
+            width: 0.9375rem; height: 0.9375rem;
+            min-width: 0.9375rem;
+            border: 1.5px solid rgba(255,255,255,0.25);
+            border-radius: 0.25rem;
+            margin-top: 0.1rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .consent-item input[type="checkbox"]:checked {
+            background: #64CEFB;
+            border-color: #64CEFB;
+        }
+        .consent-item input[type="checkbox"]:checked::after {
+            content: '';
+            position: absolute;
+            left: 0.3rem; top: 0.1rem;
+            width: 0.35rem; height: 0.6rem;
+            border: solid #000;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        .consent-text {
+            font-size: 0.6875rem;
+            line-height: 1.35;
+            color: rgba(255,255,255,0.55);
+        }
+        .consent-text a {
+            color: #64CEFB;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .consent-text a:hover { color: #fff; }
+
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0.75rem 0 0.625rem;
+            color: rgba(255,255,255,0.35);
+            font-size: 0.6875rem;
+        }
+        .auth-divider::before, .auth-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .btn-yandex {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.625rem 1rem;
+            border-radius: 9999px;
+            background: #FC3F1D;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.8125rem;
+            border: none;
+            cursor: pointer;
+            transition: filter 0.2s, transform 0.15s;
+        }
+        .btn-yandex:hover { filter: brightness(1.08); }
+        .btn-yandex:active { transform: scale(0.98); }
+        .btn-yandex:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            filter: none;
+        }
+        .btn-yandex svg { flex-shrink: 0; }
+
+        .btn-primary {
+            width: 100%;
+            background: #64CEFB;
+            color: #ffffff;
+            font-weight: 700;
+            padding: 0.625rem;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .btn-primary:hover { background: #4bbdf2; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .auth-alert {
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.8125rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .auth-alert.error {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.35);
+            color: #fca5a5;
+        }
+        .auth-alert.hidden { display: none; }
+
+        .trial-ribbon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.45rem 1rem 0.45rem 0.55rem;
+            border-radius: 999px;
+            background: rgba(100, 206, 251, 0.12);
+            border: 1px solid rgba(100, 206, 251, 0.35);
+            color: #e8f7ff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            backdrop-filter: blur(8px);
+        }
+        .trial-ribbon .dot {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 999px;
+            background: #64CEFB;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .btn-trial-primary {
+            background: #64CEFB;
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 18px 40px -18px rgba(100, 206, 251, 0.75);
+        }
+        .btn-trial-primary:hover { background: #4bbdf2; }
+        .trial-offer-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+        @media (min-width: 768px) {
+            .trial-offer-grid { grid-template-columns: 1.1fr 0.9fr; gap: 2rem; align-items: center; }
+        }
+        .trial-card {
+            background: #ffffff;
+            border: 1px solid rgba(29,35,46,.09);
+            border-radius: 1.5rem;
+            padding: 1.75rem;
+            box-shadow: 0 30px 70px -52px rgba(29,35,46,.45);
+        }
+        .trial-card h3 {
+            margin: 0 0 0.35rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.35rem;
+            color: #14181f;
+        }
+        .trial-price {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #0e7490;
+            line-height: 1;
+            margin: 0.5rem 0 0.25rem;
+        }
+        .trial-price small {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #8b93a0;
+        }
+        .pricing-section { max-width: 72rem; margin: 0 auto; }
+        .pricing-section .pricing-kicker {
+            color: rgba(29,35,46,.55);
+            font-size: .75rem;
+            letter-spacing: .28em;
+            text-transform: uppercase;
+            margin: 0 0 1.1rem;
+        }
+        .pricing-section h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2rem, 4.5vw, 3.1rem);
+            color: #14181f;
+            margin: 0 0 1rem;
+            letter-spacing: -0.02em;
+            line-height: 1.05;
+        }
+        .pricing-section > .pricing-lead {
+            color: #5c6570;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            margin: 0 0 2rem;
+            max-width: 42rem;
+        }
+        .pricing-hero {
+            position: relative;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            margin: 0 0 2.5rem;
+            min-height: clamp(11rem, 28vw, 16rem);
+            background: #0b2f3a;
+        }
+        .pricing-hero img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            min-height: clamp(11rem, 28vw, 16rem);
+        }
+        .pricing-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(8,28,36,.78) 0%, rgba(8,28,36,.35) 55%, rgba(8,28,36,.15) 100%);
+        }
+        .pricing-hero-copy {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: clamp(1.25rem, 3vw, 2rem);
+            color: #f4f7f8;
+        }
+        .pricing-hero-copy strong {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(1.15rem, 2.5vw, 1.55rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            max-width: 22rem;
+            line-height: 1.25;
+        }
+        .pricing-hero-copy span {
+            margin-top: .45rem;
+            font-size: .9rem;
+            color: rgba(244,247,248,.78);
+            max-width: 26rem;
+            line-height: 1.5;
+        }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+            margin: 0 0 1.75rem;
+            align-items: stretch;
+        }
+        @media (min-width: 960px) {
+            .pricing-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 1.35rem;
+                align-items: stretch;
+            }
+        }
+        .plan-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid rgba(29,35,46,.1);
+            border-radius: 1.4rem;
+            padding: 1.65rem 1.55rem 1.5rem;
+            box-shadow: 0 18px 40px -34px rgba(29,35,46,.45);
+            transition: transform .25s ease, border-color .25s ease;
+        }
+        .plan-card:hover { transform: translateY(-3px); border-color: rgba(14,116,144,.28); }
+        .plan-card.featured {
+            background: linear-gradient(165deg, #0e7490 0%, #0a5f75 55%, #084556 100%);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 28px 60px -36px rgba(14,116,144,.65);
+        }
+        .plan-card.featured:hover { border-color: transparent; }
+        .plan-badge {
+            display: inline-flex;
+            align-self: flex-start;
+            font-size: .68rem;
+            font-weight: 600;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            padding: .35rem .7rem;
+            border-radius: .55rem;
+            margin-bottom: 1rem;
+            background: rgba(14,116,144,.09);
+            color: #0e7490;
+            border: 1px solid rgba(14,116,144,.2);
+        }
+        .plan-card.featured .plan-badge {
+            background: rgba(255,255,255,.14);
+            color: #fff;
+            border-color: rgba(255,255,255,.22);
+        }
+        .plan-card h3 {
+            margin: 0;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #14181f;
+            letter-spacing: -0.02em;
+        }
+        .plan-card.featured h3 { color: #fff; }
+        .plan-card .plan-tagline {
+            margin: .4rem 0 0;
+            font-size: .88rem;
+            color: #8b93a0;
+            line-height: 1.45;
+            min-height: 2.6em;
+        }
+        .plan-card.featured .plan-tagline { color: rgba(255,255,255,.78); }
+        .plan-price {
+            margin: 1.25rem 0 .35rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2.4rem, 4vw, 2.85rem);
+            font-weight: 700;
+            line-height: 1;
+            color: #0e7490;
+            letter-spacing: -0.03em;
+        }
+        .plan-card.featured .plan-price { color: #fff; }
+        .plan-price small {
+            font-size: .95rem;
+            font-weight: 600;
+            color: #8b93a0;
+            margin-left: .15rem;
+        }
+        .plan-card.featured .plan-price small { color: rgba(255,255,255,.72); }
+        .plan-term {
+            margin: 0 0 1.25rem;
+            font-size: .84rem;
+            color: #5c6570;
+        }
+        .plan-card.featured .plan-term { color: rgba(255,255,255,.78); }
+        .plan-features {
+            list-style: none;
+            margin: 0 0 1.5rem;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: .65rem;
+            flex: 1;
+        }
+        .plan-features li {
+            display: flex;
+            align-items: flex-start;
+            gap: .55rem;
+            font-size: .88rem;
+            color: #4a525e;
+            line-height: 1.45;
+        }
+        .plan-card.featured .plan-features li { color: rgba(255,255,255,.9); }
+        .plan-features li i {
+            flex: none;
+            width: 1rem;
+            height: 1rem;
+            margin-top: .18rem;
+            color: #0e7490;
+        }
+        .plan-card.featured .plan-features li i { color: #9fe8f5; }
+        .plan-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .45rem;
+            width: 100%;
+            margin-top: auto;
+            padding: .95rem 1.1rem;
+            border-radius: 999px;
+            font: inherit;
+            font-weight: 700;
+            font-size: .95rem;
+            text-decoration: none;
+            transition: filter .2s ease, background .2s ease, color .2s ease;
+            background: #0e7490;
+            color: #fff;
+            border: 1px solid transparent;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .plan-cta:hover { filter: brightness(1.08); }
+        .plan-card.featured .plan-cta {
+            background: #fff;
+            color: #0a5f75;
+        }
+        .plan-cta.ghost {
+            background: transparent;
+            color: #0e7490;
+            border-color: rgba(14,116,144,.35);
+        }
+        .plan-cta.ghost:hover { background: rgba(14,116,144,.07); filter: none; }
+        .pricing-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem 1.5rem;
+            padding-top: .25rem;
+        }
+        .pricing-foot p {
+            margin: 0;
+            font-size: .9rem;
+            color: #5c6570;
+            line-height: 1.55;
+            max-width: 36rem;
+        }
+        .pricing-foot a { color: #0e7490; }
+        .pricing-note {
+            margin: 1.25rem 0 0;
+            font-size: .8rem;
+            color: #8b93a0;
+        }
+        .pricing-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 1rem;
+            border: 1px solid rgba(29,35,46,.09);
+            background: #fff;
+            box-shadow: 0 24px 56px -48px rgba(29,35,46,.45);
+            margin-bottom: 1.5rem;
+        }
+        .pricing-table {
+            width: 100%;
+            min-width: 640px;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        .pricing-table th,
+        .pricing-table td {
+            padding: 0.85rem 1rem;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid rgba(29,35,46,.08);
+            color: #272b35;
+        }
+        .pricing-table th {
+            background: rgba(14,116,144,.07);
+            color: #0e7490;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .pricing-table tr:last-child td { border-bottom: none; }
+        .pricing-cta-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #0e7490;
+            text-decoration: none;
+        }
+        .pricing-cta-link:hover { text-decoration: underline; }
+        .trial-features {
+            list-style: none;
+            margin: 1.25rem 0 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+        }
+        .trial-features li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            font-size: 0.86rem;
+            color: #5c6570;
+            line-height: 1.45;
+        }
+        .trial-features li i { color: #0e7490; flex-shrink: 0; margin-top: 0.15rem; }
     </style>
 </head>
 <body class="antialiased">
 
-    <!-- HERO SECTION (100vh) -->
-    <section class="relative min-h-screen w-full flex flex-col items-center justify-center pt-24 pb-12 px-6">
+    <header class="hero-section relative min-h-screen w-full flex flex-col items-center justify-center pt-24 pb-12 px-6">
         <!-- Background Video -->
-        <video class="video-bg" autoplay loop muted playsinline>
+        <video class="video-bg" autoplay loop muted playsinline preload="metadata">
             <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_105406_16f4600d-7a92-4292-b96e-b19156c7830a.mp4" type="video/mp4">
         </video>
         <div class="video-overlay"></div>
 
         <!-- Navbar -->
-        <nav class="absolute top-6 left-0 w-full px-6 lg:px-16 z-50 flex items-center justify-between">
-            <div class="flex items-center gap-3">
+        <nav class="hero-nav absolute top-6 left-0 w-full px-6 lg:px-16 z-50 flex items-center justify-between" aria-label="Основное">
+            <a href="{{ base_path }}/" class="flex items-center gap-3 no-underline text-white" title="Приветственная страница">
                 <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass">
                     <div class="w-4 h-4 rounded-full bg-[#0099ff]"></div>
                 </div>
                 <span class="font-bold text-xl tracking-tight">Bio-Notebook</span>
-            </div>
+            </a>
             
-            <div class="hidden lg:flex items-center gap-8 liquid-glass rounded-full px-8 py-3">
-                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Эксперименты</a>
-                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Машина времени</a>
-                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">AI Ассистент</a>
-                <a href="#" class="text-white/80 hover:text-white text-sm transition-colors">Интеграции</a>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                {% if session_user %}
+                <a
+                    href="{{ base_path }}/dashboard?user={{ session_user }}"
+                    class="btn-trial-primary rounded-full px-4 py-2 text-xs sm:text-sm no-underline"
+                >
+                    Кабинет · {{ session_user }}
+                </a>
+                {% else %}
+                <a
+                    href="{{ base_path }}/login"
+                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
+                >
+                    Вход
+                </a>
+                {% endif %}
+                <a
+                    href="{{ base_path }}/login?mode=register"
+                    class="rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm btn-trial-primary"
+                >
+                    Начать бесплатно
+                </a>
+                <a
+                    href="{{ base_path }}/#ocr"
+                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
+                >
+                    Возможности
+                </a>
+                <a
+                    href="{{ base_path }}/#ceny"
+                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
+                >
+                    Цены
+                </a>
+                <a
+                    href="{{ base_path }}/guides/"
+                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
+                >
+                    Статьи
+                </a>
             </div>
-
-            <button class="lg:hidden text-white liquid-glass p-2 rounded-full">
-                <i data-lucide="menu"></i>
-            </button>
         </nav>
 
         <!-- Hero Content -->
-        <div class="relative z-10 w-full max-w-7xl mx-auto flex flex-col justify-center items-start flex-grow">
-            <div class="liquid-glass rounded-full px-4 py-1.5 mb-6 inline-flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-[#64CEFB] animate-pulse"></span>
-                <span class="text-xs uppercase tracking-wider text-white/80 font-medium">Интеллектуальная система управления лабораторией</span>
-            </div>
-            
-            <h1 class="text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-heading tracking-tighter leading-[0.9] mb-8 max-w-5xl">
-                <div class="text-white mb-2">Ваш</div>
-                <div class="shiny-text">Лабораторный<br>журнал.</div>
+        <div class="hero-inner relative z-10 w-full max-w-7xl mx-auto flex flex-col justify-center items-start flex-grow">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-heading tracking-tight leading-[1.05] mb-6 max-w-4xl text-white">
+                Электронный лабораторный журнал Bio-Notebook
             </h1>
-
-            <p class="text-white/80 text-lg md:text-xl max-w-2xl mb-12 leading-relaxed">
-                Введите этапы, узлы, протоколы и результаты так, чтобы к любому шагу можно было вернуться и повторить его без потери контекста. ИИ-аналитика и версионирование данных.
+            <p class="text-white/80 text-lg md:text-xl max-w-2xl mb-10 leading-relaxed">
+                Делай науку, а не отчеты.
             </p>
-
-            <div class="flex flex-col sm:flex-row gap-4 mb-16">
-                <button onclick="openLogin()" class="liquid-glass-strong group flex items-center justify-center gap-2 text-white rounded-full px-8 py-4 font-medium hover:bg-white/10 transition-all">
-                    Открыть журнал
-                    <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
-                </button>
-                <button class="group flex items-center justify-center gap-2 px-8 py-4 rounded-full text-white/80 hover:text-white font-medium transition-all">
-                    <i data-lucide="play-circle" class="w-5 h-5 text-[#64CEFB]"></i>
-                    Посмотреть примеры
-                </button>
-            </div>
-
-            <!-- Stats Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
-                <div class="liquid-glass rounded-2xl p-5">
-                    <div class="text-3xl font-heading font-bold text-white mb-1">99.9%</div>
-                    <div class="text-sm text-white/60">Точность данных</div>
-                </div>
-                <div class="liquid-glass rounded-2xl p-5">
-                    <div class="text-3xl font-heading font-bold text-white mb-1">2.4x</div>
-                    <div class="text-sm text-white/60">Быстрее анализ</div>
-                </div>
-                <div class="liquid-glass rounded-2xl p-5">
-                    <div class="text-3xl font-heading font-bold text-white mb-1">0</div>
-                    <div class="text-sm text-white/60">Ошибок утери контекста</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CAPABILITIES SECTION -->
-    <section class="relative py-24 px-6 bg-black z-10 border-t border-white/5">
-        <div class="max-w-7xl mx-auto">
-            <div class="mb-16 reveal">
-                <p class="text-white/50 text-sm tracking-widest uppercase mb-4">// Интеллектуальные функции</p>
-                <h2 class="text-4xl md:text-6xl font-heading tracking-tight leading-tight">
-                    Умная<br><span class="italic text-[#64CEFB]">лаборатория</span>
-                </h2>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Card 1 -->
-                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal">
-                    <img src="/static/ai-analytics.jpg" alt="AI Analytics" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
-                    <div class="flex justify-between items-start mb-auto">
-                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                            <i data-lucide="trending-up" class="w-6 h-6 text-[#64CEFB]"></i>
-                        </div>
-                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
-                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Прогнозы</span>
-                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">ML</span>
-                        </div>
-                    </div>
-                    <div class="pt-8">
-                        <h3 class="text-2xl font-heading mb-3">AI-Аналитика данных</h3>
-                        <p class="text-white/60 text-sm leading-relaxed">
-                            Алгоритмы машинного обучения анализируют ваши протоколы и помогают прогнозировать результаты экспериментов с высокой точностью.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Card 2 -->
-                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal" style="transition-delay: 100ms;">
-                    <img src="/static/time-nav.jpg" alt="Time Navigation" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
-                    <div class="flex justify-between items-start mb-auto">
-                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                            <i data-lucide="git-branch" class="w-6 h-6 text-[#64CEFB]"></i>
-                        </div>
-                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
-                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Ветки</span>
-                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Снимки</span>
-                        </div>
-                    </div>
-                    <div class="pt-8">
-                        <h3 class="text-2xl font-heading mb-3">Временная навигация</h3>
-                        <p class="text-white/60 text-sm leading-relaxed">
-                            Инструмент «Машина времени» позволяет мгновенно перемещаться между любыми версиями эксперимента. Ветвите идеи без страха потерять код.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Card 3 -->
-                <div class="liquid-glass rounded-[1.25rem] p-8 flex flex-col min-h-[380px] reveal" style="transition-delay: 200ms;">
-                    <img src="/static/dashboard.jpg" alt="Interactive Dashboard" class="w-full h-48 object-cover rounded-xl mb-6 border border-white/10 opacity-90 mix-blend-lighten">
-                    <div class="flex justify-between items-start mb-auto">
-                        <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                            <i data-lucide="bar-chart-4" class="w-6 h-6 text-[#64CEFB]"></i>
-                        </div>
-                        <div class="flex flex-wrap gap-2 justify-end max-w-[60%]">
-                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 rounded-full border border-white/10">Реал-тайм</span>
-                        </div>
-                    </div>
-                    <div class="pt-8">
-                        <h3 class="text-2xl font-heading mb-3">Интерактивный дашборд</h3>
-                        <p class="text-white/60 text-sm leading-relaxed">
-                            Контролируйте ход всех исследований. Просматривайте детальные отчеты и графы зависимостей от глобального обзора до одного узла.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- HOW IT WORKS SECTION -->
-    <section class="py-24 px-6 bg-[#050505] relative z-10 border-t border-white/5">
-        <div class="max-w-7xl mx-auto">
-            <div class="mb-16 text-center reveal">
-                <h2 class="text-3xl md:text-5xl font-heading tracking-tight mb-4">Как это работает</h2>
-                <p class="text-white/60 max-w-xl mx-auto">Внедрите систему в вашу исследовательскую рутину за три простых шага.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
-                <!-- Connecting line (desktop) -->
-                <div class="hidden md:block absolute top-8 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                
-                <div class="reveal relative text-center flex flex-col items-center">
-                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
-                        <span class="font-heading text-xl text-[#64CEFB]">01</span>
-                    </div>
-                    <h3 class="text-xl font-heading mb-3">Подключение</h3>
-                    <p class="text-white/60 text-sm max-w-xs">Интегрируйте ваши текущие протоколы и перенесите данные в единое хранилище.</p>
-                </div>
-                
-                <div class="reveal relative text-center flex flex-col items-center" style="transition-delay: 150ms;">
-                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
-                        <span class="font-heading text-xl text-[#64CEFB]">02</span>
-                    </div>
-                    <h3 class="text-xl font-heading mb-3">Автоматизация</h3>
-                    <p class="text-white/60 text-sm max-w-xs">Настройте ИИ-ассистента для автоматического анализа секвенирования и генерации кода.</p>
-                </div>
-                
-                <div class="reveal relative text-center flex flex-col items-center" style="transition-delay: 300ms;">
-                    <div class="w-16 h-16 rounded-full bg-black border border-white/20 flex items-center justify-center mb-6 relative z-10 liquid-glass">
-                        <span class="font-heading text-xl text-[#64CEFB]">03</span>
-                    </div>
-                    <h3 class="text-xl font-heading mb-3">Масштабирование</h3>
-                    <p class="text-white/60 text-sm max-w-xs">Сотрудничайте с коллегами и делитесь публичными ссылками на результаты в один клик.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- TESTIMONIALS SECTION -->
-    <section class="py-24 px-6 bg-black relative z-10 border-t border-white/5">
-        <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="liquid-glass rounded-[1.25rem] p-8 reveal">
-                    <div class="flex gap-2 text-[#64CEFB] mb-6">
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                    </div>
-                    <p class="text-lg md:text-xl font-medium leading-relaxed mb-8">
-                        "Мы сократили время на поиск старых протоколов на 40% за первые 2 месяца. AI-ассистент — это как дополнительный научный сотрудник в нашей команде."
-                    </p>
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                            <span class="font-heading font-bold text-white/50">АИ</span>
-                        </div>
-                        <div>
-                            <div class="font-medium">Алексей Иванов</div>
-                            <div class="text-sm text-white/50">Руководитель R&D лаборатории</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="liquid-glass rounded-[1.25rem] p-8 reveal" style="transition-delay: 150ms;">
-                    <div class="flex gap-2 text-[#64CEFB] mb-6">
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                        <i data-lucide="star" class="w-5 h-5 fill-current"></i>
-                    </div>
-                    <p class="text-lg md:text-xl font-medium leading-relaxed mb-8">
-                        "Интеграция версионирования спасла наш проект. Теперь мы можем безопасно проверять смелые гипотезы и моментально откатываться назад без потерь."
-                    </p>
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                            <span class="font-heading font-bold text-white/50">МС</span>
-                        </div>
-                        <div>
-                            <div class="font-medium">Мария Смирнова</div>
-                            <div class="text-sm text-white/50">Ведущий биоинформатик</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- FINAL CTA -->
-    <section class="relative py-32 px-6 flex items-center justify-center border-t border-white/5 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-b from-[#001524] to-black opacity-50 z-0"></div>
-        
-        <div class="relative z-10 liquid-glass-strong rounded-[2rem] p-12 md:p-20 max-w-4xl w-full text-center reveal">
-            <h2 class="text-4xl md:text-6xl font-heading tracking-tight mb-6">Готовы трансформировать вашу лабораторию?</h2>
-            <p class="text-white/60 text-lg mb-10 max-w-2xl mx-auto">Присоединяйтесь к ведущим исследовательским центрам, использующим передовые технологии для ускорения научных открытий.</p>
-            <button onclick="openLogin()" class="bg-white text-black hover:bg-gray-200 px-10 py-5 rounded-full font-bold text-lg transition-colors inline-flex items-center gap-2">
-                Войти в систему
-                <i data-lucide="arrow-right" class="w-5 h-5"></i>
-            </button>
-        </div>
-    </section>
-
-    <!-- Auth Modal -->
-    <div id="loginModal" class="modal">
-        <div class="liquid-glass-strong auth-card rounded-[1.5rem] p-8 relative">
-            <button onclick="closeLogin()" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            
-            <div class="flex border-b border-white/10 mb-8 mt-2">
-                <button onclick="setAuthMode('login')" id="tab-login" type="button" class="flex-1 pb-3 text-center border-b-2 border-[#64CEFB] font-medium text-white transition-colors">Вход</button>
-                <button onclick="setAuthMode('register')" id="tab-register" type="button" class="flex-1 pb-3 text-center border-b-2 border-transparent text-white/50 hover:text-white font-medium transition-colors">Регистрация</button>
-            </div>
-
-            <div class="mb-6 text-center">
-                <h2 id="auth-title" class="text-2xl font-heading font-bold mb-2">С возвращением</h2>
-                <p id="auth-desc" class="text-white/60 text-sm">Войдите в свой лабораторный журнал</p>
-            </div>
-
-            {% if error %}
-            <div class="bg-red-500/20 border border-red-500/50 text-red-200 text-sm rounded-lg p-3 mb-6 text-center">
-                {% if error == 'UserNotFound' %} Пользователь не найден.
-                {% elif error == 'WrongPassword' %} Неверный пароль.
-                {% elif error == 'UserExists' %} Пользователь уже существует.
-                {% else %} Произошла ошибка. {% endif %}
-            </div>
+            {% if session_user %}
+            <a href="{{ base_path }}/dashboard?user={{ session_user }}" class="btn-trial-primary group inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-medium transition-all">
+                Открыть кабинет
+                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+            </a>
+            {% else %}
+            <a href="{{ base_path }}/login?mode=register" class="btn-trial-primary group inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-medium transition-all">
+                Начать бесплатно
+                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+            </a>
             {% endif %}
-            
-            <form id="auth-form" action="/login" method="POST">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-white/80 mb-1">Имя пользователя (Логин)</label>
-                    <input type="text" name="username" class="form-input liquid-glass" required placeholder="Например: admin">
-                </div>
-                
-                <div id="register-fields" style="display: none;">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-white/80 mb-1">Электронная почта</label>
-                        <input type="email" id="email-input" name="email" class="form-input liquid-glass" placeholder="example@mail.com">
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-white/80 mb-1">Пароль</label>
-                    <input type="password" id="password-input" name="password" class="form-input liquid-glass" required placeholder="••••••••">
-                </div>
-                
-                <div id="register-password-confirm" style="display: none;">
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-white/80 mb-1">Повторите пароль</label>
-                        <input type="password" id="confirm-password-input" name="confirm_password" class="form-input liquid-glass" placeholder="••••••••">
-                    </div>
-                    <div class="mb-6 space-y-3">
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" id="agree_offer" name="agree_offer" class="mt-1" required disabled>
-                            <span class="text-xs text-white/60 leading-tight">Согласен с условиями Публичной оферты</span>
-                        </label>
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" id="agree_privacy" name="agree_privacy" class="mt-1" required disabled>
-                            <span class="text-xs text-white/60 leading-tight">Согласен с условиями Политики конфиденциальности</span>
-                        </label>
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" id="agree_data" name="agree_data" class="mt-1" required disabled>
-                            <span class="text-xs text-white/60 leading-tight">Даю свое Согласие на обработку персональных данных</span>
-                        </label>
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" id="agree_marketing" name="agree_marketing" class="mt-1" disabled>
-                            <span class="text-xs text-white/60 leading-tight">Даю согласие на получение рекламных сообщений.</span>
-                        </label>
-                    </div>
-                </div>
-
-                <button id="auth-submit" type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors mt-2">
-                    Войти
-                </button>
-            </form>
         </div>
+    </header>
+
+    <main id="main">
+
+    <!-- Shared light-section styles -->
+    <style>
+        .sec-photo{background:linear-gradient(180deg,#fbfaf7 0%,#f3efe7 100%)}
+        .sec-light{background:linear-gradient(180deg,#f6f3ed 0%,#efeae1 100%)}
+        main#main > section.sec-light,
+        main#main > section.sec-photo{
+            padding-top:clamp(4rem,7.5vw,6.25rem);
+            padding-bottom:clamp(4rem,7.5vw,6.25rem);
+        }
+        main#main > section.sec-break{
+            border-top:1px solid rgba(29,35,46,.09);
+            padding-top:clamp(5rem,9vw,7.5rem);
+        }
+        .usp-kicker{color:rgba(29,35,46,.55);font-size:.75rem;letter-spacing:.28em;text-transform:uppercase;margin:0 0 1.25rem}
+        .usp-title{font-family:'Space Grotesk',sans-serif;font-size:clamp(2.25rem,5vw,3.9rem);line-height:1.06;letter-spacing:-.02em;margin:0 0 1.75rem;color:#14181f}
+        .usp-title em{font-style:italic;color:#0e7490}
+        .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+        .feat-grid{
+            display:grid;
+            grid-template-columns:1fr;
+            gap:1rem;
+        }
+        @media (min-width:720px){
+            .feat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:1.15rem}
+        }
+        @media (min-width:1100px){
+            .feat-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:1rem}
+        }
+        .feat-card{
+            background:#fff;
+            border:1px solid rgba(29,35,46,.09);
+            border-radius:1.25rem;
+            padding:1.35rem 1.25rem;
+            box-shadow:0 18px 40px -34px rgba(29,35,46,.45);
+            display:flex;
+            flex-direction:column;
+            gap:.7rem;
+            min-height:100%;
+        }
+        .feat-card .feat-ic{
+            width:2.4rem;height:2.4rem;border-radius:.75rem;
+            background:rgba(14,116,144,.08);border:1px solid rgba(14,116,144,.18);
+            color:#0e7490;display:flex;align-items:center;justify-content:center;flex:none;
+        }
+        .feat-card h3{
+            margin:0;font-family:'Space Grotesk',sans-serif;font-size:1.05rem;font-weight:600;color:#1d232e;
+        }
+        .feat-card p{margin:0;color:#5c6570;font-size:.9rem;line-height:1.55}
+        .final-cta{
+            text-align:center;
+            padding-top:clamp(4.5rem,9vw,6.5rem);
+            padding-bottom:clamp(3.5rem,7vw,5rem);
+        }
+        .final-cta p{
+            margin:0 auto 1.5rem;
+            max-width:32rem;
+            color:#5c6570;
+            font-size:1.05rem;
+            line-height:1.6;
+        }
+        .final-cta a{
+            display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+            background:#0e7490;color:#fff;font-weight:700;
+            border-radius:999px;padding:1rem 2rem;text-decoration:none;
+        }
+        .final-cta a:hover{filter:brightness(1.1)}
+        .footer-fund{
+            margin-top:2rem;
+            padding-top:1.75rem;
+            border-top:1px solid rgba(29,35,46,.08);
+            display:flex;
+            flex-direction:column;
+            gap:1rem;
+            align-items:flex-start;
+        }
+        .footer-fund p{
+            margin:0;
+            max-width:46rem;
+            font-size:.78rem;
+            line-height:1.55;
+            color:#5c6570;
+        }
+        .footer-fund-logos{
+            display:flex;flex-wrap:wrap;gap:.75rem 1rem;align-items:center;
+        }
+        .footer-fund-logos a{
+            display:inline-flex;border:1px solid rgba(29,35,46,.1);background:#fff;
+            border-radius:1rem;padding:.65rem .9rem;
+        }
+        .footer-fund-logos img{max-height:2.75rem;width:auto;object-fit:contain}
+    </style>
+
+    <style>
+        .essence-grid{
+            display:grid;
+            grid-template-columns:1fr;
+            gap:clamp(2rem,4vw,3.25rem);
+            align-items:center;
+        }
+        @media (min-width:960px){
+            .essence-grid{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:3.5rem}
+        }
+        .essence-copy .usp-title{margin-bottom:1.15rem;font-size:clamp(2rem,4.2vw,3.1rem);line-height:1.05}
+        .essence-lead{
+            margin:0 0 1.75rem;
+            color:#3f4652;
+            font-size:1.05rem;
+            line-height:1.7;
+            max-width:34rem;
+        }
+        .essence-list{
+            list-style:none;
+            margin:0 0 1.75rem;
+            padding:0;
+            display:flex;
+            flex-direction:column;
+            gap:1rem;
+        }
+        .essence-list li{
+            display:flex;
+            align-items:center;
+            gap:.85rem;
+            color:#1d232e;
+            font-size:1rem;
+            font-weight:500;
+            line-height:1.35;
+        }
+        .essence-ic{
+            width:2.35rem;
+            height:2.35rem;
+            border-radius:.7rem;
+            background:#0e7490;
+            color:#fff;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            flex:none;
+            box-shadow:0 10px 22px -16px rgba(14,116,144,.8);
+        }
+        .essence-ic i{width:1.1rem;height:1.1rem}
+        .essence-link{
+            display:inline-flex;
+            align-items:center;
+            gap:.4rem;
+            color:#0e7490;
+            font-weight:700;
+            font-size:1rem;
+            text-decoration:none;
+        }
+        .essence-link:hover{text-decoration:underline}
+        .essence-mock{
+            background:#fff;
+            border:1px solid rgba(29,35,46,.08);
+            border-radius:1.35rem;
+            box-shadow:0 28px 60px -40px rgba(29,35,46,.45),0 10px 24px -18px rgba(29,35,46,.18);
+            display:grid;
+            grid-template-columns:7.5rem 1fr;
+            min-height:20rem;
+            overflow:hidden;
+        }
+        @media (max-width:640px){
+            .essence-mock{grid-template-columns:1fr}
+        }
+        .essence-side{
+            background:#f3f0ea;
+            padding:1.1rem .85rem;
+            display:flex;
+            flex-direction:column;
+            gap:.45rem;
+            border-right:1px solid rgba(29,35,46,.06);
+        }
+        @media (max-width:640px){
+            .essence-side{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(29,35,46,.06)}
+        }
+        .essence-side span{
+            display:block;
+            padding:.55rem .7rem;
+            border-radius:.65rem;
+            font-size:.82rem;
+            color:#6b7280;
+            line-height:1.2;
+        }
+        .essence-side span.is-active{
+            background:#e7e2d8;
+            color:#1d232e;
+            font-weight:600;
+        }
+        .essence-main{padding:1.25rem 1.35rem 1.4rem}
+        .essence-main h3{
+            margin:0 0 1rem;
+            font-family:'Space Grotesk',sans-serif;
+            font-size:1.2rem;
+            font-weight:700;
+            color:#14181f;
+            letter-spacing:-.02em;
+        }
+        .essence-table{
+            width:100%;
+            border-collapse:collapse;
+            font-size:.86rem;
+            margin-bottom:1rem;
+        }
+        .essence-table th{
+            text-align:left;
+            color:#8b93a0;
+            font-weight:600;
+            padding:0 .2rem .45rem;
+            border-bottom:1px solid rgba(29,35,46,.08);
+        }
+        .essence-table td{
+            padding:.45rem .2rem;
+            color:#5c6570;
+            border-bottom:1px solid rgba(29,35,46,.05);
+        }
+        .essence-photo{
+            position:relative;
+            border-radius:1rem;
+            overflow:hidden;
+            border:1px solid rgba(29,35,46,.08);
+            background:#ece7db;
+            aspect-ratio:16/10;
+        }
+        .essence-photo img{
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            display:block;
+        }
+        .essence-badge-ocr{
+            position:absolute;
+            top:.7rem;
+            left:.7rem;
+            background:#0e7490;
+            color:#fff;
+            font-size:.72rem;
+            font-weight:700;
+            letter-spacing:.04em;
+            padding:.28rem .55rem;
+            border-radius:.45rem;
+        }
+        .essence-badge-ver{
+            position:absolute;
+            right:.7rem;
+            bottom:.7rem;
+            background:#fff;
+            color:#3f4652;
+            font-size:.74rem;
+            font-weight:600;
+            padding:.4rem .65rem;
+            border-radius:.7rem;
+            box-shadow:0 10px 24px -16px rgba(29,35,46,.55);
+            border:1px solid rgba(29,35,46,.06);
+        }
+    </style>
+
+    <section id="chto-takoe" class="sec-light relative px-6 z-10" aria-labelledby="chto-heading">
+        <div class="max-w-7xl mx-auto essence-grid reveal">
+            <div class="essence-copy">
+                <p class="usp-kicker">// Суть сервиса</p>
+                <h2 id="chto-heading" class="usp-title">Что такое электронный<br><em>лабораторный журнал</em></h2>
+                <p class="essence-lead">
+                    Bio-Notebook — веб-журнал для учебных и прикладных опытов: шаги, вложения и сырые данные в одном месте, любая версия под рукой, отчёт в DOCX или PDF за минуту.
+                </p>
+                <ul class="essence-list">
+                    <li><span class="essence-ic" aria-hidden="true"><i data-lucide="layers"></i></span>Шаги и протоколы опыта</li>
+                    <li><span class="essence-ic" aria-hidden="true"><i data-lucide="scan-text"></i></span>OCR рукописных записей и фото приборов</li>
+                    <li><span class="essence-ic" aria-hidden="true"><i data-lucide="flask-conical"></i></span>История версий каждой правки</li>
+                    <li><span class="essence-ic" aria-hidden="true"><i data-lucide="file-text"></i></span>Отчёт DOCX / PDF по шаблону</li>
+                </ul>
+                <a class="essence-link" href="{{ base_path }}/guides/kak-vesti-laboratornyy-zhurnal/">Как вести лабораторный журнал →</a>
+            </div>
+
+            <div class="essence-mock" aria-hidden="true">
+                <aside class="essence-side">
+                    <span class="is-active">Подготовка</span>
+                    <span>Ход работы</span>
+                    <span>Результаты</span>
+                    <span>Вывод</span>
+                </aside>
+                <div class="essence-main">
+                    <h3>Титрование NaOH</h3>
+                    <table class="essence-table">
+                        <thead>
+                            <tr><th>№</th><th>V(NaOH)</th><th>pH</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>12,4 мл</td><td>7,1</td></tr>
+                            <tr><td>2</td><td>12,6 мл</td><td>7,0</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="essence-photo">
+                        <img src="{{ base_path }}/static/essence-notebook-ocr.jpg" width="800" height="500" alt="" loading="lazy" decoding="async">
+                        <span class="essence-badge-ocr">OCR</span>
+                        <span class="essence-badge-ver">Версия 3 · сегодня 14:20</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CAPABILITIES SECTION: фото → отчёт -->
+    <style>
+        /* ── светлая секция «фото → отчёт» (без анимаций) ── */
+        .usp-show{display:grid;grid-template-columns:1fr;gap:2.4rem;align-items:stretch}
+        .usp-panel{position:relative;background:#ffffff;border:1px solid rgba(29,35,46,.09);border-radius:1.5rem;padding:2rem;display:flex;flex-direction:column;gap:1.4rem;box-shadow:0 30px 70px -52px rgba(29,35,46,.45),0 8px 20px -14px rgba(29,35,46,.16)}
+        .usp-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+        .usp-panel-title{display:flex;align-items:center;gap:.9rem}
+        .usp-ic{width:2.6rem;height:2.6rem;border-radius:.85rem;background:rgba(14,116,144,.08);border:1px solid rgba(14,116,144,.18);display:flex;align-items:center;justify-content:center;color:#0e7490;flex:none}
+        .usp-panel-title b{display:block;color:#1d232e;font-weight:600;font-size:1rem;font-family:'Space Grotesk',sans-serif}
+        .usp-panel-title span{display:block;color:#8b93a0;font-size:.78rem;margin-top:.15rem}
+        .usp-chip{font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:.32rem .7rem;border-radius:999px;background:rgba(29,35,46,.045);border:1px solid rgba(29,35,46,.13);color:#5c6570;white-space:nowrap}
+        .usp-chip.accent{color:#0e7490;border-color:rgba(14,116,144,.3);background:rgba(14,116,144,.07)}
+        .usp-photo{position:relative;border-radius:1rem;overflow:hidden;aspect-ratio:4/3;border:1px solid rgba(0,0,0,.14);background:radial-gradient(130% 130% at 18% 0%,#17202e 0%,#0b101a 55%,#05070c 100%);box-shadow:0 26px 50px -30px rgba(29,35,46,.6),inset 0 0 0 1px rgba(255,255,255,.05)}
+        .usp-ruled{position:absolute;inset:0;padding:1.2rem 1.4rem;display:flex;flex-direction:column;gap:.65rem;justify-content:flex-start}
+        .usp-hl{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:rgba(255,255,255,.68);font-size:.95rem;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+        .usp-hl small{color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.02em}
+        .usp-corner{position:absolute;width:1.4rem;height:1.4rem;opacity:.9;pointer-events:none}
+        .usp-corner.tl{top:.8rem;left:.8rem;border-top:2px solid #64CEFB;border-left:2px solid #64CEFB}
+        .usp-corner.br{bottom:.8rem;right:.8rem;border-bottom:2px solid #64CEFB;border-right:2px solid #64CEFB}
+        .usp-arrow{display:none;flex-direction:column;align-items:center;justify-content:center}
+        .usp-arrow .core{width:3.6rem;height:3.6rem;border-radius:999px;background:#ffffff;border:1px solid rgba(14,116,144,.22);box-shadow:0 18px 34px -20px rgba(14,116,144,.5);display:flex;align-items:center;justify-content:center;color:#0e7490}
+        .usp-arrow .tag{display:block;text-align:center;margin-top:.6rem;font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;color:rgba(29,35,46,.55)}
+        .usp-arrow.mob{display:flex;padding:.4rem 0}
+        .usp-page{flex:1;background:#f8f6f1;color:#272b35;border-radius:1rem;border:1px solid #e7e2d6;padding:1.3rem 1.5rem;min-height:180px;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem}
+        .usp-demo-title{margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.02rem;color:#10131a}
+        .usp-page .sub{color:#8a8f9a;font-size:.74rem;margin:0 0 .5rem}
+        .usp-row{display:flex;gap:.6rem;align-items:baseline}
+        .usp-row .k{color:#9a9eaa;flex:none;width:5.4rem;font-size:.76rem}
+        .usp-row .v{color:#272b35;font-weight:500}
+        .usp-table{width:100%;border-collapse:collapse;font-size:.76rem}
+        .usp-table td{padding:.22rem .5rem;border-bottom:1px dashed #d9d5c9}
+        .usp-table td:first-child{color:#9a9eaa}
+        .usp-table td:last-child{text-align:right;font-weight:500;color:#272b35}
+        .usp-note{color:#8b93a0;font-size:.76rem;margin:0}
+        .usp-cards{margin-top:clamp(3.5rem,6vw,5rem);padding-top:clamp(2.5rem,4vw,3.75rem);border-top:1px solid rgba(29,35,46,.08);display:grid;grid-template-columns:1fr;gap:clamp(1.5rem,3vw,2.25rem)}
+        .usp-mini{border-radius:1.4rem;padding:2rem 1.9rem;background:#ffffff;border:1px solid rgba(29,35,46,.09);display:flex;flex-direction:column;gap:1rem;box-shadow:0 20px 48px -46px rgba(29,35,46,.5);overflow:hidden}
+        .usp-mini h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:1.35rem;font-weight:500;color:#1d232e;padding-top:.2rem}
+        .usp-mini p{margin:0;color:#5c6570;font-size:.86rem;line-height:1.7}
+        @media (min-width:920px){
+            .usp-show{grid-template-columns:1fr auto 1fr;gap:2.75rem;align-items:stretch}
+            .usp-arrow{display:flex}
+            .usp-arrow.mob{display:none}
+            .usp-cards{grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:clamp(4rem,6vw,5.5rem)}
+        }
+        .usp-art{position:relative;margin:-2rem -1.9rem 1.6rem;padding:1.4rem 1.5rem;background:linear-gradient(180deg,#faf8f3,#f0ece3);border-bottom:1px solid rgba(29,35,46,.07)}
+        .art-box{background:#ffffff;border:1px solid #e7e2d6;border-radius:.9rem;padding:.85rem .95rem;box-shadow:0 16px 32px -30px rgba(29,35,46,.6)}
+        .art-chat{display:flex;flex-direction:column;gap:.55rem}
+        .bub{max-width:88%;padding:.45rem .7rem;border-radius:.8rem;font-size:.72rem;line-height:1.5}
+        .bub.user{align-self:flex-end;background:rgba(14,116,144,.1);color:#1d232e;border:1px solid rgba(14,116,144,.18);border-bottom-right-radius:.2rem}
+        .bub.ai{align-self:flex-start;background:#f4f2ed;color:#39414e;border:1px solid #e7e2d6;border-bottom-left-radius:.2rem}
+        .art-chips{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem}
+        .art-voice{display:flex;align-items:center;gap:1rem}
+        .art-mic{width:2.7rem;height:2.7rem;flex:none;border-radius:99px;background:rgba(14,116,144,.1);border:1px solid rgba(14,116,144,.22);display:flex;align-items:center;justify-content:center;color:#0e7490}
+        .art-wave{display:flex;gap:4px;align-items:flex-end;height:1.9rem;flex:none}
+        .art-wave i{display:block;width:4px;border-radius:2px;background:#0e7490;opacity:.5}
+        .art-wave i:nth-child(1){height:38%}.art-wave i:nth-child(2){height:72%}
+        .art-wave i:nth-child(3){height:30%}.art-wave i:nth-child(4){height:88%}
+        .art-wave i:nth-child(5){height:52%}.art-wave i:nth-child(6){height:78%}
+        .art-wave i:nth-child(7){height:42%}
+        .art-spch{flex:1;min-width:0;display:flex;flex-direction:column;gap:.35rem}
+        .art-spch .q{font-size:.72rem;font-style:italic;color:#5c6570;background:#f6f4ef;border:1px solid #ece7db;border-radius:.6rem;padding:.42rem .6rem}
+        .art-spch .ok{font-size:.66rem;color:#0e7490;font-weight:600}
+        .art-slides{display:flex;flex-direction:column;gap:.6rem}
+        .slide{background:#fbfaf7;border:1px solid #e7e2d6;border-radius:.55rem;padding:.45rem .7rem}
+        .slide .t{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.68rem;font-weight:700;font-family:'Space Grotesk',sans-serif;color:#10131a}
+        .slide .t em{font-style:normal;font-size:.56rem;font-weight:500;color:#c2bdb0;border:1px solid #e7e2d6;border-radius:.3rem;padding:.03rem .4rem}
+        .slide ul{margin:.15rem 0 0;padding-left:1rem;font-size:.62rem;color:#7b828e;line-height:1.7}
+        .art-export{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.15rem}
+        .art-file{font-size:.6rem;color:#9aa1ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    </style>
+
+    <section id="otchet" class="sec-photo relative px-6 z-10 sec-break" aria-labelledby="otchet-heading">
+        <div class="max-w-7xl mx-auto">
+            <div class="reveal">
+                <p class="usp-kicker">// Возможности</p>
+                <h2 id="otchet-heading" class="usp-title">Из фото —<br><em>в понятный отчёт</em></h2>
+                <p class="text-base max-w-2xl" style="color:#5c6570;margin:0 0 2.75rem;line-height:1.65">Записи в журнале — в гайде <a href="{{ base_path }}/guides/kak-vesti-laboratornyy-zhurnal/" style="color:#0e7490">как вести лабораторный журнал</a>; итоговый отчёт — <a href="{{ base_path }}/guides/kak-oformit-otchet-laboratornoy/" style="color:#0e7490">оформление отчёта</a>.</p>
+            </div>
+
+            <div class="usp-show">
+                <div class="usp-panel reveal">
+                    <div class="usp-panel-head">
+                        <div class="usp-panel-title">
+                            <div class="usp-ic"><i data-lucide="camera" style="width:1.1rem;height:1.1rem"></i></div>
+                            <div>
+                                <b>Фото тетради</b>
+                                <span>рукописные записи, таблица, прибор</span>
+                            </div>
+                        </div>
+                        <span class="usp-chip">IMG_2841.jpg</span>
+                    </div>
+                    <div class="usp-photo">
+                        <span class="usp-corner tl"></span>
+                        <span class="usp-corner br"></span>
+                        <div class="usp-ruled">
+                            <span class="usp-hl"><small>12.03 · опыт № 4</small></span>
+                            <span class="usp-hl">1. Взвесили 2,50 г NaCl…</span>
+                            <span class="usp-hl">2. рН довели до 7,4</span>
+                            <span class="usp-hl">3. Инкубация 37°C, 30 мин</span>
+                            <span class="usp-hl">4. ОД600 → 0,452</span>
+                            <span class="usp-hl"><small>…и фото прибора с данными</small></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="usp-arrow reveal">
+                    <div class="core"><i data-lucide="arrow-right" style="width:1.3rem;height:1.3rem"></i></div>
+                </div>
+                <div class="usp-arrow mob reveal">
+                    <div class="core"><i data-lucide="arrow-down" style="width:1.2rem;height:1.2rem"></i></div>
+                </div>
+
+                <div class="usp-panel reveal">
+                    <div class="usp-panel-head">
+                        <div class="usp-panel-title">
+                            <div class="usp-ic"><i data-lucide="file-text" style="width:1.1rem;height:1.1rem"></i></div>
+                            <div>
+                                <b>Готовый отчёт</b>
+                                <span>структура по шаблону, экспорт в 1 клик</span>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end">
+                            <span class="usp-chip accent">DOCX</span>
+                            <span class="usp-chip accent">PDF</span>
+                        </div>
+                    </div>
+                    <div class="usp-page">
+                        <p class="usp-demo-title" role="presentation">Лабораторная работа № 4</p>
+                        <p class="sub">Кинетика роста культуры E. coli</p>
+                        <div class="usp-row"><span class="k">Объект</span><span class="v">E. coli, штамм K-12</span></div>
+                        <div class="usp-row"><span class="k">Цель</span><span class="v">оценить лог-фазу роста</span></div>
+                        <table class="usp-table">
+                            <tr><td>t, мин</td><td>0</td><td>30</td><td>60</td></tr>
+                            <tr><td>ОД600</td><td>0,12</td><td>0,45</td><td>0,88</td></tr>
+                        </table>
+                        <div class="usp-row"><span class="k">Вывод</span><span class="v">лог-фаза завершается к 60-й минуте</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ocr" class="usp-cards" aria-labelledby="ocr-heading">
+                <h2 id="ocr-heading" class="sr-only">OCR, голос и презентации</h2>
+                <div class="usp-mini reveal">
+                    <div class="usp-art">
+                        <div class="art-box art-chat">
+                            <div class="bub user">Суммируй опыт № 4</div>
+                            <div class="bub ai">Цель достигнута: лог-фаза завершается ≈ 60 мин. Выводы уже добавлены в отчёт.</div>
+                            <div class="art-chips">
+                                <span class="usp-chip">Сделай выводы</span>
+                                <span class="usp-chip">Проверь расчёты</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="usp-ic"><i data-lucide="message-circle" style="width:1.15rem;height:1.15rem"></i></div>
+                    <h3>ИИ-Чат по эксперименту</h3>
+                    <p>Задайте вопрос по своим записям: ИИ соберёт выжимку, найдёт ошибку в расчётах и внесёт правки прямо в отчёт.</p>
+                </div>
+                <div class="usp-mini reveal">
+                    <div class="usp-art">
+                        <div class="art-box art-voice">
+                            <div class="art-mic"><i data-lucide="mic" style="width:1.1rem;height:1.1rem"></i></div>
+                            <div class="art-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                            <div class="art-spch">
+                                <div class="q">«…взвесили 2,5 г NaCl…»</div>
+                                <div class="ok">✓ записано в журнал</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="usp-ic"><i data-lucide="mic" style="width:1.15rem;height:1.15rem"></i></div>
+                    <h3>Голосовой ввод</h3>
+                    <p>Надиктуйте результат, стоя у стенда, — речь превратится в текст и попадёт в журнал без ручного ввода.</p>
+                </div>
+                <div class="usp-mini reveal">
+                    <div class="usp-art">
+                        <div class="art-box art-slides">
+                            <div class="slide">
+                                <div class="t">Цель и методы<em>1/6</em></div>
+                                <ul><li>Объект: E. coli K-12, 37 °C</li></ul>
+                            </div>
+                            <div class="slide">
+                                <div class="t">Результаты<em>4/6</em></div>
+                                <ul><li>ОД600: 0,12 → 0,88 за 60 мин</li></ul>
+                            </div>
+                            <div class="art-export">
+                                <span class="art-file">experiment4.pptx</span>
+                                <span class="st-btns"><span class="usp-chip accent">PPTX</span><span class="usp-chip accent">PDF</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="usp-ic"><i data-lucide="presentation" style="width:1.15rem;height:1.15rem"></i></div>
+                    <h3>Презентация из отчёта</h3>
+                    <p>Из записей эксперимента — готовые слайды: цель, графики, выводы. Удобно для защиты работы или отчёта на кафедре.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<section id="sravnenie" class="sec-light relative px-6 z-10 sec-break" aria-labelledby="sravnenie-heading">
+        <div class="max-w-7xl mx-auto reveal">
+            <p class="usp-kicker">// Выбор формата</p>
+            <h2 id="sravnenie-heading" class="usp-title" style="margin-bottom:1.5rem;font-size:clamp(1.75rem,4vw,2.75rem)">Чем отличается от <em>бумаги и Word</em></h2>
+            <div class="pricing-table-wrap" style="margin-bottom:0">
+                <table class="pricing-table">
+                    <caption class="sr-only">Сравнение бумажной тетради, Word и Bio-Notebook</caption>
+                    <thead>
+                        <tr><th scope="col">Критерий</th><th scope="col">Бумажная тетрадь</th><th scope="col">Word / таблицы</th><th scope="col">Bio-Notebook</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Поиск по старым опытам</td><td>Сложно</td><td>Зависит от папок</td><td>По экспериментам и узлам</td></tr>
+                        <tr><td>Фото и OCR</td><td>Вручную переписывать</td><td>Картинки без структуры</td><td>OCR в шаги эксперимента</td></tr>
+                        <tr><td>Версии и исправления</td><td>Зачёркивания</td><td>Копии файлов</td><td>История версий</td></tr>
+                        <tr><td>ИИ по записям</td><td>—</td><td>—</td><td>Чат, отчёт, презентация</td></tr>
+                        <tr><td>Главный минус для учебной работы</td><td>Нет поиска, легко потерять</td><td>Нет модели «опыт → шаги»</td><td>Нужна дисциплина структуры; не промышленный ELN</td></tr>
+                        <tr><td>Цена</td><td>Тетрадь</td><td>Офис / облако</td><td><a href="#ceny" style="color:#0e7490">публичные тарифы</a></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top:1.25rem;font-size:.9rem;color:#5c6570;text-align:left;max-width:48rem">Сравнение электронных журналов и ELN для вуза — на отдельной странице <a href="{{ base_path }}/sravnenie-elektronnyh-laboratornyh-zhurnalov/" style="color:#0e7490">«Какой электронный лабораторный журнал выбрать»</a> (без рейтинга «лучший»).</p>
+        </div>
+    </section>
+
+<section id="ceny" class="sec-light relative px-6 z-10 sec-break" aria-labelledby="ceny-heading">
+    <div class="max-w-7xl mx-auto pricing-section reveal">
+      <p class="pricing-kicker">// Публичные тарифы</p>
+      <h2 id="ceny-heading">Сколько стоит <em style="font-style:italic;color:#0e7490">Bio-Notebook</em></h2>
+
+      <figure class="pricing-hero">
+        <img src="{{ base_path }}/static/pricing-lab-atmosphere.jpg" width="1280" height="720" alt="Лабораторный стол: рукописный журнал, чашка Петри и ноутбук с цифровым журналом" loading="lazy" decoding="async">
+        <figcaption class="pricing-hero-copy">
+          <strong>От тетради — к цифровому журналу</strong>
+          <span>Free для старта, Pro с агентом за 319 ₽/мес, LabOS — для кафедр и лабораторий.</span>
+        </figcaption>
+      </figure>
+
+      <div class="pricing-grid" role="list">
+        <article class="plan-card" role="listitem">
+          <span class="plan-badge">Старт</span>
+          <h3>Free</h3>
+          <p class="plan-tagline">Журнал без ИИ-агента — без карты и без срока.</p>
+          <p class="plan-price">0 ₽ <small>/ навсегда</small></p>
+          <p class="plan-term">Без ограничения срока</p>
+          <ul class="plan-features">
+            <li><i data-lucide="check"></i> Эксперименты и узлы</li>
+            <li><i data-lucide="check"></i> OCR и голосовой ввод</li>
+            <li><i data-lucide="check"></i> Отчёты DOCX / PDF</li>
+            <li><i data-lucide="check"></i> Без ИИ-агента</li>
+          </ul>
+          <a class="plan-cta ghost" href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
+        </article>
+
+        <article class="plan-card featured" role="listitem">
+          <span class="plan-badge">Рекомендуем</span>
+          <h3>Pro</h3>
+          <p class="plan-tagline">Агент и все возможности Bio-Notebook.</p>
+          <p class="plan-price">319 ₽ <small>/ мес</small></p>
+          <p class="plan-term">Помесячно · цены на 12.11.2026</p>
+          <ul class="plan-features">
+            <li><i data-lucide="check"></i> Всё из Free</li>
+            <li><i data-lucide="check"></i> ИИ-агент по вашим записям</li>
+            <li><i data-lucide="check"></i> Презентации из отчёта</li>
+            <li><i data-lucide="check"></i> Друзья, чаты, 20 ГБ</li>
+          </ul>
+          <a class="plan-cta" href="{{ base_path }}/login?mode=register">Оформить Pro</a>
+        </article>
+
+        <article class="plan-card" role="listitem">
+          <span class="plan-badge">Кафедры</span>
+          <h3>LabOS</h3>
+          <p class="plan-tagline">Для кафедр, лабораторий и команд — условия под задачу.</p>
+          <p class="plan-price">обсудим</p>
+          <p class="plan-term">Договор · счёт · внедрение</p>
+          <ul class="plan-features">
+            <li><i data-lucide="check"></i> Всё из Pro</li>
+            <li><i data-lucide="check"></i> Роли и командная работа</li>
+            <li><i data-lucide="check"></i> Договор, счёт, данные в РФ</li>
+            <li><i data-lucide="check"></i> Персональный менеджер</li>
+          </ul>
+          <button type="button" class="plan-cta" id="labosOpenBtn">Давайте обсудим!</button>
+        </article>
+      </div>
+
+      <div class="pricing-foot">
+        <p>Подробнее: <a href="{{ base_path }}/guides/kak-oformit-otchet-laboratornoy/">оформление отчёта</a>, <a href="{{ base_path }}/guides/vyvod-laboratornoy-raboty/">вывод к лабораторной</a>.</p>
+        <a class="pricing-cta-link" href="{{ base_path }}/login?mode=register">Начать с Free →</a>
+      </div>
+      <p class="pricing-note">Публичные тарифы ООО «Антикусь». Цены в рублях, НДС не облагается. Дата: 12 ноября 2026 г.</p>
     </div>
+  </section>
+
+    <section id="faq" class="sec-light relative px-6 z-10 sec-break" aria-labelledby="faq-heading">
+        <div class="max-w-3xl mx-auto reveal">
+            <p class="usp-kicker">// Ответы</p>
+            <h2 id="faq-heading" class="usp-title" style="margin-bottom:1.5rem;font-size:clamp(1.75rem,4vw,2.75rem)">Частые <em>вопросы</em></h2>
+            <div style="display:flex;flex-direction:column;gap:1rem;text-align:left">
+                {%- for item in faq_landing %}
+                <details style="background:#fff;border:1px solid rgba(29,35,46,.09);border-radius:1rem;padding:1rem 1.15rem">
+                    <summary style="font-weight:600;cursor:pointer;color:#1d232e">{{ item.question }}</summary>
+                    <p style="margin:.75rem 0 0;color:#5c6570;line-height:1.6">{{ (item.answer_html|default(item.answer))|safe }}</p>
+                </details>
+                {%- endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="sec-light relative px-6 z-10 sec-break final-cta" aria-labelledby="final-cta-heading">
+        <h2 id="final-cta-heading" class="sr-only">Начать бесплатно</h2>
+        <p>Free — 0&nbsp;₽ без карты. Pro — 319&nbsp;₽/мес с агентом. LabOS — обсудим.</p>
+        <a href="{{ base_path }}/login?mode=register">Начать бесплатно <i data-lucide="arrow-right" class="w-5 h-5"></i></a>
+    </section>
+
+    <!-- COMPANY FOOTER -->
+    </main>
+
+    <footer class="sec-light relative z-10 px-6 py-12 lg:px-16">
+        <div class="mx-auto flex max-w-7xl flex-col gap-8 md:flex-row md:items-end md:justify-between">
+            <div>
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em]" style="color:rgba(29,35,46,.5)">ООО «Антикусь»</p>
+                <div class="space-y-1 text-sm leading-relaxed" style="color:#5c6570">
+                    <p>ОГРН 1257700473359</p>
+                    <p>ИНН 7751375380 · КПП 775101001</p>
+                </div>
+            </div>
+            <nav class="flex flex-col gap-2 text-xs sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2" aria-label="Юридическая информация" style="color:rgba(29,35,46,.55)">
+                <a href="{{ base_path }}/guides/" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Статьи</a>
+                <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Политика конфиденциальности</a>
+                <a href="{{ legal_base_url }}/public-offer" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Публичная оферта</a>
+                <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Согласие на обработку ПДн</a>
+            </nav>
+        </div>
+        <div class="mx-auto max-w-7xl footer-fund">
+            <p>Проект реализован при поддержке Фонда содействия инновациям в рамках программы «Студенческий стартап» мероприятия «Платформа университетского технологического предпринимательства» федерального проекта «Технологии»</p>
+            <div class="footer-fund-logos">
+                <a href="https://fasie.ru/" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ base_path }}/static/partners/fond-sodeistviya-innovatsiyam.png" alt="Фонд содействия инновациям" loading="lazy" decoding="async" width="220" height="80">
+                </a>
+                <a href="https://univertechpred.ru/" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ base_path }}/static/partners/univertechpred-platform.png" alt="Платформа университетского технологического предпринимательства" loading="lazy" decoding="async" width="220" height="80">
+                </a>
+            </div>
+        </div>
+        <p class="mx-auto mt-8 max-w-7xl text-xs" style="color:rgba(29,35,46,.4)">© 2026 ООО «Антикусь». Bio-Notebook</p>
+    </footer>
 
     <script>
-        // Initialize Lucide Icons
-        lucide.createIcons();
-
-        // Modal Logic
-        function openLogin() {
-            document.getElementById('loginModal').classList.add('active');
-        }
-        function closeLogin() {
-            document.getElementById('loginModal').classList.remove('active');
-        }
-        document.getElementById('loginModal').addEventListener('click', function(e) {
-            if (e.target === this) closeLogin();
-        });
-
-        function setAuthMode(mode) {
-            const form = document.getElementById('auth-form');
-            const title = document.getElementById('auth-title');
-            const desc = document.getElementById('auth-desc');
-            const submitBtn = document.getElementById('auth-submit');
-            const tabLogin = document.getElementById('tab-login');
-            const tabRegister = document.getElementById('tab-register');
-            const regFields = document.getElementById('register-fields');
-            const regConfirm = document.getElementById('register-password-confirm');
-            const emailInput = document.getElementById('email-input');
-            const confPassInput = document.getElementById('confirm-password-input');
-            const checks = ['agree_offer', 'agree_privacy', 'agree_data', 'agree_marketing'];
-
-            if (mode === 'login') {
-                form.action = '/login';
-                title.innerText = 'С возвращением';
-                desc.innerText = 'Войдите в свой лабораторный журнал';
-                submitBtn.innerText = 'Войти';
-                tabLogin.classList.replace('border-transparent', 'border-[#64CEFB]');
-                tabLogin.classList.replace('text-white/50', 'text-white');
-                tabRegister.classList.replace('border-[#64CEFB]', 'border-transparent');
-                tabRegister.classList.replace('text-white', 'text-white/50');
-                
-                regFields.style.display = 'none';
-                regConfirm.style.display = 'none';
-                emailInput.required = false;
-                confPassInput.required = false;
-                checks.forEach(id => document.getElementById(id).disabled = true);
+        // Initialize Lucide Icons (deferred, wait for library)
+        function initLucide() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             } else {
-                form.action = '/register';
-                title.innerText = 'Создать аккаунт';
-                desc.innerText = 'Присоединяйтесь к новой эре исследований';
-                submitBtn.innerText = 'Зарегистрироваться';
-                tabRegister.classList.replace('border-transparent', 'border-[#64CEFB]');
-                tabRegister.classList.replace('text-white/50', 'text-white');
-                tabLogin.classList.replace('border-[#64CEFB]', 'border-transparent');
-                tabLogin.classList.replace('text-white', 'text-white/50');
-                
-                regFields.style.display = 'block';
-                regConfirm.style.display = 'block';
-                emailInput.required = true;
-                confPassInput.required = true;
-                checks.forEach(id => document.getElementById(id).disabled = false);
+                setTimeout(initLucide, 100);
             }
         }
-        
-        document.getElementById('auth-form').addEventListener('submit', function(e) {
-            if (this.action.includes('register')) {
-                const pass = document.getElementById('password-input').value;
-                const conf = document.getElementById('confirm-password-input').value;
-                if (pass !== conf) {
-                    e.preventDefault();
-                    alert('Пароли не совпадают!');
-                }
-            }
-        });
-        
-        {% if error %}
-        // Auto-open modal if there's an error
-        document.addEventListener('DOMContentLoaded', () => {
-            openLogin();
-            {% if error == 'UserExists' %}
-            setAuthMode('register');
-            {% endif %}
-        });
-        {% endif %}
+        document.addEventListener('DOMContentLoaded', initLucide);
 
         // Scroll Reveal Animation (Intersection Observer)
         document.addEventListener('DOMContentLoaded', () => {
@@ -577,7 +1659,258 @@
             reveals.forEach(reveal => {
                 revealOnScroll.observe(reveal);
             });
+
+            // Fallback: never leave scroll sections invisible if observer fails
+            setTimeout(() => {
+                document.querySelectorAll('.reveal:not(.active)').forEach(el => el.classList.add('active'));
+            }, 2500);
         });
     </script>
+
+
+    <style>
+        #labosModal.modal {
+            z-index: 220;
+            background: rgba(5,7,10,.72);
+        }
+        .labos-card {
+            width: min(100%, 28rem);
+            background: #fff;
+            color: #1d232e;
+            border-radius: 1.35rem;
+            border: 1px solid rgba(29,35,46,.1);
+            box-shadow: 0 40px 90px -50px rgba(29,35,46,.7);
+            padding: 1.5rem 1.4rem 1.35rem;
+            position: relative;
+        }
+        .labos-card h2 {
+            margin: 0 0 .35rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.45rem;
+            letter-spacing: -.02em;
+            color: #14181f;
+        }
+        .labos-card .labos-sub {
+            margin: 0 0 1.15rem;
+            color: #5c6570;
+            font-size: .9rem;
+            line-height: 1.5;
+        }
+        .labos-card label {
+            display: block;
+            font-size: .78rem;
+            font-weight: 600;
+            color: #3f4652;
+            margin: 0 0 .3rem;
+        }
+        .labos-card .field { margin-bottom: .75rem; }
+        .labos-card input,
+        .labos-card textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid rgba(29,35,46,.14);
+            border-radius: .75rem;
+            padding: .7rem .85rem;
+            font: inherit;
+            font-size: .92rem;
+            color: #1d232e;
+            background: #fbfaf7;
+            outline: none;
+        }
+        .labos-card input:focus,
+        .labos-card textarea:focus {
+            border-color: rgba(14,116,144,.55);
+            box-shadow: 0 0 0 3px rgba(14,116,144,.12);
+        }
+        .labos-card textarea { min-height: 6.5rem; resize: vertical; }
+        .labos-actions {
+            display: flex;
+            gap: .6rem;
+            margin-top: 1rem;
+        }
+        .labos-actions button {
+            flex: 1;
+            border: none;
+            border-radius: 999px;
+            padding: .85rem 1rem;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .labos-submit { background: #0e7490; color: #fff; }
+        .labos-submit:hover { filter: brightness(1.08); }
+        .labos-submit:disabled { opacity: .55; cursor: default; filter: none; }
+        .labos-cancel { background: rgba(29,35,46,.06); color: #3f4652; }
+        .labos-close {
+            position: absolute; top: .85rem; right: .85rem;
+            width: 2rem; height: 2rem; border-radius: 999px;
+            border: 1px solid rgba(29,35,46,.1); background: #fff;
+            color: #5c6570; cursor: pointer; font-size: 1.1rem; line-height: 1;
+        }
+        .labos-hint {
+            min-height: 1.2rem;
+            margin: .55rem 0 0;
+            font-size: .82rem;
+            color: #5c6570;
+        }
+        .labos-hint.error { color: #b91c1c; }
+        .labos-hint.ok { color: #0e7490; font-weight: 600; }
+    </style>
+
+    <div id="labosModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="labosModalTitle" hidden>
+        <div class="labos-card" role="document">
+            <button type="button" class="labos-close" id="labosCloseBtn" aria-label="Закрыть">×</button>
+            <h2 id="labosModalTitle">Заявка на LabOS</h2>
+            <p class="labos-sub">Расскажите о кафедре или лаборатории — ответим и предложим условия.</p>
+            <form id="labosForm" novalidate>
+                <div class="field">
+                    <label for="labosName">Имя</label>
+                    <input id="labosName" name="name" type="text" autocomplete="name" required maxlength="200" placeholder="Как к вам обращаться">
+                </div>
+                <div class="field">
+                    <label for="labosEmail">Email</label>
+                    <input id="labosEmail" name="email" type="email" autocomplete="email" required maxlength="320" placeholder="name@university.ru">
+                </div>
+                <div class="field">
+                    <label for="labosOrg">Организация</label>
+                    <input id="labosOrg" name="org" type="text" autocomplete="organization" maxlength="300" placeholder="Вуз, кафедра, лаборатория">
+                </div>
+                <div class="field">
+                    <label for="labosMessage">Задача</label>
+                    <textarea id="labosMessage" name="message" maxlength="4000" placeholder="Сколько человек, какие процессы, сроки"></textarea>
+                </div>
+                <div class="labos-actions">
+                    <button type="button" class="labos-cancel" id="labosCancelBtn">Отмена</button>
+                    <button type="submit" class="labos-submit" id="labosSubmitBtn">Отправить заявку</button>
+                </div>
+                <p class="labos-hint" id="labosHint" aria-live="polite"></p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        var modal = document.getElementById('labosModal');
+        var openBtn = document.getElementById('labosOpenBtn');
+        var form = document.getElementById('labosForm');
+        var hint = document.getElementById('labosHint');
+        var submitBtn = document.getElementById('labosSubmitBtn');
+        if (!modal || !openBtn || !form) return;
+
+        function openModal() {
+            modal.hidden = false;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            var name = document.getElementById('labosName');
+            if (name) setTimeout(function () { name.focus(); }, 50);
+        }
+        function closeModal() {
+            modal.classList.remove('active');
+            modal.hidden = true;
+            document.body.style.overflow = '';
+            if (hint) { hint.textContent = ''; hint.className = 'labos-hint'; }
+        }
+
+        openBtn.addEventListener('click', openModal);
+        ['labosCloseBtn', 'labosCancelBtn'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('click', closeModal);
+        });
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+        });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            if (hint) { hint.textContent = ''; hint.className = 'labos-hint'; }
+            var payload = {
+                name: (document.getElementById('labosName').value || '').trim(),
+                email: (document.getElementById('labosEmail').value || '').trim(),
+                org: (document.getElementById('labosOrg').value || '').trim(),
+                message: (document.getElementById('labosMessage').value || '').trim()
+            };
+            if (payload.name.length < 2) {
+                hint.textContent = 'Укажите имя';
+                hint.className = 'labos-hint error';
+                return;
+            }
+            if (!payload.email || payload.email.indexOf('@') < 1) {
+                hint.textContent = 'Укажите корректный email';
+                hint.className = 'labos-hint error';
+                return;
+            }
+            submitBtn.disabled = true;
+            var base = '{{ base_path }}' || '';
+            fetch(base + '/api/labos-lead', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(function (r) {
+                return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+            }).then(function (res) {
+                if (!res.ok || !res.data.ok) {
+                    throw new Error((res.data && res.data.error) || 'Не удалось отправить');
+                }
+                hint.textContent = 'Заявка отправлена. Мы свяжемся с вами.';
+                hint.className = 'labos-hint ok';
+                form.reset();
+                setTimeout(closeModal, 1400);
+            }).catch(function (err) {
+                hint.textContent = err.message || 'Ошибка отправки';
+                hint.className = 'labos-hint error';
+            }).finally(function () {
+                submitBtn.disabled = false;
+            });
+        });
+    })();
+    </script>
+
+    <!-- ── Cookie Banner ── -->
+    <div id="cookieBanner" class="fixed bottom-0 left-0 right-0 z-[200] transition-all duration-500 ease-out" style="transform:translateY(100%);opacity:0;">
+        <div class="mx-auto max-w-7xl px-4 pb-4">
+            <div class="rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xl" style="background:rgba(10,10,20,0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);">
+                <div class="flex-grow min-w-0">
+                    <div class="font-semibold text-sm mb-1" style="color:white;font-family:'Space Grotesk',sans-serif;">🍪 Мы используем cookies</div>
+                    <p class="text-xs leading-relaxed" style="color:rgba(255,255,255,0.5);">
+                        Этот сайт использует файлы cookie для обеспечения корректной работы. Данные хранятся в течение 31 дня. Продолжая использовать сайт, вы соглашаетесь с этим.
+                    </p>
+                </div>
+                <button onclick="acceptCookies()" class="font-bold py-2.5 px-8 rounded-full transition-all duration-200 flex-shrink-0 text-sm whitespace-nowrap" style="background:#64CEFB;color:#ffffff;border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+                    Принять
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const banner = document.getElementById('cookieBanner');
+            if (!banner) return;
+            const consent = localStorage.getItem('biobook-cookie-consent');
+            const date = localStorage.getItem('biobook-cookie-date');
+            if (consent === 'accepted' && date) {
+                const daysSince = (Date.now() - parseInt(date)) / (1000 * 60 * 60 * 24);
+                if (daysSince < 31) return;
+            }
+            requestAnimationFrame(() => {
+                banner.style.transform = 'translateY(0)';
+                banner.style.opacity = '1';
+            });
+        })();
+        function acceptCookies() {
+            const banner = document.getElementById('cookieBanner');
+            if (banner) {
+                banner.style.transform = 'translateY(100%)';
+                banner.style.opacity = '0';
+                setTimeout(() => { banner.style.display = 'none'; }, 500);
+            }
+            localStorage.setItem('biobook-cookie-consent', 'accepted');
+            localStorage.setItem('biobook-cookie-date', String(Date.now()));
+        }
+    </script>
+    {% include "yandex_metrika.html" %}
 </body>
 </html>

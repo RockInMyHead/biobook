@@ -1,248 +1,1106 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Проекты | Bio-Notebook</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        heading: ['Space Grotesk', 'sans-serif'],
-                    },
-                    colors: { black: '#000000', }
-                }
-            }
-        }
-    </script>
-    
-    <script src="https://unpkg.com/lucide@latest"></script>
+{% extends "base.html" %}
 
-    <style>
-        body {
-            background-color: #000000;
-            color: white;
-            margin: 0;
-            overflow-x: hidden;
-            font-family: 'Inter', sans-serif;
-            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
-        }
-        h1, h2, h3, h4, .font-heading { font-family: 'Space Grotesk', sans-serif; }
-        .liquid-glass {
-            background: rgba(255, 255, 255, 0.02);
-            background-blend-mode: luminosity;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        .liquid-glass:hover {
-            border-color: rgba(100, 206, 251, 0.3);
-            background: rgba(255, 255, 255, 0.04);
-            transform: translateY(-2px);
-        }
-        .liquid-glass-strong {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
-        }
-        .shiny-text {
-            background: linear-gradient(100deg, #64CEFB 20%, #ffffff 50%, #64CEFB 80%);
-            background-size: 200% auto;
-            color: transparent;
-            -webkit-background-clip: text;
-            background-clip: text;
-            animation: shine 3s linear infinite;
-        }
-        @keyframes shine { to { background-position: 200% center; } }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .modal.active { display: flex; opacity: 1; }
-        .modal-content {
-            transform: scale(0.95);
-            transition: transform 0.3s ease;
-            width: 100%; max-width: 500px;
-        }
-        .modal.active .modal-content { transform: scale(1); }
-        .form-input {
-            width: 100%; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 0.75rem 1rem; border-radius: 0.5rem;
-            color: white; margin-bottom: 1rem; outline: none;
-            transition: border-color 0.2s;
-        }
-        .form-input:focus { border-color: #64CEFB; }
-        .status-pill {
-            padding: 0.5rem 0.9rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            color: rgba(255,255,255,0.7);
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.2s ease;
-        }
-        .status-pill:hover { background: rgba(255,255,255,0.07); color: white; }
-        .status-pill.active {
-            background: rgba(100,206,251,0.12);
-            border-color: rgba(100,206,251,0.35);
-            color: #64CEFB;
-        }
-    </style>
-</head>
-<body class="antialiased min-h-screen flex flex-col">
+{% block title %}{% if current_project %}{{ current_project.name }}{% else %}Проекты{% endif %}{% endblock %}
+{% block nav_subtitle %}{% if current_project %}Проект: {{ current_project.name }}{% else %}Проекты{% endif %}{% endblock %}
 
-    <!-- Navbar -->
-    <nav class="w-full px-6 lg:px-16 py-6 z-50 flex flex-wrap items-center justify-between gap-4 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass" style="transform: none; border-color: rgba(255,255,255,0.5);">
-                <div class="w-4 h-4 rounded-full bg-[#64CEFB]"></div>
-            </div>
-            <span class="font-bold text-xl tracking-tight font-heading">Bio-Notebook <span class="text-white/50 font-sans text-sm ml-2">Проекты</span></span>
-        </div>
+{% block extra_head %}
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: var(--modal-overlay);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal.active { display: flex; opacity: 1; }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%; max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .modal.active .modal-content { transform: scale(1); }
 
-        <div class="hidden md:flex flex-wrap items-center gap-6 text-sm">
-            <a href="/dashboard?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Эксперименты</a>
-            <a href="/projects?user={{ user }}" class="text-[#64CEFB] font-medium transition-colors">Проекты</a>
-            <a href="/reagents?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Реагенты</a>
-            <a href="/consumables?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Расходники</a>
-        </div>
+    /* Gantt chart */
+    .gantt-container {
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+    .gantt-header {
+        display: grid;
+        grid-template-columns: 220px repeat(auto-fill, minmax(40px, 1fr));
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--glass-border);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+    }
+    .gantt-day {
+        text-align: center;
+        padding: 2px 0;
+    }
+    .gantt-row {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        min-height: 40px;
+        align-items: center;
+        border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 40%, transparent);
+        padding: 4px 0;
+    }
+    .gantt-label {
+        font-size: 12px;
+        color: var(--text-main);
+        padding-right: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .gantt-track {
+        position: relative;
+        height: 28px;
+        background: color-mix(in srgb, var(--glass-bg) 50%, transparent);
+        border-radius: 6px;
+        overflow: visible;
+    }
+    .gantt-bar {
+        position: absolute;
+        top: 4px;
+        height: 20px;
+        border-radius: 4px;
+        min-width: 4px;
+        display: flex;
+        align-items: center;
+        padding-left: 6px;
+        font-size: 9px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .gantt-bar:hover { opacity: 0.85; }
+    .gantt-bar.priority-high { background: #ef4444; color: white; }
+    .gantt-bar.priority-medium { background: #f59e0b; color: black; }
+    .gantt-bar.priority-low { background: #22c55e; color: black; }
+    .gantt-weekend { background: color-mix(in srgb, var(--glass-bg) 30%, transparent); }
 
-        <div class="flex items-center gap-6">
-            <div class="hidden sm:flex items-center gap-2 text-white/60">
-                <i data-lucide="user" class="w-4 h-4"></i>
-                <span class="text-sm font-medium">{{ user }}</span>
-            </div>
-            <a href="/" class="text-white/60 hover:text-white text-sm transition-colors flex items-center gap-2">
-                Выйти
-                <i data-lucide="log-out" class="w-4 h-4"></i>
+    /* Kanban columns */
+    .kanban-col {
+        min-height: 200px;
+        border-radius: 12px;
+    }
+    .task-card {
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        border-radius: 10px;
+    }
+    .task-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .priority-high { border-left: 3px solid #ef4444; }
+    .priority-medium { border-left: 3px solid #f59e0b; }
+    .priority-low { border-left: 3px solid #22c55e; }
+
+    /* Tabs */
+    .tab-btn {
+        padding: 10px 20px;
+        border-radius: 9999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .tab-btn.active {
+        background: var(--primary);
+        color: var(--primary-fg);
+        font-weight: 600;
+    }
+    .tab-btn:not(.active) {
+        color: var(--text-muted);
+        border-color: var(--glass-border);
+    }
+    .tab-btn:not(.active):hover {
+        color: var(--text-main);
+        background: var(--glass-bg);
+    }
+
+    .member-avatar {
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        background: color-mix(in srgb, var(--primary) 20%, transparent);
+        color: var(--primary);
+        border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    }
+
+    /* Custom date picker */
+    .bb-date {
+        position: relative;
+    }
+    .bb-date-trigger {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        text-align: left;
+        cursor: pointer;
+    }
+    .bb-date-trigger .bb-date-value {
+        flex: 1;
+        color: var(--text-main);
+    }
+    .bb-date-trigger .bb-date-value.is-empty {
+        color: var(--text-muted);
+    }
+    .bb-date-panel {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 8px);
+        z-index: 40;
+        padding: 14px;
+        border-radius: 18px;
+        background: color-mix(in srgb, var(--glass-bg) 92%, #fff);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        backdrop-filter: blur(16px);
+    }
+    .bb-date.open .bb-date-panel { display: block; }
+    .bb-date-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .bb-date-nav button {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        color: var(--text-main);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    .bb-date-nav button:hover {
+        border-color: color-mix(in srgb, var(--primary) 45%, var(--glass-border));
+        color: var(--primary);
+    }
+    .bb-date-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-main);
+        text-transform: capitalize;
+    }
+    .bb-date-week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+    .bb-date-week span {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        padding: 4px 0;
+    }
+    .bb-date-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+    }
+    .bb-date-grid button {
+        aspect-ratio: 1;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: var(--text-main);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .bb-date-grid button.muted {
+        color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+        font-weight: 500;
+    }
+    .bb-date-grid button:hover {
+        background: color-mix(in srgb, var(--primary) 12%, transparent);
+        color: var(--primary);
+    }
+    .bb-date-grid button.today {
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent);
+    }
+    .bb-date-grid button.selected {
+        background: var(--primary);
+        color: var(--primary-fg);
+    }
+    .bb-date-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .bb-date-footer button {
+        border: 0;
+        background: transparent;
+        color: var(--primary);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 2px;
+    }
+    .bb-date-error {
+        display: none;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #dc2626;
+    }
+    .bb-date-error.show { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if current_project %}
+
+<!-- ─── SINGLE PROJECT VIEW ─── -->
+<div>
+    <!-- Back + Actions -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div class="flex items-center gap-4">
+            <a href="{{ base_path }}/projects?user={{ user }}" class="flex items-center gap-1 text-sm" style="color: var(--text-muted);">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Назад
             </a>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
-        
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
             <div>
-                <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Проекты</h1>
-                <p class="text-white/50 text-sm">Управление проектами и статусами</p>
+                <h1 class="text-3xl md:text-4xl font-heading tracking-tight">{{ current_project.name }}</h1>
+                {% if current_project.description %}
+                <p class="text-sm mt-1" style="color: var(--text-muted);">{{ current_project.description }}</p>
+                {% endif %}
             </div>
-            <button onclick="openProjectModal()" class="bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap">
-                <i data-lucide="plus" class="w-5 h-5"></i>
-                Новый проект
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <span class="text-xs uppercase tracking-wider px-3 py-1.5 rounded-full border" style="background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary);">
+                {{ current_project.status }}
+            </span>
+            <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border" style="background: var(--glass-bg); color: var(--text-muted); border-color: var(--glass-border);">ID: {{ current_project.id }}</span>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex flex-wrap gap-2 mb-8">
+        <button class="tab-btn active" data-tab="tasks" onclick="switchTab('tasks')">
+            <i data-lucide="list-checks" class="w-4 h-4 inline-block mr-1.5"></i>Задачи
+        </button>
+        <button class="tab-btn" data-tab="gantt" onclick="switchTab('gantt')">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 inline-block mr-1.5"></i>Гант
+        </button>
+        <button class="tab-btn" data-tab="members" onclick="switchTab('members')">
+            <i data-lucide="users" class="w-4 h-4 inline-block mr-1.5"></i>Участники
+        </button>
+    </div>
+
+    <!-- ─── TASKS TAB ─── -->
+    <div id="tab-tasks" class="tab-content">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-heading">Задачи проекта</h2>
+            <button onclick="openTaskModal()" class="font-bold py-2.5 px-5 rounded-full transition-colors flex items-center gap-2 text-sm" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                Новая задача
             </button>
         </div>
 
-        <div class="liquid-glass rounded-2xl p-6">
-            <div class="flex flex-wrap gap-2 mb-6">
-                <button class="status-pill active" data-filter="Все">Все ({{ projects|length }})</button>
-                <button class="status-pill" data-filter="Активный">Активный ({{ projects|selectattr('status','equalto','Активный')|list|length }})</button>
-                <button class="status-pill" data-filter="Приостановлен">Приостановлен ({{ projects|selectattr('status','equalto','Приостановлен')|list|length }})</button>
-                <button class="status-pill" data-filter="Завершён">Завершён ({{ projects|selectattr('status','equalto','Завершён')|list|length }})</button>
-                <button class="status-pill" data-filter="Отменён">Отменён ({{ projects|selectattr('status','equalto','Отменён')|list|length }})</button>
-            </div>
-
-            {% if projects|length == 0 %}
-            <div class="text-center py-16">
-                <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="folder" class="w-10 h-10 text-white/30"></i>
+        <!-- Kanban columns -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kanbanBoard">
+            {% set statuses = ['Открыто', 'В работе', 'На проверке', 'Завершено'] %}
+            {% for status in statuses %}
+            <div class="kanban-col liquid-glass p-4" style="border-color: var(--glass-border);">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold" style="color: var(--text-main);">{{ status }}</h3>
+                    <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--glass-bg); color: var(--text-muted);">{{ project_tasks|selectattr('status','equalto',status)|list|length }}</span>
                 </div>
-                <h3 class="text-2xl font-heading mb-3">Нет проектов</h3>
-                <p class="text-white/50 max-w-md mx-auto mb-8">Создайте первый проект, чтобы начать группировать реагенты и эксперименты.</p>
-                <button onclick="openProjectModal()" class="liquid-glass px-8 py-3 rounded-full text-white hover:bg-white/10 transition-colors border border-white/20">
-                    Создать проект
-                </button>
-            </div>
-            {% else %}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="projectsGrid">
-                {% for p in projects %}
-                <div class="liquid-glass rounded-xl p-5 border border-white/10" data-status="{{ p.status }}">
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <div class="text-white font-semibold">{{ p.name }}</div>
-                            <div class="text-xs text-white/50 mt-1">Статус: {{ p.status }}</div>
+                <div class="space-y-3">
+                    {% for t in project_tasks if t.status == status %}
+                    <div class="task-card liquid-glass p-4 priority-{{ t.priority|lower }}" style="border-color: var(--glass-border);" onclick="editTask('{{ t.id }}')">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <span class="text-sm font-medium" style="color: var(--text-main);">{{ t.title }}</span>
+                            <span class="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border whitespace-nowrap" style="border-color: var(--glass-border); color: var(--text-muted);">{{ t.priority }}</span>
                         </div>
-                        <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-white/5 text-white/60 rounded-full border border-white/10">ID: {{ p.id }}</span>
+                        {% if t.assignee %}
+                        <div class="flex items-center gap-1.5 text-xs" style="color: var(--text-muted);">
+                            <i data-lucide="user" class="w-3 h-3"></i>
+                            {{ t.assignee }}
+                        </div>
+                        {% endif %}
+                        {% if t.start_date and t.end_date %}
+                        <div class="flex items-center gap-1.5 text-[10px] mt-1" style="color: var(--text-muted);">
+                            <i data-lucide="calendar" class="w-3 h-3"></i>
+                            {{ t.start_date[:10] }} — {{ t.end_date[:10] }}
+                        </div>
+                        {% endif %}
                     </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ─── GANTT TAB ─── -->
+    <div id="tab-gantt" class="tab-content" style="display:none;">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-heading">Диаграмма Ганта</h2>
+            <button onclick="switchTab('tasks')" class="text-sm flex items-center gap-1" style="color: var(--text-muted);">
+                <i data-lucide="list-checks" class="w-4 h-4"></i>
+                К задачам
+            </button>
+        </div>
+        <div class="liquid-glass rounded-2xl p-6" style="border-color: var(--glass-border);" id="ganttChartContainer">
+            <div class="gantt-container">
+                <div id="ganttChart"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── MEMBERS TAB ─── -->
+    <div id="tab-members" class="tab-content" style="display:none;">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-heading">Участники проекта</h2>
+            <button onclick="openInviteModal()" class="font-bold py-2.5 px-5 rounded-full transition-colors flex items-center gap-2 text-sm" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                <i data-lucide="link" class="w-4 h-4"></i>
+                Пригласить
+            </button>
+        </div>
+
+        <div class="liquid-glass rounded-2xl p-6" style="border-color: var(--glass-border);">
+            {% if project_members|length == 0 %}
+            <p class="text-sm text-center py-8" style="color: var(--text-muted);">В проекте пока нет участников</p>
+            {% else %}
+            <div class="space-y-3">
+                {% for m in project_members %}
+                <div class="flex items-center justify-between p-3 rounded-xl" style="background: var(--glass-bg);">
+                    <div class="flex items-center gap-3">
+                        <div class="member-avatar">{{ m[:2]|upper }}</div>
+                        <div>
+                            <p class="text-sm font-medium" style="color: var(--text-main);">{{ m }}</p>
+                            {% if m == user %}
+                            <p class="text-[10px]" style="color: var(--text-muted);">Это вы</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if m != current_project.user_id %}
+                    <button onclick="removeMember('{{ m }}')" class="text-xs px-3 py-1.5 rounded-full border" style="border-color: var(--glass-border); color: var(--text-muted);">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
             {% endif %}
         </div>
-    </main>
+    </div>
+</div>
 
-    <!-- Add Project Modal -->
-    <div id="projectModal" class="modal">
-        <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-            <button onclick="closeProjectModal()" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            <div class="mb-6">
-                <h2 class="text-2xl font-heading font-bold mb-2">Новый проект</h2>
-                <p class="text-white/60 text-sm">Создайте проект для группировки реагентов и экспериментов</p>
+<!-- Task Modal -->
+<div id="taskModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeTaskModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2" id="taskModalTitle">Новая задача</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Создайте задачу для участников проекта</p>
+        </div>
+        <div class="space-y-4" id="taskForm">
+            <input type="hidden" id="taskId" value="">
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+                <input id="taskTitle" class="form-input" placeholder="Купить реагенты" />
             </div>
-            <div class="space-y-4">
-                <input id="projectName" class="form-input liquid-glass" placeholder="Название проекта" />
-                <select id="projectStatus" class="form-input liquid-glass">
-                    <option>Активный</option>
-                    <option>Приостановлен</option>
-                    <option>Завершён</option>
-                    <option>Отменён</option>
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Описание</label>
+                <textarea id="taskDesc" class="form-input resize-none" rows="3" placeholder="Описание задачи..."></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Ответственный</label>
+                    <select id="taskAssignee" class="form-input">
+                        <option value="">Не назначен</option>
+                        {% for m in project_members %}
+                        <option value="{{ m }}">{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Приоритет</label>
+                    <select id="taskPriority" class="form-input">
+                        <option>Низкий</option>
+                        <option selected>Средний</option>
+                        <option>Высокий</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Статус</label>
+                <select id="taskStatus" class="form-input">
+                    <option>Открыто</option>
+                    <option>В работе</option>
+                    <option>На проверке</option>
+                    <option>Завершено</option>
                 </select>
-                <button onclick="createProject()" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors">Создать</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата начала</label>
+                    <input id="taskStart" type="date" class="form-input" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата окончания</label>
+                    <input id="taskEnd" type="date" class="form-input" />
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button id="taskDeleteBtn" onclick="deleteTask()" class="px-5 py-2.5 rounded-full text-sm border" style="display:none; border-color: var(--glass-border); color: #ef4444;">Удалить</button>
+                <button onclick="saveTask()" class="flex-1 font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        lucide.createIcons();
+<!-- Invite Modal -->
+<div id="inviteModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeInviteModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Пригласить участника</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Отправьте ссылку коллеге или найдите пользователя в системе</p>
+        </div>
+        <div class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Ссылка-приглашение</label>
+                <div class="flex gap-2">
+                    <input id="inviteLink" class="form-input flex-1" readonly style="font-size: 11px;" />
+                    <button onclick="copyInviteLink()" class="px-4 py-2 rounded-full text-sm font-medium" style="background: var(--glass-bg); color: var(--text-main);">Копировать</button>
+                </div>
+                <button onclick="generateInvite()" class="mt-2 text-sm" style="color: var(--primary);">Сгенерировать новую ссылку</button>
+            </div>
+            <div class="border-t pt-4" style="border-color: var(--glass-border);">
+                <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Или добавьте пользователя по логину</label>
+                <div class="flex gap-2">
+                    <input id="addUserInput" class="form-input flex-1" placeholder="Логин пользователя" list="userList" />
+                    <datalist id="userList">
+                        {% for u in all_users %}
+                        <option value="{{ u.username }}">
+                        {% endfor %}
+                    </datalist>
+                    <button onclick="addUser()" class="px-4 py-2 rounded-full text-sm font-bold" style="background: var(--primary); color: var(--primary-fg);">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-        const projectModal = document.getElementById('projectModal');
+{% else %}
 
-        function openProjectModal(){ projectModal.style.display='flex'; setTimeout(()=>projectModal.style.opacity='1',10); }
-        function closeProjectModal(){ projectModal.style.opacity='0'; setTimeout(()=>projectModal.style.display='none',300); }
-        projectModal.addEventListener('click', function(e){ if(e.target===this) closeProjectModal(); });
+<!-- ─── PROJECT LIST VIEW ─── -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
+    <div>
+        <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Проекты</h1>
+        <p class="text-sm" style="color: var(--text-muted);">CRM — задачи, Гант-диаграммы, командная работа</p>
+    </div>
+    <button onclick="openProjectModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+        <i data-lucide="plus" class="w-5 h-5"></i>
+        Новый проект
+    </button>
+</div>
 
-        document.querySelectorAll('.status-pill').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.status-pill').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const filter = btn.dataset.filter;
-                document.querySelectorAll('#projectsGrid > div').forEach(card => {
-                    card.style.display = (filter === 'Все' || card.dataset.status === filter) ? '' : 'none';
-                });
-            });
-        });
+<div class="liquid-glass rounded-2xl p-6" style="border-color: var(--glass-border);">
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button class="status-pill active" data-filter="Все">Все ({{ projects|length }})</button>
+        <button class="status-pill" data-filter="Активный">Активный</button>
+        <button class="status-pill" data-filter="Приостановлен">Приостановлен</button>
+        <button class="status-pill" data-filter="Завершён">Завершён</button>
+        <button class="status-pill" data-filter="Отменён">Отменён</button>
+    </div>
 
-        async function createProject(){
-            const name = document.getElementById('projectName').value.trim();
-            const status = document.getElementById('projectStatus').value;
-            if(!name){ alert('Введите название проекта'); return; }
-            await fetch('/api/projects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user: "{{ user }}", name, status }) });
-            closeProjectModal();
-            location.reload();
+    {% if projects|length == 0 %}
+    <div class="text-center py-16">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+            <i data-lucide="folder" class="w-10 h-10" style="color: var(--text-muted);"></i>
+        </div>
+        <h3 class="text-2xl font-heading mb-3">Нет проектов</h3>
+        <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Создайте первый проект, чтобы начать работать с задачами и диаграммой Ганта.</p>
+        <button onclick="openProjectModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors border" style="color: var(--text-main); border-color: var(--glass-border);">
+            Создать проект
+        </button>
+    </div>
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="projectsGrid">
+        {% for p in projects %}
+        <a href="{{ base_path }}/projects?user={{ user }}&project={{ p.id }}" class="liquid-glass rounded-xl p-5 no-underline block" data-status="{{ p.status }}" style="border-color: var(--glass-border); color: var(--text-main);">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="font-semibold truncate">{{ p.name }}</div>
+                    {% if p.description %}
+                    <div class="text-xs mt-1 line-clamp-2" style="color: var(--text-muted);">{{ p.description }}</div>
+                    {% endif %}
+                    <div class="flex items-center gap-2 mt-3">
+                        <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary);">{{ p.status }}</span>
+                    </div>
+                </div>
+                <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border shrink-0" style="background: var(--glass-bg); color: var(--text-muted); border-color: var(--glass-border);">{{ p.id[:6] }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{% endif %}
+
+<!-- Add Project Modal -->
+<div id="projectModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeProjectModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Новый проект</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Создайте проект для управления задачами</p>
+        </div>
+        <div class="space-y-4">
+            <input id="projectName" class="form-input" placeholder="Название проекта" />
+            <textarea id="projectDesc" class="form-input resize-none" rows="2" placeholder="Описание проекта (необязательно)"></textarea>
+            <select id="projectStatus" class="form-input">
+                <option>Активный</option>
+                <option>Приостановлен</option>
+                <option>Завершён</option>
+                <option>Отменён</option>
+            </select>
+            <div>
+                <div class="text-xs font-semibold mb-2" style="color: var(--text-muted);">Срок проекта</div>
+                <div class="bb-date" id="projectEndDatePicker" data-input="projectEndDate">
+                    <button type="button" class="form-input bb-date-trigger" id="projectEndDateTrigger">
+                        <span class="bb-date-value is-empty" id="projectEndDateLabel">Выберите дату</span>
+                        <i data-lucide="calendar-days" class="w-4 h-4" style="color: var(--primary);"></i>
+                    </button>
+                    <input type="hidden" id="projectEndDate" value="" />
+                    <div class="bb-date-panel" id="projectEndDatePanel" hidden></div>
+                </div>
+            </div>
+            <p id="projectFormError" class="bb-date-error"></p>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeProjectModal()" class="flex-1 py-3 rounded-full text-sm border" style="border-color: var(--glass-border); color: var(--text-muted);">Отмена</button>
+                <button type="button" id="createProjectBtn" onclick="createProject()" class="flex-1 font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const BASE_PATH = '{{ base_path }}';
+const USER = '{{ user }}';
+const PROJECT_ID = '{{ current_project.id if current_project else "" }}';
+const GANTT_TASKS = {{ gantt_tasks | default([], true) | tojson }};
+
+// ── Tab Switching ──
+function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tab).style.display = 'block';
+    document.querySelector('.tab-btn[data-tab="' + tab + '"]').classList.add('active');
+    if (tab === 'gantt') renderGantt();
+}
+
+// ── Custom date picker ──
+const BB_MONTHS = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const BB_WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+function bbPad(n) { return String(n).padStart(2, '0'); }
+function bbIso(d) { return d.getFullYear() + '-' + bbPad(d.getMonth()+1) + '-' + bbPad(d.getDate()); }
+function bbParseIso(v) {
+    if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const [y,m,d] = v.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+}
+function bbFormatRu(v) {
+    const dt = bbParseIso(v);
+    if (!dt) return '';
+    return bbPad(dt.getDate()) + '.' + bbPad(dt.getMonth()+1) + '.' + dt.getFullYear();
+}
+
+function initDatePicker(rootId) {
+    const root = document.getElementById(rootId);
+    if (!root || root.dataset.ready === '1') return;
+    root.dataset.ready = '1';
+    const input = document.getElementById(root.dataset.input);
+    const trigger = root.querySelector('.bb-date-trigger');
+    const label = root.querySelector('.bb-date-value');
+    const panel = root.querySelector('.bb-date-panel');
+    let view = bbParseIso(input.value) || new Date();
+    view = new Date(view.getFullYear(), view.getMonth(), 1);
+
+    function syncLabel() {
+        const pretty = bbFormatRu(input.value);
+        if (pretty) {
+            label.textContent = pretty;
+            label.classList.remove('is-empty');
+        } else {
+            label.textContent = 'Выберите дату';
+            label.classList.add('is-empty');
         }
-    </script>
-</body>
-</html>
+    }
+
+    function render() {
+        const y = view.getFullYear();
+        const m = view.getMonth();
+        const first = new Date(y, m, 1);
+        const startOffset = (first.getDay() + 6) % 7; // Monday-first
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const prevDays = new Date(y, m, 0).getDate();
+        const selected = input.value;
+        const today = bbIso(new Date());
+        let html = '';
+        html += '<div class="bb-date-nav">';
+        html += '<button type="button" data-nav="-1" aria-label="Предыдущий месяц"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>';
+        html += '<div class="bb-date-title">' + BB_MONTHS[m] + ' ' + y + '</div>';
+        html += '<button type="button" data-nav="1" aria-label="Следующий месяц"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>';
+        html += '</div>';
+        html += '<div class="bb-date-week">' + BB_WEEKDAYS.map(d => '<span>' + d + '</span>').join('') + '</div>';
+        html += '<div class="bb-date-grid">';
+        for (let i = 0; i < 42; i++) {
+            let dayNum, cellDate, muted = false;
+            if (i < startOffset) {
+                dayNum = prevDays - startOffset + i + 1;
+                cellDate = new Date(y, m - 1, dayNum);
+                muted = true;
+            } else if (i >= startOffset + daysInMonth) {
+                dayNum = i - startOffset - daysInMonth + 1;
+                cellDate = new Date(y, m + 1, dayNum);
+                muted = true;
+            } else {
+                dayNum = i - startOffset + 1;
+                cellDate = new Date(y, m, dayNum);
+            }
+            const iso = bbIso(cellDate);
+            const cls = [
+                muted ? 'muted' : '',
+                iso === today ? 'today' : '',
+                iso === selected ? 'selected' : '',
+            ].filter(Boolean).join(' ');
+            html += '<button type="button" data-date="' + iso + '" class="' + cls + '">' + dayNum + '</button>';
+        }
+        html += '</div>';
+        html += '<div class="bb-date-footer">';
+        html += '<button type="button" data-action="clear">Очистить</button>';
+        html += '<button type="button" data-action="today">Сегодня</button>';
+        html += '</div>';
+        panel.innerHTML = html;
+        panel.hidden = false;
+        if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [panel] });
+    }
+
+    function open() {
+        document.querySelectorAll('.bb-date.open').forEach(el => {
+            if (el !== root) el.classList.remove('open');
+        });
+        root.classList.add('open');
+        render();
+    }
+    function close() { root.classList.remove('open'); }
+
+    trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (root.classList.contains('open')) close();
+        else open();
+    });
+    panel.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.dataset.nav) {
+            view = new Date(view.getFullYear(), view.getMonth() + Number(btn.dataset.nav), 1);
+            render();
+            return;
+        }
+        if (btn.dataset.action === 'clear') {
+            input.value = '';
+            syncLabel();
+            close();
+            return;
+        }
+        if (btn.dataset.action === 'today') {
+            const now = new Date();
+            input.value = bbIso(now);
+            view = new Date(now.getFullYear(), now.getMonth(), 1);
+            syncLabel();
+            close();
+            return;
+        }
+        if (btn.dataset.date) {
+            input.value = btn.dataset.date;
+            const picked = bbParseIso(btn.dataset.date);
+            if (picked) view = new Date(picked.getFullYear(), picked.getMonth(), 1);
+            syncLabel();
+            close();
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!root.contains(e.target)) close();
+    });
+    syncLabel();
+}
+
+// ── Create Project ──
+function openProjectModal() {
+    const err = document.getElementById('projectFormError');
+    if (err) { err.textContent = ''; err.classList.remove('show'); }
+    openModalFn(document.getElementById('projectModal'));
+    initDatePicker('projectEndDatePicker');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function closeProjectModal() { closeModalFn(document.getElementById('projectModal')); }
+document.getElementById('projectModal')?.addEventListener('click', function(e) { if(e.target===this) closeProjectModal(); });
+
+function showProjectError(msg) {
+    const err = document.getElementById('projectFormError');
+    if (!err) { alert(msg); return; }
+    err.textContent = msg;
+    err.classList.add('show');
+}
+
+async function createProject() {
+    const btn = document.getElementById('createProjectBtn');
+    const name = document.getElementById('projectName').value.trim();
+    if (!name) { showProjectError('Введите название проекта'); return; }
+    if (!USER) { showProjectError('Сессия не найдена — обновите страницу и войдите снова'); return; }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Создаём…';
+    }
+    try {
+        const res = await fetch(BASE_PATH + '/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                user: USER,
+                name,
+                description: document.getElementById('projectDesc').value.trim(),
+                status: document.getElementById('projectStatus').value,
+                end_date: document.getElementById('projectEndDate').value,
+            })
+        });
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+        if (!res.ok || !data.ok) {
+            showProjectError(data.error || data.detail || ('Не удалось создать проект (' + res.status + ')'));
+            return;
+        }
+        closeProjectModal();
+        location.href = BASE_PATH + '/projects?user=' + encodeURIComponent(USER) + '&project=' + encodeURIComponent(data.id);
+    } catch (e) {
+        showProjectError('Сеть недоступна. Попробуйте ещё раз.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Создать';
+        }
+    }
+}
+
+// ── Task Modal ──
+let editingTaskId = null;
+
+function openTaskModal(task) {
+    editingTaskId = null;
+    document.getElementById('taskModalTitle').textContent = 'Новая задача';
+    document.getElementById('taskId').value = '';
+    document.getElementById('taskTitle').value = '';
+    document.getElementById('taskDesc').value = '';
+    document.getElementById('taskAssignee').value = '';
+    document.getElementById('taskPriority').value = 'Средний';
+    document.getElementById('taskStatus').value = 'Открыто';
+    document.getElementById('taskStart').value = '';
+    document.getElementById('taskEnd').value = '';
+    document.getElementById('taskDeleteBtn').style.display = 'none';
+    openModalFn(document.getElementById('taskModal'));
+}
+
+function editTask(taskId) {
+    const card = document.querySelector(`.task-card[onclick*="${taskId}"]`);
+    if (!card) return;
+    editingTaskId = taskId;
+    document.getElementById('taskModalTitle').textContent = 'Редактировать задачу';
+    document.getElementById('taskId').value = taskId;
+    document.getElementById('taskDeleteBtn').style.display = 'block';
+    // Fetch task details from server
+    fetch(BASE_PATH + '/api/projects/' + PROJECT_ID)
+        .then(r => r.json())
+        .then(data => {
+            const task = data.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            document.getElementById('taskTitle').value = task.title || '';
+            document.getElementById('taskDesc').value = task.description || '';
+            document.getElementById('taskAssignee').value = task.assignee || '';
+            document.getElementById('taskPriority').value = task.priority || 'Средний';
+            document.getElementById('taskStatus').value = task.status || 'Открыто';
+            document.getElementById('taskStart').value = task.start_date ? task.start_date.slice(0,10) : '';
+            document.getElementById('taskEnd').value = task.end_date ? task.end_date.slice(0,10) : '';
+        });
+    openModalFn(document.getElementById('taskModal'));
+}
+
+function closeTaskModal() { closeModalFn(document.getElementById('taskModal')); }
+document.getElementById('taskModal')?.addEventListener('click', function(e) { if(e.target===this) closeTaskModal(); });
+
+async function saveTask() {
+    const title = document.getElementById('taskTitle').value.trim();
+    if (!title) { alert('Введите название задачи'); return; }
+    const body = {
+        user: USER,
+        title,
+        description: document.getElementById('taskDesc').value.trim(),
+        assignee: document.getElementById('taskAssignee').value,
+        priority: document.getElementById('taskPriority').value,
+        status: document.getElementById('taskStatus').value,
+        start_date: document.getElementById('taskStart').value,
+        end_date: document.getElementById('taskEnd').value,
+    };
+    const url = editingTaskId
+        ? BASE_PATH + '/api/projects/' + PROJECT_ID + '/tasks/' + editingTaskId
+        : BASE_PATH + '/api/projects/' + PROJECT_ID + '/tasks';
+    const method = editingTaskId ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    closeTaskModal();
+    location.reload();
+}
+
+async function deleteTask() {
+    if (!editingTaskId) return;
+    if (!confirm('Удалить задачу?')) return;
+    await fetch(BASE_PATH + '/api/projects/' + PROJECT_ID + '/tasks/' + editingTaskId, { method: 'DELETE' });
+    closeTaskModal();
+    location.reload();
+}
+
+// ── Invite Modal ──
+function openInviteModal() {
+    document.getElementById('inviteLink').value = '';
+    document.getElementById('addUserInput').value = '';
+    openModalFn(document.getElementById('inviteModal'));
+}
+function closeInviteModal() { closeModalFn(document.getElementById('inviteModal')); }
+document.getElementById('inviteModal')?.addEventListener('click', function(e) { if(e.target===this) closeInviteModal(); });
+
+async function generateInvite() {
+    const res = await fetch(BASE_PATH + '/api/projects/' + PROJECT_ID + '/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: USER })
+    });
+    const data = await res.json();
+    if (data.ok) {
+        const link = window.location.origin + BASE_PATH + '/invite/' + data.code;
+        document.getElementById('inviteLink').value = link;
+    }
+}
+
+function copyInviteLink() {
+    const input = document.getElementById('inviteLink');
+    if (!input.value) { generateInvite().then(() => setTimeout(copyInviteLink, 300)); return; }
+    input.select();
+    document.execCommand('copy');
+    alert('Ссылка скопирована!');
+}
+
+async function addUser() {
+    const username = document.getElementById('addUserInput').value.trim();
+    if (!username) { alert('Введите логин'); return; }
+    const res = await fetch(BASE_PATH + '/api/projects/' + PROJECT_ID + '/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (data.ok) {
+        closeInviteModal();
+        location.reload();
+    }
+}
+
+async function removeMember(username) {
+    if (!confirm('Удалить участника ' + username + '?')) return;
+    await fetch(BASE_PATH + '/api/projects/' + PROJECT_ID + '/members/' + encodeURIComponent(username), { method: 'DELETE' });
+    location.reload();
+}
+
+// ── Gantt Chart ──
+function ganttPriorityClass(priority) {
+    const p = (priority || 'Средний').toLowerCase();
+    if (p.includes('высок')) return 'high';
+    if (p.includes('низк')) return 'low';
+    return 'medium';
+}
+
+function formatGanttDate(raw) {
+    if (!raw) return '';
+    const s = String(raw);
+    return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function paintGanttChart(container, tasks) {
+    if (!tasks.length) {
+        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Нет задач с датами для отображения на диаграмме Ганта. Укажите даты начала и окончания в карточках задач.</p>';
+        return;
+    }
+    let minDate = Infinity, maxDate = -Infinity;
+    tasks.forEach(t => {
+        const s = new Date(t.start_date).getTime();
+        const e = new Date(t.end_date).getTime();
+        if (!Number.isNaN(s) && s < minDate) minDate = s;
+        if (!Number.isNaN(e) && e > maxDate) maxDate = e;
+    });
+    if (minDate === Infinity) {
+        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Не удалось разобрать даты задач</p>';
+        return;
+    }
+    const start = new Date(minDate);
+    const end = new Date(maxDate);
+    end.setDate(end.getDate() + 1);
+    const dayMs = 86400000;
+    const totalDays = Math.max(Math.ceil((end - start) / dayMs), 1);
+    const clampedDays = Math.min(totalDays, 90);
+
+    let html = '<div class="gantt-header" style="grid-template-columns:220px repeat(' + clampedDays + ', minmax(40px,1fr));">';
+    html += '<div></div>';
+    for (let d = 0; d < clampedDays; d++) {
+        const date = new Date(start.getTime() + d * dayMs);
+        html += '<div class="gantt-day">' + date.getDate() + '</div>';
+    }
+    html += '</div>';
+
+    let bars = 0;
+    tasks.forEach(t => {
+        const tStart = new Date(t.start_date);
+        const tEnd = new Date(t.end_date);
+        if (Number.isNaN(tStart.getTime()) || Number.isNaN(tEnd.getTime())) return;
+        const offset = Math.floor((tStart - start) / dayMs);
+        const duration = Math.max(Math.ceil((tEnd - tStart) / dayMs), 1);
+        if (offset < 0 || offset >= clampedDays) return;
+        bars += 1;
+        const leftPct = (offset / clampedDays) * 100;
+        const widthPct = Math.min(duration, clampedDays - offset) / clampedDays * 100;
+        const prioCls = ganttPriorityClass(t.priority);
+        const range = formatGanttDate(t.start_date) + ' → ' + formatGanttDate(t.end_date);
+
+        html += '<div class="gantt-row">';
+        html += '<div class="gantt-label" title="' + escapeHtml(t.title) + '">' + escapeHtml(t.title) + '</div>';
+        html += '<div class="gantt-track">';
+        html += '<div class="gantt-bar priority-' + prioCls + '" style="left:' + leftPct + '%;width:' + widthPct + '%;" title="' + escapeHtml(t.title) + ' — ' + range + '">' + escapeHtml(t.title) + '</div>';
+        html += '</div></div>';
+    });
+
+    if (!bars) {
+        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Задачи с датами есть, но они не попадают в отображаемый диапазон (макс. 90 дней)</p>';
+        return;
+    }
+    container.innerHTML = html;
+}
+
+function renderGantt() {
+    const container = document.getElementById('ganttChart');
+    if (!container || !PROJECT_ID) return;
+    const embedded = Array.isArray(GANTT_TASKS) ? GANTT_TASKS : [];
+    if (embedded.length) {
+        try {
+            paintGanttChart(container, embedded);
+            return;
+        } catch (err) {
+            console.error('Gantt embed render failed:', err);
+        }
+    }
+    container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Загрузка диаграммы…</p>';
+    const url = BASE_PATH + '/api/projects/' + encodeURIComponent(PROJECT_ID) + '/gantt';
+    fetch(url, { credentials: 'same-origin' })
+        .then(async (r) => {
+            if (!r.ok) {
+                let detail = '';
+                try {
+                    const err = await r.json();
+                    detail = err.error || err.detail || '';
+                } catch (_) { /* non-JSON body */ }
+                throw new Error(detail || ('HTTP ' + r.status));
+            }
+            return r.json();
+        })
+        .then(data => {
+            const tasks = Array.isArray(data.tasks) ? data.tasks : embedded;
+            if (data.ok === false && !tasks.length) {
+                paintGanttChart(container, []);
+                return;
+            }
+            paintGanttChart(container, tasks);
+        })
+        .catch((err) => {
+            console.error('Gantt load failed:', err);
+            if (embedded.length) {
+                try {
+                    paintGanttChart(container, embedded);
+                    return;
+                } catch (_) { /* fall through */ }
+            }
+            paintGanttChart(container, []);
+        });
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Filter pills (list view) ──
+document.querySelectorAll('.status-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.status-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('#projectsGrid > a').forEach(card => {
+            card.style.display = (filter === 'Все' || card.dataset.status === filter) ? '' : 'none';
+        });
+    });
+});
+
+// ── Init Lucide in modals ──
+document.addEventListener('DOMContentLoaded', function() {
+    function tryLucide() {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        else setTimeout(tryLucide, 200);
+    }
+    tryLucide();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Админка лабораторного журнала | Bio-Notebook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
+
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css">
+
+    <style>
+        body {
+            background-color: var(--bg-page);
+            background-image: var(--bg-radial);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 1rem;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+        }
+        .lab-admin-card { width: 100%; max-width: 420px; }
+        .lab-admin-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--primary) 14%, transparent);
+            color: var(--primary);
+            border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+        }
+    </style>
+</head>
+<body>
+    <div class="liquid-glass-strong rounded-[1.5rem] p-8 lab-admin-card">
+        <div class="text-center mb-8">
+            <div class="lab-admin-badge mx-auto mb-4">Bio-Notebook · Lab Admin</div>
+            <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center mx-auto mb-4" style="border-color: rgba(255,255,255,0.3);">
+                <div class="w-6 h-6 rounded-full" style="background: var(--primary);"></div>
+            </div>
+            <h1 class="text-2xl font-heading font-bold" style="color: var(--text-main);">Лабораторный журнал</h1>
+            <p class="text-sm mt-2 leading-relaxed" style="color: var(--text-muted);">
+                Отдельная панель для журнала экспериментов.<br>
+                Не путать с админкой сайта <span style="color:var(--text-secondary);">anticus.tech/admin</span>.
+            </p>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 p-3 rounded-lg text-sm text-center" style="background: color-mix(in srgb, var(--low-stock-text) 20%, transparent); border: 1px solid color-mix(in srgb, var(--low-stock-text) 50%, transparent); color: var(--low-stock-text);">
+            {% if error == 'InvalidKey' %}Неверный ключ доступа{% else %}Ошибка входа{% endif %}
+        </div>
+        {% endif %}
+
+        <form action="{{ base_path }}{{ lab_admin_path }}" method="POST">
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Ключ администратора журнала</label>
+                <input type="password" name="admin_key" class="form-input" required placeholder="ADMIN_KEY из настроек сервера" autocomplete="off">
+            </div>
+            <button type="submit" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                <i data-lucide="shield" class="w-4 h-4 inline mr-2"></i>Войти в lab-admin
+            </button>
+        </form>
+
+        <div class="mt-6 text-center">
+            <a href="{{ base_path }}/" class="text-sm no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+                <i data-lucide="arrow-left" class="w-4 h-4 inline mr-1"></i>На главную журнала
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function tryInit() {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                } else {
+                    setTimeout(tryInit, 100);
+                }
+            }
+            tryInit();
+        });
+    </script>
+</body>
+</html>

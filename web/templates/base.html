@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bio-Notebook{% endblock %} | Bio-Notebook</title>
+    <!-- Google Fonts (non-blocking) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
+
+    <!-- Tailwind CSS (built locally, not CDN) -->
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+
+    <!-- Lucide Icons -->
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css">
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="flex items-center gap-3">
+            <a href="{{ base_path }}/" class="flex items-center gap-3 no-underline" title="Приветственная страница">
+                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center liquid-glass" style="transform: none; border-color: rgba(255,255,255,0.5);">
+                    <div class="w-4 h-4 rounded-full" style="background: var(--primary);"></div>
+                </div>
+                <span class="font-bold text-xl tracking-tight font-heading" style="color: var(--text-main);">Bio-Notebook</span>
+            </a>
+        </div>
+
+        <div class="hidden md:flex flex-wrap items-center gap-6 text-sm">
+            <a href="{{ base_path }}/dashboard?user={{ user }}" class="transition-colors {% if active_page == 'dashboard' %}font-medium{% endif %}" style="color: {% if active_page == 'dashboard' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'dashboard' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Эксперименты</a>
+            <a href="{{ base_path }}/projects?user={{ user }}" class="transition-colors {% if active_page == 'projects' %}font-medium{% endif %}" style="color: {% if active_page == 'projects' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'projects' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Проекты</a>
+            <a href="{{ base_path }}/reagents?user={{ user }}" class="transition-colors {% if active_page == 'reagents' %}font-medium{% endif %}" style="color: {% if active_page == 'reagents' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'reagents' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Реагенты</a>
+            <a href="{{ base_path }}/consumables?user={{ user }}" class="transition-colors {% if active_page == 'consumables' %}font-medium{% endif %}" style="color: {% if active_page == 'consumables' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'consumables' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Расходники</a>
+            {% if graph_enabled %}
+            <a href="{{ base_path }}/experiment_graph?user={{ user }}" class="transition-colors {% if active_page == 'graph' %}font-medium{% endif %}" style="color: {% if active_page == 'graph' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'graph' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Граф связей</a>
+            {% endif %}
+            <a href="{{ base_path }}/friends?user={{ user }}" class="transition-colors {% if active_page == 'friends' %}font-medium{% endif %}" style="color: {% if active_page == 'friends' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'friends' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
+                <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>Друзья
+            </a>
+            <a href="{{ base_path }}/chat?user={{ user }}" id="navChatLink" class="nav-chat-link transition-colors {% if active_page == 'chat' %}font-medium{% endif %}" style="color: {% if active_page == 'chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5 inline mr-1"></i>Чаты
+                <span id="navChatBadge" class="nav-chat-badge" hidden aria-label="Непрочитанные сообщения">0</span>
+            </a>
+            <a href="{{ base_path }}/equipment?user={{ user }}" class="transition-colors {% if active_page == 'equipment' %}font-medium{% endif %}" style="color: {% if active_page == 'equipment' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'equipment' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
+                <i data-lucide="flask-conical" class="w-3.5 h-3.5 inline mr-1"></i>Оборудование
+            </a>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Theme Toggle -->
+            <button id="themeToggle" class="theme-toggle-btn" title="Переключить тему" aria-label="Переключить тему">
+                <i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i>
+            </button>
+
+            {% if user %}
+            <div class="user-menu" id="userMenu">
+                <button type="button" class="user-menu-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
+                    <span class="user-menu-avatar">{{ user[:1]|upper }}</span>
+                    <span class="user-menu-meta">
+                        <span class="user-menu-name">{{ user }}</span>
+                        <span class="user-menu-plan">{{ plan_label|default('Бесплатный') }}</span>
+                    </span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 user-menu-chevron"></i>
+                </button>
+                <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+                    <div class="user-menu-section">
+                        <div class="user-menu-label">Уровень</div>
+                        <div class="user-menu-level">
+                            <i data-lucide="badge-check" class="w-4 h-4"></i>
+                            <span>{{ plan_label|default('Бесплатный') }}</span>
+                        </div>
+                    </div>
+                    <a href="{{ base_path }}/pricing?user={{ user }}" class="user-menu-item" role="menuitem">
+                        <i data-lucide="credit-card" class="w-4 h-4"></i>
+                        <span>Тарифы</span>
+                    </a>
+                    <a href="{{ base_path }}/logout" class="user-menu-item user-menu-item-muted" role="menuitem">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Выйти</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <style>
+        .nav-chat-link { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+        .nav-chat-badge {
+            position: absolute;
+            top: -7px;
+            right: -10px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #ff4d6d, #ef4444);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 18px;
+            text-align: center;
+            box-shadow: 0 0 0 2px var(--glass-strong-bg, #0a0e14), 0 4px 14px rgba(239, 68, 68, 0.45);
+            animation: chat-badge-pop 0.35s ease;
+        }
+        .nav-chat-badge.pulse { animation: chat-badge-pulse 0.6s ease 2; }
+        @keyframes chat-badge-pop {
+            from { transform: scale(0.6); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes chat-badge-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+        }
+        .chat-toast-stack {
+            position: fixed;
+            top: 72px;
+            right: 16px;
+            z-index: 250;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: min(360px, calc(100vw - 24px));
+            pointer-events: none;
+        }
+        .chat-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+            background: color-mix(in srgb, var(--glass-strong-bg) 92%, transparent);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+            cursor: pointer;
+            animation: chat-toast-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        .chat-toast:hover { transform: translateY(-2px); }
+        .chat-toast.hide { opacity: 0; transform: translateX(12px); }
+        .chat-toast-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--primary) 18%, transparent);
+            color: var(--primary);
+        }
+        .chat-toast-body { min-width: 0; flex: 1; }
+        .chat-toast-title { font-size: 12px; font-weight: 700; color: var(--text-main); margin-bottom: 2px; }
+        .chat-toast-preview { font-size: 12px; color: var(--text-muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @keyframes chat-toast-in {
+            from { opacity: 0; transform: translateX(16px) scale(0.96); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .user-menu { position: relative; }
+        .user-menu-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 10px 6px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .user-menu-btn:hover,
+        .user-menu.open .user-menu-btn {
+            border-color: var(--glass-border-hover);
+            background: var(--glass-hover);
+        }
+        .user-menu-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            background: color-mix(in srgb, var(--primary) 18%, transparent);
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+        .user-menu-meta {
+            display: none;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1.15;
+            text-align: left;
+        }
+        @media (min-width: 640px) {
+            .user-menu-meta { display: flex; }
+        }
+        .user-menu-name {
+            font-size: 13px;
+            font-weight: 600;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .user-menu-plan {
+            font-size: 10px;
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .user-menu-chevron {
+            color: var(--text-muted);
+            transition: transform 0.15s ease;
+        }
+        .user-menu.open .user-menu-chevron { transform: rotate(180deg); }
+        .user-menu-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 220px;
+            padding: 10px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-strong-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-glass);
+            display: none;
+            z-index: 80;
+        }
+        .user-menu.open .user-menu-dropdown { display: block; }
+        .user-menu-section {
+            padding: 8px 10px 12px;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 6px;
+        }
+        .user-menu-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .user-menu-level {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .user-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 13px;
+            transition: background 0.15s ease;
+        }
+        .user-menu-item:hover { background: var(--glass-hover); }
+        .user-menu-item-muted { color: var(--text-muted); }
+        .user-menu-item i { flex-shrink: 0; }
+    </style>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // ── Theme Toggle ──
+        (function() {
+            const html = document.documentElement;
+            const toggle = document.getElementById('themeToggle');
+            const icon = document.getElementById('themeIcon');
+
+            function setTheme(theme) {
+                html.setAttribute('data-theme', theme);
+                localStorage.setItem('biobook-theme', theme);
+                if (icon) {
+                    icon.setAttribute('data-lucide', theme === 'dark' ? 'moon' : 'sun');
+                }
+                // Re-create icons after theme change
+                if (typeof lucide !== 'undefined') {
+                    setTimeout(() => lucide.createIcons(), 0);
+                }
+            }
+
+            // Load saved theme (default: light)
+            const savedTheme = localStorage.getItem('biobook-theme') || 'light';
+            setTheme(savedTheme);
+
+            // Toggle on click
+            if (toggle) {
+                toggle.addEventListener('click', function() {
+                    const current = html.getAttribute('data-theme');
+                    setTheme(current === 'dark' ? 'light' : 'dark');
+                });
+            }
+        })();
+
+        // ── User menu dropdown ──
+        (function() {
+            const menu = document.getElementById('userMenu');
+            const btn = document.getElementById('userMenuBtn');
+            if (!menu || !btn) return;
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const open = menu.classList.toggle('open');
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+            });
+            document.addEventListener('click', function() {
+                menu.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    menu.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        })();
+
+        // ── Initialize Lucide Icons (deferred) ──
+        document.addEventListener('DOMContentLoaded', function() {
+            function tryInitLucide() {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                } else {
+                    setTimeout(tryInitLucide, 100);
+                }
+            }
+            tryInitLucide();
+        });
+
+        // ── Modal Helpers (shared) ──
+        function openModalFn(modalEl) {
+            modalEl.style.display = 'flex';
+            setTimeout(() => { modalEl.style.opacity = '1'; }, 10);
+        }
+        function closeModalFn(modalEl) {
+            modalEl.style.opacity = '0';
+            setTimeout(() => { modalEl.style.display = 'none'; }, 300);
+        }
+
+        // ── Chat unread badge + toast (all pages) ──
+        {% if user %}
+        (function() {
+            const BASE_PATH = '{{ base_path }}';
+            const CHAT_WM_KEY = 'biobook-chat-watermark';
+            const ON_CHAT_PAGE = {{ 'true' if active_page == 'chat' else 'false' }};
+            let lastUnreadCount = 0;
+            let pollBusy = false;
+
+            function getWatermark() {
+                return localStorage.getItem(CHAT_WM_KEY) || '0';
+            }
+
+            function setBadge(count) {
+                const badge = document.getElementById('navChatBadge');
+                if (!badge) return;
+                if (!count || count <= 0) {
+                    badge.hidden = true;
+                    badge.textContent = '0';
+                    return;
+                }
+                badge.hidden = false;
+                badge.textContent = count > 99 ? '99+' : String(count);
+                if (count > lastUnreadCount) {
+                    badge.classList.remove('pulse');
+                    void badge.offsetWidth;
+                    badge.classList.add('pulse');
+                }
+            }
+
+            function showChatToast(latest) {
+                if (!latest || !latest.friend) return;
+                const stack = document.getElementById('chatToastStack');
+                if (!stack) return;
+                const toast = document.createElement('button');
+                toast.type = 'button';
+                toast.className = 'chat-toast';
+                toast.innerHTML = `
+                    <div class="chat-toast-icon"><i data-lucide="message-circle" class="w-4 h-4"></i></div>
+                    <div class="chat-toast-body">
+                        <div class="chat-toast-title">Новое сообщение · ${escapeHtml(latest.friend)}</div>
+                        <div class="chat-toast-preview">${escapeHtml(latest.preview || 'Откройте чат')}</div>
+                    </div>`;
+                toast.addEventListener('click', function() {
+                    window.location.href = `${BASE_PATH}/chat/${encodeURIComponent(latest.friend)}?user={{ user|e }}`;
+                });
+                stack.appendChild(toast);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                setTimeout(function() {
+                    toast.classList.add('hide');
+                    setTimeout(function() { toast.remove(); }, 220);
+                }, 6000);
+            }
+
+            function escapeHtml(t) {
+                const d = document.createElement('div');
+                d.textContent = t || '';
+                return d.innerHTML;
+            }
+
+            async function pollChatUnread(showToast) {
+                if (pollBusy) return;
+                pollBusy = true;
+                try {
+                    const after = encodeURIComponent(getWatermark());
+                    const r = await fetch(`${BASE_PATH}/api/friends/chats/unread-summary?after=${after}`, { credentials: 'same-origin' });
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    const count = Number(data.count) || 0;
+                    setBadge(count);
+                    if (showToast && count > lastUnreadCount && data.latest) {
+                        showChatToast(data.latest);
+                    }
+                    lastUnreadCount = count;
+                } catch (e) { /* ignore */ }
+                finally { pollBusy = false; }
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                pollChatUnread(false);
+                setInterval(function() { pollChatUnread(true); }, 8000);
+            });
+            window.addEventListener('biobook-chat-watermark', function() {
+                pollChatUnread(false);
+            });
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) pollChatUnread(true);
+            });
+        })();
+        {% endif %}
+    </script>
+
+    {% if user %}
+    <div id="chatToastStack" class="chat-toast-stack" aria-live="polite"></div>
+    {% endif %}
+
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- ── Cookie Consent Banner ── -->
+    <div id="cookieBanner" class="fixed bottom-0 left-0 right-0 z-[200] transition-all duration-500 ease-out" style="transform:translateY(100%);opacity:0;">
+        <div class="mx-auto max-w-7xl px-4 pb-4">
+            <div class="liquid-glass-strong rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xl" style="border:1px solid var(--glass-border);">
+                <div class="flex-grow min-w-0">
+                    <div class="font-heading font-semibold text-sm mb-1" style="color:var(--text-main);">🍪 Мы используем cookies</div>
+                    <p class="text-xs leading-relaxed" style="color:var(--text-muted);">
+                        Этот сайт использует файлы cookie для обеспечения корректной работы и улучшения вашего опыта. 
+                        Данные хранятся в течение 31 дня. Продолжая использовать сайт, вы соглашаетесь с этим.
+                    </p>
+                </div>
+                <button onclick="acceptCookies()" class="font-bold py-2.5 px-8 rounded-full transition-all duration-200 flex-shrink-0 text-sm whitespace-nowrap" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+                    Принять
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── Cookie Banner ──
+        (function() {
+            const banner = document.getElementById('cookieBanner');
+            if (!banner) return;
+
+            const cookieConsent = localStorage.getItem('biobook-cookie-consent');
+            const consentDate = localStorage.getItem('biobook-cookie-date');
+
+            if (cookieConsent === 'accepted' && consentDate) {
+                const daysSince = (Date.now() - parseInt(consentDate)) / (1000 * 60 * 60 * 24);
+                if (daysSince < 31) {
+                    return; // Consent still valid
+                }
+            }
+
+            // Show banner with animation
+            requestAnimationFrame(() => {
+                banner.style.transform = 'translateY(0)';
+                banner.style.opacity = '1';
+            });
+        })();
+
+        function acceptCookies() {
+            const banner = document.getElementById('cookieBanner');
+            if (banner) {
+                banner.style.transform = 'translateY(100%)';
+                banner.style.opacity = '0';
+                setTimeout(() => { banner.style.display = 'none'; }, 500);
+            }
+            localStorage.setItem('biobook-cookie-consent', 'accepted');
+            localStorage.setItem('biobook-cookie-date', String(Date.now()));
+        }
+    </script>
+    {% include "yandex_metrika.html" %}
+</body>
+</html>

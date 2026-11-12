@@ -1,247 +1,1086 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var t=localStorage.getItem('biobook-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>{{ node.title }} | Bio-Notebook</title>
     
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        heading: ['Space Grotesk', 'sans-serif'],
-                        mono: ['Fira Code', 'monospace']
-                    },
-                    colors: {
-                        black: '#000000',
-                        accent: '#64CEFB'
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
     
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 
     <style>
-        body { 
-            background-color: #000000; color: white; margin: 0; 
-            font-family: 'Inter', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
+        :root,
+        [data-theme="dark"] {
+            --nb-bg: #05070a;
+            --nb-panel: rgba(12, 16, 22, 0.72);
+            --nb-panel-solid: #0c1016;
+            --nb-border: rgba(255,255,255,0.08);
+            --nb-border-strong: rgba(255,255,255,0.14);
+            --nb-text: rgba(255,255,255,0.92);
+            --nb-muted: rgba(255,255,255,0.45);
+            --nb-accent: #64CEFB;
+            --nb-accent-soft: rgba(100,206,251,0.12);
+            --nb-danger: #f87171;
+            --nb-ok: #34d399;
+            --nb-workspace-bg: rgba(8,11,16,0.55);
+            --nb-toolbar-bg: rgba(8,11,16,0.88);
+            --nb-topbar-bg: rgba(5,7,10,0.82);
+            --nb-chat-bg: rgba(8, 12, 18, 0.78);
+            --nb-composer-bg: rgba(0,0,0,0.2);
+            --nb-glass: rgba(255, 255, 255, 0.02);
+            --nb-glass-border: rgba(255, 255, 255, 0.1);
+            --nb-grid-line: rgba(255,255,255,0.015);
+            --nb-radial-1: rgba(100,206,251,0.09);
+            --nb-radial-2: rgba(16,185,129,0.05);
+            --nb-editor-text: rgba(255,255,255,0.9);
+            --nb-editor-placeholder: rgba(255,255,255,0.28);
+            --nb-tool-text: rgba(255,255,255,0.68);
+            --nb-tool-label: rgba(255,255,255,0.28);
+            --nb-chat-border: rgba(255,255,255,0.06);
+            --nb-chat-title: rgba(255,255,255,0.95);
+            --nb-chat-sub: rgba(255,255,255,0.38);
+            --nb-icon-muted: rgba(255,255,255,0.4);
+            --nb-icon-hover-bg: rgba(255,255,255,0.07);
+            --nb-icon-hover-text: #fff;
+            --nb-surface-hover: rgba(255,255,255,0.05);
+            --nb-msg-user-bg: rgba(100, 206, 251, 0.18);
+            --nb-msg-user-text: #e8f7ff;
+            --nb-msg-user-border: rgba(100, 206, 251, 0.28);
+            --nb-msg-assistant: rgba(255,255,255,0.88);
+            --nb-msg-heading: #fff;
+            --nb-msg-code-bg: rgba(255,255,255,0.06);
+            --nb-quick-prompt-bg: rgba(255,255,255,0.03);
+            --nb-quick-prompt-border: rgba(255,255,255,0.1);
+            --nb-quick-prompt-text: rgba(255,255,255,0.6);
+            --nb-composer-box-bg: rgba(255,255,255,0.035);
+            --nb-composer-box-border: rgba(255,255,255,0.1);
+            --nb-chat-field-text: #fff;
+            --nb-chat-field-ph: rgba(255,255,255,0.32);
+            --nb-code-bg: #0a0e14;
+            --nb-code-fg: #d6dce5;
+            --nb-code-caret: #e6edf3;
+            --nb-code-output-bg: rgba(16, 185, 129, 0.04);
+            --nb-code-output-text: #34d399;
+            --nb-shadow-img: rgba(0,0,0,0.3);
+            --nb-send-fg: #041018;
+            --nb-dropdown-bg: rgba(12, 16, 24, 0.98);
+        }
+
+        [data-theme="light"] {
+            --nb-bg: #f4f7fb;
+            --nb-panel: rgba(255, 255, 255, 0.82);
+            --nb-panel-solid: #ffffff;
+            --nb-border: rgba(15, 23, 42, 0.1);
+            --nb-border-strong: rgba(15, 23, 42, 0.16);
+            --nb-text: #0f172a;
+            --nb-muted: rgba(15, 23, 42, 0.52);
+            --nb-accent: #0284c7;
+            --nb-accent-soft: rgba(2, 132, 199, 0.12);
+            --nb-danger: #dc2626;
+            --nb-ok: #059669;
+            --nb-workspace-bg: rgba(248, 250, 252, 0.96);
+            --nb-toolbar-bg: rgba(255, 255, 255, 0.94);
+            --nb-topbar-bg: rgba(255, 255, 255, 0.9);
+            --nb-chat-bg: rgba(255, 255, 255, 0.96);
+            --nb-composer-bg: rgba(241, 245, 249, 0.95);
+            --nb-glass: rgba(255, 255, 255, 0.72);
+            --nb-glass-border: rgba(15, 23, 42, 0.08);
+            --nb-grid-line: rgba(15, 23, 42, 0.04);
+            --nb-radial-1: rgba(2, 132, 199, 0.07);
+            --nb-radial-2: rgba(5, 150, 105, 0.05);
+            --nb-editor-text: #1e293b;
+            --nb-editor-placeholder: rgba(15, 23, 42, 0.38);
+            --nb-tool-text: rgba(15, 23, 42, 0.72);
+            --nb-tool-label: rgba(15, 23, 42, 0.42);
+            --nb-chat-border: rgba(15, 23, 42, 0.08);
+            --nb-chat-title: #0f172a;
+            --nb-chat-sub: rgba(15, 23, 42, 0.48);
+            --nb-icon-muted: rgba(15, 23, 42, 0.45);
+            --nb-icon-hover-bg: rgba(2, 132, 199, 0.08);
+            --nb-icon-hover-text: #0f172a;
+            --nb-surface-hover: rgba(2, 132, 199, 0.06);
+            --nb-msg-user-bg: rgba(2, 132, 199, 0.12);
+            --nb-msg-user-text: #0c4a6e;
+            --nb-msg-user-border: rgba(2, 132, 199, 0.22);
+            --nb-msg-assistant: #334155;
+            --nb-msg-heading: #0f172a;
+            --nb-msg-code-bg: rgba(15, 23, 42, 0.06);
+            --nb-quick-prompt-bg: rgba(255, 255, 255, 0.9);
+            --nb-quick-prompt-border: rgba(15, 23, 42, 0.12);
+            --nb-quick-prompt-text: rgba(15, 23, 42, 0.65);
+            --nb-composer-box-bg: #fff;
+            --nb-composer-box-border: rgba(15, 23, 42, 0.12);
+            --nb-chat-field-text: #0f172a;
+            --nb-chat-field-ph: rgba(15, 23, 42, 0.4);
+            --nb-code-bg: #eef2f7;
+            --nb-code-fg: #1e293b;
+            --nb-code-caret: #0f172a;
+            --nb-code-output-bg: rgba(5, 150, 105, 0.08);
+            --nb-code-output-text: #047857;
+            --nb-shadow-img: rgba(15, 23, 42, 0.12);
+            --nb-send-fg: #ffffff;
+            --nb-dropdown-bg: rgba(255, 255, 255, 0.98);
+        }
+
+        body {
+            background-color: var(--nb-bg); color: var(--nb-text); margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            background-image:
+                radial-gradient(ellipse 80% 50% at 20% -10%, var(--nb-radial-1), transparent 55%),
+                radial-gradient(ellipse 60% 40% at 90% 0%, var(--nb-radial-2), transparent 50%),
+                linear-gradient(var(--nb-grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--nb-grid-line) 1px, transparent 1px);
+            background-size: auto, auto, 48px 48px, 48px 48px;
         }
 
         h1, h2, h3, h4, .font-heading { font-family: 'Space Grotesk', sans-serif; }
 
         .liquid-glass {
-            background: rgba(255, 255, 255, 0.02); background-blend-mode: luminosity;
+            background: var(--nb-glass); background-blend-mode: luminosity;
             backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--nb-glass-border); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
             transition: all 0.3s ease;
         }
 
         .liquid-glass-strong {
-            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
+            background: var(--nb-panel); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--nb-border); box-shadow: 0 8px 28px rgba(0,0,0,0.35);
         }
+
+        /* ── Top bar ── */
+        .node-topbar {
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: space-between; gap: 0.65rem;
+            flex-wrap: nowrap;
+            padding: 0.65rem 1rem 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--nb-border);
+            background: var(--nb-topbar-bg);
+            backdrop-filter: blur(16px);
+            z-index: 40;
+        }
+        .node-topbar-left { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1; overflow: hidden; }
+        .node-back {
+            width: 34px; height: 34px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: var(--nb-muted); border: 1px solid transparent;
+            transition: all 0.15s ease; flex-shrink: 0;
+        }
+        .node-back:hover { color: var(--nb-accent); background: var(--nb-accent-soft); border-color: rgba(100,206,251,0.25); }
+        .node-title-block { min-width: 0; }
+        .node-title {
+            font-size: 1rem; font-weight: 700; letter-spacing: -0.02em;
+            display: flex; align-items: center; gap: 0.5rem; margin: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .node-live {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--nb-ok); box-shadow: 0 0 0 3px rgba(52,211,153,0.15);
+            flex-shrink: 0;
+        }
+        .node-crumb {
+            display: flex; align-items: center; gap: 0.35rem;
+            font-size: 0.68rem; color: var(--nb-muted); margin-top: 2px;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .node-crumb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+        .node-crumb .sep { opacity: 0.4; }
+        .node-topbar-right { display: flex; align-items: center; gap: 0.55rem; flex-shrink: 0; }
+        .save-pill {
+            display: none; align-items: center; gap: 0.35rem;
+            font-size: 0.68rem; font-weight: 600; color: var(--nb-ok);
+            padding: 0.28rem 0.65rem; border-radius: 999px;
+            background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25);
+        }
+        .save-pill.visible { display: inline-flex; }
+        .save-pill.is-error { color: var(--nb-danger); background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); }
+        .chat-toggle-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            height: 34px; padding: 0 0.75rem; border-radius: 10px;
+            border: 1px solid var(--nb-border); background: rgba(255,255,255,0.03);
+            color: var(--nb-tool-text); font-size: 0.75rem; font-weight: 600; cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .chat-toggle-btn:hover { border-color: rgba(100,206,251,0.35); color: var(--nb-accent); background: var(--nb-accent-soft); }
+        .chat-toggle-btn.is-off { opacity: 0.65; }
+
+        /* User menu (node page) */
+        .user-menu { position: relative; }
+        .user-menu-btn {
+            display: flex; align-items: center; gap: 0.55rem;
+            padding: 4px 10px 4px 4px; border-radius: 999px;
+            border: 1px solid var(--nb-border); background: rgba(255,255,255,0.03);
+            color: var(--nb-text); cursor: pointer;
+        }
+        .user-menu-btn:hover, .user-menu.open .user-menu-btn {
+            border-color: rgba(100,206,251,0.35); background: var(--nb-accent-soft);
+        }
+        .user-menu-avatar {
+            width: 26px; height: 26px; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; background: var(--nb-accent-soft); color: var(--nb-accent);
+        }
+        .user-menu-meta { display: none; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+        @media (min-width: 720px) { .user-menu-meta { display: flex; } }
+        .user-menu-name { font-size: 12px; font-weight: 600; }
+        .user-menu-plan { font-size: 10px; color: var(--nb-accent); font-weight: 600; }
+        .user-menu-dropdown {
+            position: absolute; top: calc(100% + 8px); right: 0; min-width: 210px;
+            padding: 8px; border-radius: 14px; border: 1px solid var(--nb-border);
+            background: var(--nb-dropdown-bg); backdrop-filter: blur(20px);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.18); display: none; z-index: 80;
+        }
+        .user-menu.open .user-menu-dropdown { display: block; }
+        .user-menu-item {
+            display: flex; align-items: center; gap: 0.55rem;
+            padding: 0.55rem 0.7rem; border-radius: 10px; text-decoration: none;
+            color: var(--nb-text); font-size: 0.8rem;
+        }
+        .user-menu-item:hover { background: var(--nb-surface-hover); color: var(--nb-accent); }
+        .theme-toggle-btn {
+            width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.03); border: 1px solid var(--nb-border);
+            color: var(--nb-muted); transition: all 0.15s ease;
+        }
+        .theme-toggle-btn:hover { color: var(--nb-accent); background: var(--nb-accent-soft); border-color: rgba(100,206,251,0.25); }
+        [data-theme="light"] .theme-toggle-btn { background: var(--nb-glass); }
+        [data-theme="light"] .theme-toggle-btn:hover { border-color: rgba(2,132,199,0.28); }
 
         /* Layout */
-        .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; gap: 1rem; padding: 1rem; }
-        
-        .workspace { flex: 3; overflow-y: auto; position: relative; scroll-behavior: smooth; border-radius: 1rem; padding: 2rem; }
-        .chat-sidebar { flex: 1.5; display: flex; flex-direction: column; position: relative; overflow: hidden; border-radius: 1rem; }
-
-        .editor-container { max-width: 900px; margin: 0 auto; color: white; }
-        .editable-area { min-height: 50vh; outline: none; font-size: 1.05rem; line-height: 1.7; color: rgba(255,255,255,0.9); padding: 1rem; }
-        .editable-area img { max-width: 100%; border-radius: 12px; margin: 1.5rem 0; box-shadow: 0 10px 30px rgba(0,0,0,0.3); vertical-align: bottom; display: inline-block; }
-
-        /* Toolbars */
-        .workspace-toolbar { 
-            margin-bottom: 1.5rem; display: flex; gap: 0.5rem; position: sticky; top: 0; z-index: 10;
-            padding: 0.5rem; border-radius: 1rem; flex-wrap: wrap;
+        .main-layout {
+            display: flex; flex: 1; overflow: hidden; position: relative;
+            gap: 0; padding: 0;
         }
-        .tool-btn { 
-            padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; 
-            display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 500;
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7);
-        }
-        .tool-btn:hover { background: rgba(100, 206, 251, 0.1); color: #64CEFB; border-color: rgba(100, 206, 251, 0.3); }
+        .main-layout.chat-collapsed .chat-sidebar { display: none; }
+        .main-layout.chat-collapsed .workspace { border-radius: 0; }
 
-        /* Chat */
-        .chat-messages { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
-        .chat-input-area { padding: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); }
-        
-        .message { max-width: 90%; padding: 1rem 1.25rem; border-radius: 1rem; font-size: 0.95rem; line-height: 1.5; }
-        .message.user { align-self: flex-end; background: #64CEFB; color: black; font-weight: 500; border-bottom-right-radius: 4px; }
-        .message.assistant { 
-            align-self: flex-start; background: rgba(255,255,255,0.05); color: #e2e8f0; 
-            border-top-left-radius: 4px; border: 1px solid rgba(255,255,255,0.1);
-            font-family: 'Fira Code', monospace; white-space: pre-wrap; font-size: 0.85rem;
+        .workspace {
+            flex: 1; min-width: 0;
+            overflow-y: auto; position: relative; scroll-behavior: smooth;
+            border-right: 1px solid var(--nb-border);
+            background: var(--nb-workspace-bg);
+            padding: 0;
         }
 
-        .chat-field { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; color: white; padding: 0.75rem 1rem; outline: none; transition: border-color 0.2s; }
-        .chat-field:focus { border-color: #64CEFB; }
+        .editor-container { max-width: 880px; margin: 0 auto; color: var(--nb-text); padding: 0 1.25rem 3rem; }
+        .editable-area {
+            min-height: calc(100vh - 220px); outline: none;
+            font-size: 1.02rem; line-height: 1.75; color: var(--nb-editor-text);
+            padding: 0.25rem 0.35rem 2rem;
+        }
+        .editable-area:empty:before {
+            content: 'Начните заметку… Добавьте текст, фото или ячейку кода через панель сверху.';
+            color: var(--nb-editor-placeholder); pointer-events: none; display: block;
+            font-size: 0.95rem; line-height: 1.6;
+        }
+        .editable-area h1, .editable-area h2, .editable-area h3 {
+            font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; margin: 1.4rem 0 0.6rem;
+        }
+        .editable-area p { margin: 0.55rem 0; }
+        .editable-area img {
+            max-width: 100%; border-radius: 12px; margin: 1.25rem 0;
+            box-shadow: 0 10px 30px var(--nb-shadow-img); vertical-align: bottom; display: inline-block;
+        }
 
-        /* Save State */
-        .save-indicator { position: fixed; bottom: 2rem; right: 42%; padding: 0.5rem 1.5rem; background: rgba(100, 206, 251, 0.2); border: 1px solid #64CEFB; border-radius: 2rem; font-size: 0.8rem; font-weight: bold; color: #64CEFB; opacity: 0; transition: opacity 0.3s; z-index: 50; }
+        /* Toolbar — Colab / Cursor style */
+        .workspace-toolbar {
+            position: sticky; top: 0; z-index: 12;
+            display: flex; align-items: center; gap: 0.45rem; flex-wrap: nowrap;
+            margin: 0 -1.25rem 1.1rem; padding: 0.55rem 1.25rem;
+            border-bottom: 1px solid var(--nb-border);
+            background: var(--nb-toolbar-bg);
+            backdrop-filter: blur(14px);
+            min-width: 0;
+        }
+        .toolbar-main {
+            display: flex; align-items: center; gap: 0.45rem;
+            flex: 1; min-width: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .toolbar-main::-webkit-scrollbar { display: none; }
+        .tool-group {
+            display: flex; align-items: center; gap: 0.25rem;
+            padding: 0.2rem;
+            border-radius: 11px;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid var(--nb-border);
+        }
+        .tool-group-label {
+            font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--nb-tool-label);
+            padding: 0 0.35rem 0 0.45rem; display: none;
+        }
+        @media (min-width: 1100px) { .tool-group-label { display: inline; } }
+        .tool-btn {
+            height: 32px; padding: 0 0.65rem; border-radius: 8px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            font-size: 0.78rem; font-weight: 550;
+            background: transparent; border: 1px solid transparent;
+            color: var(--nb-tool-text); transition: all 0.12s ease;
+        }
+        .tool-btn:hover { background: var(--nb-accent-soft); color: var(--nb-accent); }
+        .tool-btn.primary {
+            background: var(--nb-accent-soft); color: var(--nb-accent);
+            border-color: rgba(100,206,251,0.22);
+        }
+        .tool-btn.primary:hover { background: rgba(100,206,251,0.2); }
+        .tool-btn .tool-label { display: none; }
+        @media (min-width: 900px) { .tool-btn .tool-label { display: inline; } }
+        .tool-sep { width: 1px; height: 22px; background: var(--nb-border); margin: 0 0.15rem; }
+        .history-group { margin-left: 0; flex-shrink: 0; }
+        .history-center {
+            min-width: 64px; text-align: center; font-size: 0.72rem; font-weight: 700;
+            color: var(--nb-accent); padding: 0 0.25rem;
+        }
+
+        /* Chat v3 — Claude / ChatGPT density */
+        .chat-sidebar {
+            flex: 0 0 min(380px, 34vw);
+            min-width: 300px;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0;
+            border-left: 1px solid var(--nb-border);
+            background: var(--nb-chat-bg);
+        }
+        .chat-header {
+            padding: 0.7rem 0.85rem;
+            border-bottom: 1px solid var(--nb-chat-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        .chat-header-left { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+        .chat-header-avatar {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, rgba(100,206,251,0.35), rgba(100,206,251,0.08));
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .chat-header-title { font-size: 0.8rem; font-weight: 600; color: var(--nb-chat-title); }
+        .chat-header-sub { font-size: 0.62rem; color: var(--nb-chat-sub); margin-top: 1px; }
+        .chat-header-actions { display: flex; align-items: center; gap: 0.15rem; }
+        .chat-icon-btn {
+            width: 30px; height: 30px; border-radius: 8px;
+            border: none; background: transparent;
+            color: var(--nb-icon-muted); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: background 0.12s ease, color 0.12s ease;
+        }
+        .chat-icon-btn:hover { background: var(--nb-icon-hover-bg); color: var(--nb-icon-hover-text); }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.85rem 0.75rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            scroll-behavior: smooth;
+        }
+
+        .chat-empty {
+            margin: auto;
+            text-align: center;
+            padding: 1.25rem 0.75rem;
+            max-width: 260px;
+        }
+        .chat-empty-icon {
+            width: 40px; height: 40px; border-radius: 12px; margin: 0 auto 0.7rem;
+            background: rgba(100,206,251,0.1);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .chat-empty h4 { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.35rem; color: var(--nb-chat-title); }
+        .chat-empty p { font-size: 0.72rem; line-height: 1.4; color: var(--nb-chat-sub); margin: 0; }
+
+        /* Claude-style: AI = avatar + plain text; user = compact bubble */
+        .msg-row {
+            display: flex;
+            gap: 0.55rem;
+            max-width: 100%;
+            animation: msgIn 0.18s ease-out;
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: none; }
+        }
+        .msg-row.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+            max-width: 88%;
+        }
+        .msg-row.assistant {
+            align-self: stretch;
+            max-width: 100%;
+        }
+        .msg-avatar {
+            width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
+            background: rgba(100,206,251,0.12);
+            display: flex; align-items: center; justify-content: center;
+            color: #64CEFB;
+        }
+        .msg-row.user .msg-avatar { display: none; }
+        .msg-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0.3rem; }
+        .msg-row.user .msg-body { flex: 0 1 auto; align-items: flex-end; }
+
+        .message {
+            font-size: 0.84rem;
+            line-height: 1.5;
+            word-break: break-word;
+            white-space: pre-wrap;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .message.user {
+            padding: 0.55rem 0.8rem;
+            border-radius: 16px 16px 4px 16px;
+            background: var(--nb-msg-user-bg);
+            color: var(--nb-msg-user-text);
+            border: 1px solid var(--nb-msg-user-border);
+            font-weight: 450;
+        }
+        .message.assistant {
+            padding: 0.15rem 0.1rem 0;
+            background: transparent;
+            border: none;
+            color: var(--nb-msg-assistant);
+        }
+        .message.assistant.md-rendered { white-space: normal; }
+        .message.assistant p { margin: 0.35rem 0; }
+        .message.assistant p:first-child { margin-top: 0; }
+        .message.assistant p:last-child { margin-bottom: 0; }
+        .message.assistant ul, .message.assistant ol {
+            margin: 0.35rem 0 0.5rem 1.15rem;
+            padding: 0;
+        }
+        .message.assistant li { margin: 0.2rem 0; }
+        .message.assistant strong { font-weight: 600; color: var(--nb-msg-heading); }
+        .message.assistant h1, .message.assistant h2, .message.assistant h3 {
+            font-size: 0.92rem;
+            font-weight: 600;
+            margin: 0.5rem 0 0.35rem;
+            color: var(--nb-msg-heading);
+        }
+        .message.assistant code, .message.assistant pre {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.78rem;
+            background: var(--nb-msg-code-bg);
+            border-radius: 6px;
+            padding: 0.1rem 0.3rem;
+        }
+
+        .msg-actions {
+            display: flex; align-items: center; gap: 0.15rem;
+            opacity: 0.55;
+            transition: opacity 0.12s ease;
+        }
+        .msg-row:hover .msg-actions, .msg-row:focus-within .msg-actions { opacity: 1; }
+        .msg-row.user .msg-actions { display: none; }
+        .msg-action {
+            height: 26px; padding: 0 0.45rem; border-radius: 6px;
+            border: none; background: transparent;
+            color: rgba(255,255,255,0.45); cursor: pointer;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            font-size: 0.65rem; font-weight: 500;
+        }
+        .msg-action:hover { background: rgba(255,255,255,0.06); color: #64CEFB; }
+
+        .typing-row {
+            align-self: stretch; display: flex; align-items: center; gap: 0.55rem;
+            padding: 0.15rem 0;
+        }
+        .typing-dots { display: flex; gap: 4px; padding: 0.35rem 0; }
+        .typing-dots span {
+            width: 5px; height: 5px; border-radius: 50%; background: rgba(100,206,251,0.75);
+            animation: typingBounce 1.2s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+            40% { transform: translateY(-3px); opacity: 1; }
+        }
+
+        .chat-composer {
+            flex-shrink: 0;
+            padding: 0.65rem 0.75rem 0.8rem;
+            border-top: 1px solid var(--nb-chat-border);
+            background: var(--nb-composer-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .quick-prompts {
+            display: flex; gap: 0.35rem;
+            overflow-x: auto;
+            padding-bottom: 0.1rem;
+            scrollbar-width: none;
+        }
+        .quick-prompts::-webkit-scrollbar { display: none; }
+        .quick-prompt {
+            font-size: 0.68rem;
+            padding: 0.32rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid var(--nb-quick-prompt-border);
+            background: var(--nb-quick-prompt-bg);
+            color: var(--nb-quick-prompt-text);
+            cursor: pointer;
+            transition: all 0.12s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .quick-prompt:hover {
+            border-color: rgba(100,206,251,0.4);
+            color: #64CEFB;
+            background: rgba(100,206,251,0.08);
+        }
+        .composer-box {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.4rem;
+            padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+            border-radius: 12px;
+            border: 1px solid var(--nb-composer-box-border);
+            background: var(--nb-composer-box-bg);
+            transition: border-color 0.12s ease, box-shadow 0.12s ease;
+        }
+        .composer-box:focus-within {
+            border-color: rgba(100,206,251,0.45);
+            box-shadow: 0 0 0 3px rgba(100,206,251,0.08);
+        }
+        [data-theme="light"] .composer-box:focus-within {
+            border-color: rgba(2,132,199,0.35);
+            box-shadow: 0 0 0 3px rgba(2,132,199,0.1);
+        }
+        .chat-field {
+            flex: 1;
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--nb-chat-field-text);
+            padding: 0.4rem 0;
+            outline: none;
+            resize: none;
+            min-height: 22px;
+            max-height: 110px;
+            font-size: 0.84rem;
+            line-height: 1.4;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .chat-field::placeholder { color: var(--nb-chat-field-ph); }
+        .composer-send {
+            width: 34px; height: 34px; border-radius: 9px;
+            border: none; cursor: pointer; flex-shrink: 0;
+            background: var(--nb-accent); color: var(--nb-send-fg);
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: filter 0.12s ease, background 0.12s ease;
+        }
+        .composer-send:hover { filter: brightness(1.08); }
+        .composer-send:disabled { opacity: 0.4; cursor: default; filter: none; }
+        .composer-send.is-loading {
+            background: rgba(239,68,68,0.18);
+            color: #f87171;
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .composer-hint {
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.28);
+            text-align: center;
+            letter-spacing: 0.01em;
+        }
+        .chat-scroll-btn {
+            position: absolute;
+            bottom: 6.8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            display: none;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.8);
+            color: rgba(255,255,255,0.7);
+            font-size: 0.65rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+        .chat-scroll-btn.visible { display: inline-flex; }
+
+        @media (max-width: 960px) {
+            .main-layout { flex-direction: column; }
+            .workspace { border-right: none; border-bottom: 1px solid var(--nb-border); }
+            .chat-sidebar {
+                flex: none; width: 100%; max-width: none; min-width: 0; height: 42vh;
+                border-left: none; border-top: 1px solid var(--nb-border);
+            }
+            .main-layout.chat-collapsed .workspace { height: auto; }
+        }
+
+        @media (max-width: 1100px) {
+            .user-menu-meta { display: none !important; }
+            .user-menu-btn { padding-right: 8px; }
+        }
+
+        @media (max-width: 960px) {
+            .sketchpad-container {
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                transform: none;
+                width: 100%;
+                max-width: 100%;
+                max-height: min(92dvh, 720px);
+                border-radius: 18px 18px 0 0;
+                padding: 0.7rem 0.85rem max(0.85rem, env(safe-area-inset-bottom, 0));
+            }
+            .sketchpad-head { font-size: 0.62rem; letter-spacing: 0.03em; }
+            #sketchCanvas { aspect-ratio: 4 / 3; }
+        }
+
+        /* Save toast (fallback) */
+        .save-indicator {
+            position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%);
+            padding: 0.45rem 1.1rem; background: rgba(52,211,153,0.15);
+            border: 1px solid rgba(52,211,153,0.4); border-radius: 999px;
+            font-size: 0.75rem; font-weight: 700; color: var(--nb-ok);
+            opacity: 0; transition: opacity 0.3s; z-index: 50; pointer-events: none;
+        }
         .save-indicator.active { opacity: 1; }
-        
+
         /* Modals & Tools */
         .img-toolbar { position: absolute; display: none; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); border: 1px solid #64CEFB; border-radius: 0.75rem; padding: 0.5rem; gap: 0.5rem; z-index: 1000; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
         .img-toolbar button { background: none; border: none; color: #fff; padding: 5px 10px; cursor: pointer; border-radius: 0.5rem; transition: background 0.2s; font-size: 1rem;}
         .img-toolbar button:hover { background: rgba(100, 206, 251, 0.3); }
-        
-        .sketchpad-container { background: rgba(10, 12, 28, 0.95); border: 1px solid #64CEFB; border-radius: 20px; padding: 2rem; display: none; flex-direction: column; align-items: center; gap: 1.5rem; z-index: 2000; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
-        #sketchCanvas { cursor: crosshair; touch-action: none; }
-        
-        /* Overlay sits on top of editor *content* (accounts for editor padding) */
-        .drawing-overlay {
-            position: absolute;
-            top: 1rem;
-            left: 1rem;
-            width: calc(100% - 2rem);
-            height: calc(100% - 2rem);
-            display: none;
-            z-index: 50;
-            background: rgba(255,255,255,0.02);
-            cursor: crosshair;
+
+        .sketchpad-backdrop {
+            display: none; position: fixed; inset: 0; z-index: 1990;
+            background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
         }
-        .drawing-controls { position: sticky; top: 80px; z-index: 100; display: none; padding: 0.75rem; border-radius: 1rem; margin-bottom: 1rem; justify-content: center; gap: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        
-        .code-cell { background: #0a0a0a; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; margin: 1.5rem 0; overflow: hidden; font-family: 'Fira Code', monospace; display: block; }
-        .code-editor { width: 100%; display: block; background: transparent; border: none; color: #d1d5db; padding: 1.25rem; font-size: 0.9rem; outline: none; resize: none; min-height: 80px; margin-bottom: 0; overflow: hidden; line-height: 1.6; }
-        .code-output { background: rgba(16, 185, 129, 0.05); border-top: 1px solid rgba(255,255,255,0.1); padding: 1rem 1.25rem; font-size: 0.85rem; color: #10b981; white-space: pre-wrap; min-height: 20px; display: block; }
-        .code-actions { background: rgba(255,255,255,0.02); padding: 0.75rem 1.25rem; display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid rgba(255,255,255,0.1); margin-top: -1px; }
-        
+        .sketchpad-backdrop.open { display: block; }
+        .sketchpad-container {
+            display: none; flex-direction: column; align-items: stretch; gap: 0.65rem;
+            z-index: 2000; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: min(720px, calc(100vw - 2rem));
+            max-height: calc(100dvh - 2rem);
+            box-sizing: border-box;
+            background: var(--nb-panel-solid); border: 1px solid var(--nb-accent); border-radius: 16px;
+            padding: 1rem 1.1rem 1.15rem; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            overflow: hidden;
+        }
+        .sketchpad-container.open { display: flex; }
+        .sketchpad-head {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+            line-height: 1.35; color: var(--nb-accent);
+        }
+        .sketchpad-canvas-wrap {
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(100,206,251,0.25);
+            background: var(--nb-code-bg);
+            line-height: 0;
+        }
+        #sketchCanvas {
+            cursor: crosshair; touch-action: none; display: block;
+            width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9;
+            border: none; border-radius: 0; background: transparent;
+        }
+        .sketchpad-actions {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem;
+        }
+        .sketchpad-actions .tool-btn,
+        .sketchpad-actions .btn-primary {
+            min-height: 44px; flex: 1 1 calc(33% - 0.5rem);
+        }
+        .sketchpad-actions .btn-primary { flex: 1 1 100%; justify-content: center; }
+        .drawing-controls {
+            display: none !important;
+        }
+
+        /* Code cells — Colab-like */
+        .code-cell {
+            position: relative;
+            background: var(--nb-code-bg);
+            border: 1px solid var(--nb-border);
+            border-radius: 12px;
+            margin: 1.1rem 0;
+            overflow: hidden;
+            font-family: 'Fira Code', monospace;
+            display: block;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .code-cell:hover, .code-cell:focus-within {
+            border-color: rgba(100,206,251,0.28);
+            box-shadow: 0 0 0 3px rgba(100,206,251,0.06);
+        }
+        .code-cell-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.4rem 0.75rem;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--nb-border);
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .code-cell-tag {
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+            color: rgba(100,206,251,0.75); text-transform: uppercase;
+        }
+        .code-cell-hint { font-size: 0.65rem; color: rgba(255,255,255,0.32); }
+        .code-editor {
+            width: 100%; display: block; background: transparent; border: none;
+            color: var(--nb-code-fg); padding: 0.9rem 1rem; font-size: 0.86rem;
+            outline: none; resize: none; min-height: 72px; overflow: hidden; line-height: 1.55;
+        }
+        .code-editor-wrap { position: relative; }
+        .code-editor-wrap .code-editor,
+        .code-editor-wrap .code-hl {
+            font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.86rem; line-height: 1.55; letter-spacing: normal;
+            tab-size: 4; -moz-tab-size: 4;
+            white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
+            font-variant-ligatures: none;
+        }
+        .code-editor-wrap .code-editor {
+            position: relative; z-index: 1;
+            color: transparent; -webkit-text-fill-color: transparent;
+            caret-color: var(--nb-code-caret);
+        }
+        .code-editor-wrap .code-editor::placeholder {
+            color: rgba(255,255,255,0.3); -webkit-text-fill-color: rgba(255,255,255,0.3);
+        }
+        [data-theme="light"] .code-editor-wrap .code-editor::placeholder {
+            color: rgba(15, 23, 42, 0.38); -webkit-text-fill-color: rgba(15, 23, 42, 0.38);
+        }
+        .code-editor-wrap .code-editor::selection {
+            background: rgba(100,206,251,0.28); -webkit-text-fill-color: transparent;
+        }
+        [data-theme="light"] .code-editor-wrap .code-editor::selection {
+            background: rgba(2, 132, 199, 0.22);
+        }
+        .code-hl {
+            position: absolute; inset: 0; z-index: 0; margin: 0;
+            padding: 0.9rem 1rem; overflow: hidden; pointer-events: none;
+            color: var(--nb-code-fg); background: transparent; border: none;
+            user-select: none; -webkit-user-select: none;
+        }
+        [data-theme="dark"] .code-hl .t-kw { color: #c792ea; }
+        [data-theme="dark"] .code-hl .t-bi { color: #82aaff; }
+        [data-theme="dark"] .code-hl .t-fn { color: #82aaff; }
+        [data-theme="dark"] .code-hl .t-def { color: #ffcb6b; }
+        [data-theme="dark"] .code-hl .t-str { color: #c3e88d; }
+        [data-theme="dark"] .code-hl .t-com { color: #6b7686; font-style: italic; }
+        [data-theme="dark"] .code-hl .t-num { color: #f78c6c; }
+        [data-theme="dark"] .code-hl .t-const { color: #ff9cac; }
+        [data-theme="dark"] .code-hl .t-self { color: #f07178; font-style: italic; }
+        [data-theme="dark"] .code-hl .t-dec { color: #ffcb6b; }
+        [data-theme="dark"] .code-hl .t-op { color: #89ddff; }
+
+        [data-theme="light"] .code-hl .t-kw { color: #7c3aed; font-weight: 600; }
+        [data-theme="light"] .code-hl .t-bi { color: #0369a1; }
+        [data-theme="light"] .code-hl .t-fn { color: #1d4ed8; }
+        [data-theme="light"] .code-hl .t-def { color: #b45309; font-weight: 600; }
+        [data-theme="light"] .code-hl .t-str { color: #047857; }
+        [data-theme="light"] .code-hl .t-com { color: #64748b; font-style: italic; }
+        [data-theme="light"] .code-hl .t-num { color: #c2410c; }
+        [data-theme="light"] .code-hl .t-const { color: #be123c; font-weight: 600; }
+        [data-theme="light"] .code-hl .t-self { color: #b91c1c; font-style: italic; }
+        [data-theme="light"] .code-hl .t-dec { color: #a16207; }
+        [data-theme="light"] .code-hl .t-op { color: #0e7490; }
+        [data-theme="light"] .code-cell-tag { color: #0369a1; }
+        [data-theme="light"] .code-cell-hint { color: rgba(15, 23, 42, 0.48); }
+        [data-theme="light"] .code-cell-head { background: rgba(15, 23, 42, 0.03); }
+        [data-theme="light"] .code-actions { background: rgba(15, 23, 42, 0.02); }
+        [data-theme="light"] .run-time {
+            color: rgba(15, 23, 42, 0.62);
+            background: rgba(15, 23, 42, 0.05);
+            border-color: rgba(15, 23, 42, 0.1);
+        }
+        [data-theme="light"] .run-time.is-running { color: #0369a1; border-color: rgba(2,132,199,0.25); background: rgba(2,132,199,0.08); }
+        [data-theme="light"] .run-time.is-done { color: #047857; border-color: rgba(4,120,87,0.22); background: rgba(4,120,87,0.08); }
+        [data-theme="light"] .run-time.is-error { color: #b91c1c; border-color: rgba(185,28,28,0.22); background: rgba(185,28,28,0.07); }
+        .code-output {
+            background: var(--nb-code-output-bg);
+            border-top: 1px solid var(--nb-border);
+            padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--nb-code-output-text);
+            white-space: pre-wrap; min-height: 18px; display: block;
+        }
+        .code-output .code-out-text { margin: 0; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+        .code-output-fig { margin: 0.65rem 0 0; }
+        .code-output-fig img {
+            display: block; max-width: 100%; height: auto;
+            border-radius: 8px; border: 1px solid var(--nb-border);
+            background: #fff;
+        }
+        .code-output-fig figcaption { font-size: 0.72rem; color: var(--nb-muted); margin-top: 0.35rem; }
+        .code-actions {
+            background: rgba(255,255,255,0.015);
+            padding: 0.5rem 0.75rem;
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.75rem; border-top: 1px solid var(--nb-border); flex-wrap: wrap;
+        }
+        .code-actions-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+        .cell-del-btn {
+            width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+            background: rgba(248,113,113,0.08); color: var(--nb-danger);
+            border: 1px solid rgba(248,113,113,0.22);
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .cell-del-btn:hover { background: rgba(248,113,113,0.16); }
+        .run-btn {
+            height: 30px; padding: 0 0.85rem; border-radius: 8px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            font-size: 0.75rem; font-weight: 700; font-family: 'Inter', system-ui, sans-serif;
+            background: var(--nb-accent); color: #041018; border: none;
+        }
+        .run-btn:hover { filter: brightness(1.06); }
+        .run-btn:disabled { opacity: 0.55; cursor: progress; filter: none; }
+        .run-time {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            height: 24px; padding: 0 0.55rem; border-radius: 999px;
+            font-size: 0.7rem; font-weight: 600; font-variant-numeric: tabular-nums;
+            font-family: 'Inter', system-ui, sans-serif;
+            color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .run-time:empty { display: none; }
+        .run-time::before { content: '⏱'; font-size: 0.7rem; }
+        .run-time.is-running { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.08); }
+        .run-time.is-running::before { animation: runTimePulse 1s ease-in-out infinite; }
+        .run-time.is-done { color: #34d399; border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.07); }
+        .run-time.is-error { color: #f87171; border-color: rgba(248,113,113,0.25); background: rgba(248,113,113,0.07); }
+        @keyframes runTimePulse { 50% { opacity: 0.35; } }
+
         .anchored-drawing { position: relative; width: 100%; height: 0; overflow: visible; pointer-events: none; z-index: 15; display: inline-block; }
         .anchored-drawing img { position: absolute; left: 0; top: 0; width: 100%; height: auto; pointer-events: none; }
-        
-        .audio-controls { display: none; align-items: center; gap: 1rem; background: rgba(100, 206, 251, 0.1); border: 1px solid #64CEFB; padding: 0.75rem 1.25rem; border-radius: 1rem; margin-bottom: 1.5rem; position: sticky; top: 80px; z-index: 90; }
+
+        .audio-controls {
+            display: none; align-items: center; gap: 1rem;
+            background: var(--nb-accent-soft); border: 1px solid rgba(100,206,251,0.35);
+            padding: 0.65rem 1rem; border-radius: 12px; margin-bottom: 1rem;
+            position: sticky; top: 56px; z-index: 90;
+        }
         #audioVisualizer { flex: 1; height: 30px; }
-        
-        .btn-primary { background: #64CEFB; color: black; font-weight: bold; border-radius: 0.5rem; padding: 0.5rem 1rem; border: none; cursor: pointer; transition: background 0.2s; }
+
+        .btn-primary { background: var(--primary); color: var(--primary-fg); font-weight: bold; border-radius: 0.5rem; padding: 0.5rem 1rem; border: none; cursor: pointer; transition: background 0.2s; }
         .btn-primary:hover { background: #4bbdf2; }
     </style>
 </head>
-<body class="antialiased text-white">
+<body class="antialiased" data-page-ui="v4">
 
-    <!-- Navbar -->
-    <nav class="w-full px-6 lg:px-10 py-4 z-50 flex items-center justify-between border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 flex-shrink-0">
-        <div class="flex items-center gap-4">
+    <header class="node-topbar">
+        <div class="node-topbar-left">
             {% if is_public_view %}
-                <a href="/share/{{ exp.id }}" class="text-white/50 hover:text-[#64CEFB] transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></a>
+                <a href="{{ base_path }}/share/{{ exp.id }}" class="node-back" title="Назад"><i data-lucide="arrow-left" class="w-4 h-4"></i></a>
             {% else %}
-                <a href="/experiment/{{ user }}/{{ exp.id }}" class="text-white/50 hover:text-[#64CEFB] transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></a>
+                <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}" class="node-back" title="К эксперименту"><i data-lucide="arrow-left" class="w-4 h-4"></i></a>
             {% endif %}
-            <div>
-                <h1 class="font-bold text-lg tracking-tight font-heading flex items-center gap-2">
+            <div class="node-title-block">
+                <h1 class="node-title font-heading">
                     {{ node.title }}
                     {% if is_public_view %}
-                        <span class="text-[10px] uppercase px-2 py-1 bg-[#10b981]/10 text-[#10b981] rounded border border-[#10b981]/20 font-bold">PUBLIC</span>
+                        <span class="text-[10px] uppercase px-2 py-0.5 bg-[#10b981]/10 text-[#10b981] rounded border border-[#10b981]/20 font-bold">PUBLIC</span>
                     {% else %}
-                        <div class="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ml-2"></div>
+                        <span class="node-live" title="Онлайн"></span>
                     {% endif %}
                 </h1>
-                <p class="text-xs text-white/50 font-mono">{{ exp.name }} | {{ 'ROOT' if node.id == 'root' else 'NODE-' ~ node.id.upper() }}</p>
+                <div class="node-crumb">
+                    <span title="{{ exp.name }}">{{ exp.name }}</span>
+                    <span class="sep">/</span>
+                    <span>{{ 'ROOT' if node.id == 'root' else 'NODE-' ~ node.id.upper() }}</span>
+                </div>
             </div>
         </div>
-        
-        <div class="flex items-center gap-4">
-            <div class="hidden md:flex items-center gap-2 text-white/60 text-sm">
+
+        <div class="node-topbar-right">
+            <div class="save-pill" id="savePill"><i data-lucide="check" class="w-3 h-3"></i> Сохранено</div>
+            {% if not is_public_view %}
+            <button type="button" class="chat-toggle-btn" id="chatToggleBtn" onclick="toggleChatPanel()" title="Показать/скрыть ассистента">
+                <i data-lucide="panel-right" class="w-3.5 h-3.5"></i>
+                <span>Ассистент</span>
+            </button>
+            {% endif %}
+            <button type="button" class="theme-toggle-btn" id="themeToggle" title="Переключить тему" aria-label="Переключить тему">
+                <i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i>
+            </button>
+            {% if not is_public_view %}
+            <div class="user-menu" id="userMenu">
+                <button type="button" class="user-menu-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
+                    <span class="user-menu-avatar">{{ user[:1]|upper }}</span>
+                    <span class="user-menu-meta">
+                        <span class="user-menu-name">{{ user }}</span>
+                        <span class="user-menu-plan">{{ plan_label|default('Бесплатный') }}</span>
+                    </span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5" style="opacity:0.45"></i>
+                </button>
+                <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+                    <a href="{{ base_path }}/pricing?user={{ user }}" class="user-menu-item" role="menuitem">
+                        <i data-lucide="credit-card" class="w-4 h-4"></i> Тарифы
+                    </a>
+                    <a href="{{ base_path }}/dashboard?user={{ user }}" class="user-menu-item" role="menuitem">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Кабинет
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="hidden md:flex items-center gap-2 text-sm" style="color: var(--nb-muted);">
                 <i data-lucide="user" class="w-4 h-4"></i> {{ user }}
             </div>
+            {% endif %}
         </div>
-    </nav>
+    </header>
 
-    <div class="main-layout">
+    <div class="main-layout" id="mainLayout">
         <!-- Research Workspace -->
-        <section class="workspace liquid-glass-strong">
+        <section class="workspace">
             <div class="editor-container">
                 {% if not is_public_view %}
-                <div class="workspace-toolbar liquid-glass">
-                    <button class="tool-btn" onclick="document.getElementById('imageUpload').click()">
-                        <i data-lucide="image" class="w-4 h-4"></i> Фото
-                    </button>
-                    <input type="file" id="imageUpload" style="display:none" accept="image/*" onchange="uploadImage(this)">
-                    
-                    <button class="tool-btn" id="voiceBtn" onclick="toggleRecording()">
-                        <i data-lucide="mic" class="w-4 h-4"></i> Аудио
-                    </button>
+                <div class="workspace-toolbar">
+                    <div class="toolbar-main">
+                        <div class="tool-group">
+                            <span class="tool-group-label">Вставка</span>
+                            <button type="button" class="tool-btn" data-media-tool="photo" title="Фото" onclick="requestMediaTool('photo')">
+                                <i data-lucide="image" class="w-4 h-4"></i><span class="tool-label">Фото</span>
+                            </button>
+                            <input type="file" id="imageUpload" style="display:none" accept="image/*" onchange="uploadImage(this)">
+                            <button type="button" class="tool-btn" id="voiceBtn" data-media-tool="audio" title="Аудио" onclick="requestMediaTool('audio')">
+                                <i data-lucide="mic" class="w-4 h-4"></i><span class="tool-label">Аудио</span>
+                            </button>
+                            <button type="button" class="tool-btn" data-media-tool="draw" title="Рисовать" onclick="requestMediaTool('draw')">
+                                <i data-lucide="pen-tool" class="w-4 h-4"></i><span class="tool-label">Рисунок</span>
+                            </button>
+                            <button type="button" class="tool-btn primary" onclick="addCodeCell()" title="Ячейка кода">
+                                <i data-lucide="code-2" class="w-4 h-4"></i><span class="tool-label">Код</span>
+                            </button>
+                        </div>
 
-                    <button class="tool-btn" onclick="openSketchpad()">
-                        <i data-lucide="pen-tool" class="w-4 h-4"></i> Рисовать
-                    </button>
+                        <div class="tool-group">
+                            <button type="button" class="tool-btn" onclick="downloadDocx()" title="Скачать DOCX">
+                                <i data-lucide="download" class="w-4 h-4"></i><span class="tool-label">Скачать</span>
+                            </button>
+                        </div>
+                    </div>
 
-                    <button class="tool-btn" onclick="addCodeCell()">
-                        <i data-lucide="code" class="w-4 h-4"></i> Код
-                    </button>
-
-                    <button class="tool-btn" onclick="downloadDocx()">
-                        <i data-lucide="download" class="w-4 h-4"></i> Скачать
-                    </button>
-                    
-                    <div class="flex items-center ml-auto bg-white/5 rounded-lg border border-white/10 p-1">
-                        <button type="button" class="tool-btn border-none bg-transparent hover:bg-white/10" onclick="travelTime(1)" title="Назад во времени">
-                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    <div class="tool-group history-group">
+                        <button type="button" class="tool-btn" onclick="travelTime(1)" title="Назад по версиям">
+                            <i data-lucide="undo-2" class="w-4 h-4"></i>
                         </button>
-                        <button type="button" class="tool-btn border-none bg-transparent text-[#64CEFB] hover:bg-white/10 font-bold px-4" title="Ветки">
-                            Ветки
-                        </button>
-                        <button type="button" class="tool-btn border-none bg-transparent hover:bg-white/10" onclick="travelTime(-1)" title="Вперед во времени">
-                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        <span class="history-center">Ветки</span>
+                        <button type="button" class="tool-btn" onclick="travelTime(-1)" title="Вперёд по версиям">
+                            <i data-lucide="redo-2" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
                 {% endif %}
 
-                <!-- Audio Visualizer Panel -->
                 <div id="audioPanel" class="audio-controls">
                     <span class="text-xs font-bold text-[#64CEFB] tracking-widest">ТРАНСКРИБАЦИЯ</span>
                     <canvas id="audioVisualizer"></canvas>
                     <button class="btn-primary text-xs py-1" onclick="stopRecording()">Стоп</button>
                 </div>
-                
+
                 <div id="editorWrap" class="relative">
                     <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}" oninput="autoSave()">
-                        {{ notes.notes_html | safe if notes else '' }}
+                        {{ (notes.notes_html | fix_uploads) | safe if notes else '' }}
                     </div>
-                    <canvas id="drawingCanvas" class="drawing-overlay"></canvas>
                 </div>
             </div>
         </section>
 
         <!-- AI Chat -->
-        <aside class="chat-sidebar liquid-glass">
-            <div class="p-4 border-b border-white/10 flex items-center gap-2">
-                <i data-lucide="bot" class="w-5 h-5 text-[#64CEFB]"></i>
-                <h3 class="text-xs font-bold text-[#64CEFB] tracking-widest">AI АССИСТЕНТ</h3>
-            </div>
-            
-            <div class="chat-messages" id="chatMessages">
-                {% if notes and notes.chat_history %}
-                    {% for msg in notes.chat_history %}
-                        <div class="message {{ 'user' if msg.role == 'user' else 'assistant' }}">
-                            {{ msg.content }}
-                        </div>
-                    {% endfor %}
+        <aside class="chat-sidebar" data-chat-ui="v3">
+            <div class="chat-header">
+                <div class="chat-header-left">
+                    <div class="chat-header-avatar">
+                        <i data-lucide="bot" class="w-3.5 h-3.5 text-[#64CEFB]"></i>
+                    </div>
+                    <div>
+                        <div class="chat-header-title">Ассистент</div>
+                        <div class="chat-header-sub">Контекст этого узла</div>
+                    </div>
+                </div>
+                {% if not is_public_view %}
+                <div class="chat-header-actions">
+                    <button type="button" class="chat-icon-btn" id="chatClearBtn" title="Очистить чат" onclick="clearChat()">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
                 {% endif %}
             </div>
 
+            <div class="chat-messages" id="chatMessages">
+                {% if notes and notes.chat_history %}
+                    {% for msg in notes.chat_history %}
+                        <div class="msg-row {{ 'user' if msg.role == 'user' else 'assistant' }}" data-role="{{ msg.role }}">
+                            {% if msg.role == 'assistant' %}
+                            <div class="msg-avatar"><i data-lucide="bot" class="w-3 h-3"></i></div>
+                            {% endif %}
+                            <div class="msg-body">
+                                <div class="message {{ 'user' if msg.role == 'user' else 'assistant' }}">{{ msg.content }}</div>
+                                {% if msg.role == 'assistant' %}
+                                <div class="msg-actions">
+                                    <button type="button" class="msg-action" title="Копировать" onclick="copyChatText(this)">
+                                        <i data-lucide="copy" class="w-3 h-3"></i> Копировать
+                                    </button>
+                                    <button type="button" class="msg-action" title="Перегенерировать" onclick="regenerateLast(this)">
+                                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="chat-empty" id="chatEmpty">
+                        <div class="chat-empty-icon">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-[#64CEFB]"></i>
+                        </div>
+                        <h4>Чем помочь?</h4>
+                        <p>Спросите про код, данные или попросите править заметку узла.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <button type="button" class="chat-scroll-btn" id="chatScrollBtn" onclick="scrollChatToBottom(true)">
+                <i data-lucide="arrow-down" class="w-3.5 h-3.5"></i>
+                Вниз
+            </button>
+
             {% if not is_public_view %}
-            <div class="chat-input-area">
-                <form class="flex gap-3" onsubmit="sendMessage(event)">
-                    <input type="text" id="chatInput" class="chat-field" placeholder="Задайте вопрос ассистенту..." autocomplete="off">
-                    <button type="submit" class="btn-primary px-5 flex items-center justify-center">
-                        <i data-lucide="send" class="w-4 h-4"></i>
-                    </button>
+            <div class="chat-composer">
+                <div class="quick-prompts" id="quickPrompts">
+                    <button type="button" class="quick-prompt" onclick="useQuickPrompt(this)">Объясни код</button>
+                    <button type="button" class="quick-prompt" onclick="useQuickPrompt(this)">Проверь текст</button>
+                    <button type="button" class="quick-prompt" onclick="useQuickPrompt(this)">Добавь таблицу</button>
+                    <button type="button" class="quick-prompt" onclick="useQuickPrompt(this)">Следующий шаг</button>
+                </div>
+                <form id="chatForm" onsubmit="sendMessage(event)">
+                    <div class="composer-box">
+                        <textarea id="chatInput" class="chat-field" rows="1" placeholder="Напишите сообщение…" autocomplete="off"></textarea>
+                        <button type="submit" class="composer-send" id="chatSendBtn" title="Отправить">
+                            <i data-lucide="send" class="w-4 h-4" id="chatSendIcon"></i>
+                        </button>
+                    </div>
                 </form>
+                <div class="composer-hint">Enter — отправить · Shift+Enter — строка</div>
             </div>
             {% endif %}
         </aside>
@@ -249,13 +1088,21 @@
 
     <div id="saveIndicator" class="save-indicator">Сохранено</div>
 
-    <!-- Drawing Controls -->
-    <div id="drawingControls" class="drawing-controls liquid-glass-strong">
-        <span class="text-[#64CEFB] font-bold text-sm self-center mr-4">РЕЖИМ РИСОВАНИЯ</span>
-        <button class="tool-btn" onclick="cancelDrawing()">Отмена</button>
-        <button class="tool-btn" onclick="clearDrawing()">Очистить</button>
-        <button class="btn-primary" onclick="finishDrawing()">Сохранить рисунок</button>
+    <div id="sketchpadBackdrop" class="sketchpad-backdrop" onclick="cancelDrawing()"></div>
+    <div id="sketchpadModal" class="sketchpad-container" role="dialog" aria-label="Рисунок" onclick="event.stopPropagation()">
+        <div class="sketchpad-head">Нарисуйте здесь — сохранится как изображение в заметке</div>
+        <div class="sketchpad-canvas-wrap">
+            <canvas id="sketchCanvas"></canvas>
+        </div>
+        <div class="sketchpad-actions">
+            <button type="button" class="tool-btn" onclick="cancelDrawing()">Отмена</button>
+            <button type="button" class="tool-btn" onclick="clearDrawing()">Очистить</button>
+            <button type="button" class="btn-primary" onclick="finishDrawing()">Сохранить рисунок</button>
+        </div>
     </div>
+
+    <!-- legacy anchor (hidden) -->
+    <div id="drawingControls" class="drawing-controls" hidden aria-hidden="true"></div>
 
     <!-- Image Toolbar -->
     <div id="imgToolbar" class="img-toolbar">
@@ -269,11 +1116,19 @@
         <button onclick="deleteImg()" title="Удалить" class="text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>
 
+
     <script>
-        lucide.createIcons();
+        let saveTimeout = null;
         const exp_id = "{{ exp.id }}";
         const node_id = "{{ node.id }}";
-        let saveTimeout;
+
+        function initLucideIcons() {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+                return true;
+            }
+            return false;
+        }
 
         // Voice & Recording Logic (server-side STT for Firefox compatibility)
         let mediaRecorder;
@@ -371,7 +1226,7 @@
                     const blob = new Blob(audioChunks, { type: 'audio/webm' });
                     const fd = new FormData();
                     fd.append('file', blob, 'audio.webm');
-                    const resp = await fetch('/api/stt', { method: 'POST', body: fd });
+                    const resp = await fetch('{{ base_path }}/api/stt', { method: 'POST', body: fd });
                     const data = await resp.json();
                     if (data && data.text) {
                         const editor = document.getElementById('editor');
@@ -392,13 +1247,14 @@
         async function autoSave(retries = 3) {
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
-                const html = document.getElementById('editor').innerHTML;
+                const html = getEditorHtmlForSave();
                 const annotationUrl = document.getElementById('editor').dataset.annotationUrl || '';
                 
                 const performSave = async (count) => {
                     try {
-                        const resp = await fetch('/api/node/save', {
+                        const resp = await fetch('{{ base_path }}/api/node/save', {
                             method: 'POST',
+                            credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ exp_id, node_id, html, annotation_url: annotationUrl })
                         });
@@ -409,10 +1265,7 @@
                         if (count > 0) {
                             setTimeout(() => performSave(count - 1), 2000);
                         } else {
-                            const ind = document.getElementById('saveIndicator');
-                            ind.innerText = 'Ошибка сохранения!';
-                            ind.style.background = '#ef4444';
-                            ind.classList.add('active');
+                            showSaveIndicator(true);
                         }
                     }
                 };
@@ -421,47 +1274,639 @@
             }, 1000);
         }
 
-        function showSaveIndicator() {
+        function showSaveIndicator(isError = false) {
+            const pill = document.getElementById('savePill');
             const ind = document.getElementById('saveIndicator');
-            ind.classList.add('active');
-            setTimeout(() => ind.classList.remove('active'), 2000);
+            if (pill) {
+                pill.classList.toggle('is-error', !!isError);
+                pill.innerHTML = isError
+                    ? '<i data-lucide="alert-circle" class="w-3 h-3"></i> Ошибка'
+                    : '<i data-lucide="check" class="w-3 h-3"></i> Сохранено';
+                pill.classList.add('visible');
+                if (window.lucide) lucide.createIcons();
+                clearTimeout(showSaveIndicator._t);
+                showSaveIndicator._t = setTimeout(() => pill.classList.remove('visible'), 1800);
+            }
+            if (ind) {
+                ind.classList.add('active');
+                setTimeout(() => ind.classList.remove('active'), 1800);
+            }
         }
 
-        // Chat Logic
-        async function chatWithAI(text) {
-            try {
-                const currentHtml = document.getElementById('editor').innerHTML;
-                const resp = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ exp_id, node_id, message: text, html_context: currentHtml })
+        function toggleChatPanel() {
+            const layout = document.getElementById('mainLayout');
+            const btn = document.getElementById('chatToggleBtn');
+            if (!layout) return;
+            layout.classList.toggle('chat-collapsed');
+            const off = layout.classList.contains('chat-collapsed');
+            if (btn) {
+                btn.classList.toggle('is-off', off);
+                btn.title = off ? 'Показать ассистента' : 'Скрыть ассистента';
+            }
+            localStorage.setItem('biobook_chat_collapsed', off ? '1' : '0');
+        }
+
+        (function initPageChrome() {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            function setTheme(theme) {
+                html.setAttribute('data-theme', theme);
+                localStorage.setItem('biobook-theme', theme);
+                if (themeIcon) themeIcon.setAttribute('data-lucide', theme === 'dark' ? 'moon' : 'sun');
+                if (window.lucide) setTimeout(() => lucide.createIcons(), 0);
+            }
+            setTheme(localStorage.getItem('biobook-theme') || 'light');
+            themeToggle?.addEventListener('click', () => {
+                setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+            });
+
+            const layout = document.getElementById('mainLayout');
+            if (layout && localStorage.getItem('biobook_chat_collapsed') === '1') {
+                layout.classList.add('chat-collapsed');
+                const btn = document.getElementById('chatToggleBtn');
+                if (btn) btn.classList.add('is-off');
+            }
+            const menu = document.getElementById('userMenu');
+            const menuBtn = document.getElementById('userMenuBtn');
+            if (menu && menuBtn) {
+                menuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menu.classList.toggle('open');
+                    menuBtn.setAttribute('aria-expanded', menu.classList.contains('open'));
                 });
-                const data = await resp.json();
-                
-                if (data.edit_html) {
-                    document.getElementById('editor').innerHTML = data.edit_html;
-                    autoSave();
-                    appendMessage('assistant', 'Я внес изменения в ваш документ.');
-                } else if (data.reply) {
-                    appendMessage('assistant', data.reply);
+                document.addEventListener('click', () => {
+                    menu.classList.remove('open');
+                    menuBtn.setAttribute('aria-expanded', 'false');
+                });
+            }
+        })();
+
+        // Chat Logic — ChatGPT / Claude-style UX
+        let chatAbort = null;
+        let chatBusy = false;
+        let lastUserPrompt = '';
+
+        function refreshChatIcons() {
+            initLucideIcons();
+        }
+
+        function hideChatEmpty() {
+            const empty = document.getElementById('chatEmpty');
+            if (empty) empty.remove();
+        }
+
+        function showChatEmptyIfNeeded() {
+            const container = document.getElementById('chatMessages');
+            if (!container) return;
+            const hasMsgs = container.querySelector('.msg-row');
+            if (hasMsgs) return;
+            if (!document.getElementById('chatEmpty')) {
+                container.innerHTML = `
+                    <div class="chat-empty" id="chatEmpty">
+                        <div class="chat-empty-icon">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-[#64CEFB]"></i>
+                        </div>
+                        <h4>Чем помочь?</h4>
+                        <p>Спросите про код, данные или попросите править заметку узла.</p>
+                    </div>`;
+                refreshChatIcons();
+            }
+        }
+
+        function isChatNearBottom(el, threshold = 80) {
+            return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+        }
+
+        function scrollChatToBottom(force = false) {
+            const el = document.getElementById('chatMessages');
+            if (!el) return;
+            if (force || isChatNearBottom(el)) {
+                el.scrollTop = el.scrollHeight;
+            }
+            updateChatScrollBtn();
+        }
+
+        function updateChatScrollBtn() {
+            const el = document.getElementById('chatMessages');
+            const btn = document.getElementById('chatScrollBtn');
+            if (!el || !btn) return;
+            btn.classList.toggle('visible', !isChatNearBottom(el, 100));
+        }
+
+        function setComposerLoading(loading) {
+            chatBusy = loading;
+            const btn = document.getElementById('chatSendBtn');
+            const icon = document.getElementById('chatSendIcon');
+            const input = document.getElementById('chatInput');
+            if (!btn || !icon) return;
+            if (loading) {
+                btn.classList.add('is-loading');
+                btn.title = 'Остановить';
+                btn.type = 'button';
+                btn.onclick = (e) => { e.preventDefault(); stopChat(); };
+                icon.setAttribute('data-lucide', 'square');
+                if (input) input.disabled = true;
+            } else {
+                btn.classList.remove('is-loading');
+                btn.title = 'Отправить';
+                btn.type = 'submit';
+                btn.onclick = null;
+                icon.setAttribute('data-lucide', 'send');
+                if (input) input.disabled = false;
+            }
+            refreshChatIcons();
+        }
+
+        function showTyping() {
+            hideChatEmpty();
+            const container = document.getElementById('chatMessages');
+            if (!container || document.getElementById('chatTyping')) return;
+            const row = document.createElement('div');
+            row.className = 'typing-row';
+            row.id = 'chatTyping';
+            row.innerHTML = `
+                <div class="msg-avatar"><i data-lucide="bot" class="w-3 h-3"></i></div>
+                <div class="typing-dots"><span></span><span></span><span></span></div>`;
+            container.appendChild(row);
+            refreshChatIcons();
+            scrollChatToBottom(true);
+        }
+
+        function hideTyping() {
+            const t = document.getElementById('chatTyping');
+            if (t) t.remove();
+        }
+
+        function renderAssistantMessage(text) {
+            if (!text) return '';
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({ breaks: true, gfm: true });
+                const html = marked.parse(text);
+                return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : html;
+            }
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function setMessageContent(el, role, text) {
+            if (!el) return;
+            if (role === 'assistant') {
+                el.innerHTML = renderAssistantMessage(text);
+                el.classList.add('md-rendered');
+            } else {
+                el.textContent = text;
+                el.classList.remove('md-rendered');
+            }
+        }
+
+        function initAssistantMarkdown() {
+            document.querySelectorAll('.message.assistant:not(.md-rendered)').forEach(function(el) {
+                const raw = el.textContent || '';
+                if (raw.trim()) setMessageContent(el, 'assistant', raw);
+            });
+        }
+
+        function appendMessage(role, text, opts = {}) {
+            hideChatEmpty();
+            const container = document.getElementById('chatMessages');
+            if (!container) return null;
+
+            const row = document.createElement('div');
+            row.className = `msg-row ${role}`;
+            row.dataset.role = role;
+
+            let actions = '';
+            if (role === 'assistant') {
+                actions = `
+                    <div class="msg-actions">
+                        <button type="button" class="msg-action" title="Копировать" onclick="copyChatText(this)">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Копировать
+                        </button>
+                        ${opts.allowRegen !== false ? `
+                        <button type="button" class="msg-action" title="Перегенерировать" onclick="regenerateLast(this)">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                        </button>` : ''}
+                    </div>`;
+            }
+
+            row.innerHTML = `
+                ${role === 'assistant' ? '<div class="msg-avatar"><i data-lucide="bot" class="w-3 h-3"></i></div>' : ''}
+                <div class="msg-body">
+                    <div class="message ${role}"></div>
+                    ${actions}
+                </div>`;
+            setMessageContent(row.querySelector('.message'), role, text);
+            container.appendChild(row);
+            refreshChatIcons();
+            scrollChatToBottom(true);
+            return row;
+        }
+
+        function copyChatText(btn) {
+            const row = btn.closest('.msg-row');
+            const msg = row && row.querySelector('.message');
+            if (!msg) return;
+            navigator.clipboard.writeText(msg.innerText || msg.textContent || '').then(() => {
+                btn.title = 'Скопировано';
+                const icon = btn.querySelector('[data-lucide]');
+                if (icon) {
+                    icon.setAttribute('data-lucide', 'check');
+                    refreshChatIcons();
+                    setTimeout(() => {
+                        icon.setAttribute('data-lucide', 'copy');
+                        btn.title = 'Копировать';
+                        refreshChatIcons();
+                    }, 1200);
+                }
+            }).catch(() => {});
+        }
+
+        const QUICK_PROMPT_TEXT = {
+            'Добавь таблицу':
+                'Добавь в блокнот Python-ячейку с анализом данных из существующих ячеек: ' +
+                '(1) сводная статистика по группам — n, mean, SD, SEM, median, min, max; ' +
+                '(2) итоги статтестов — тест, статистика, p-value, значимость. ' +
+                'Сохрани таблицы в CSV (summary_stats.csv и test_results.csv) и выведи обе через print(...to_string()). ' +
+                'Если логика уже есть в ячейке — дополни её через [EDIT_CODE_CELL:N], иначе [INSERT_CODE]...[/INSERT_CODE]. ' +
+                'Не отвечай, что «добавил», без этих тегов.',
+        };
+
+        function extractPythonFromAssistantReply(text) {
+            if (!text) return '';
+            const re = /```(?:python|py)\s*\n([\s\S]*?)```/gi;
+            let best = '';
+            let m;
+            while ((m = re.exec(text))) {
+                const body = (m[1] || '').trim();
+                if (body.length > best.length) best = body;
+            }
+            return best;
+        }
+
+        function assistantClaimsNotebookEdit(text) {
+            const t = (text || '').toLowerCase();
+            return /добавил|обновил|вставил|сохранил.*csv|в ячейк|в блокнот/.test(t);
+        }
+
+        function useQuickPrompt(btn) {
+            const input = document.getElementById('chatInput');
+            if (!input || chatBusy) return;
+            const label = btn.textContent.trim();
+            input.value = QUICK_PROMPT_TEXT[label] || label;
+            autoGrowChatInput();
+            input.focus();
+            document.getElementById('chatForm').requestSubmit();
+        }
+
+        function autoGrowChatInput() {
+            const input = document.getElementById('chatInput');
+            if (!input) return;
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        }
+
+        function stopChat() {
+            if (chatAbort) chatAbort.abort();
+        }
+
+        async function clearChat() {
+            if (chatBusy) return;
+            if (!confirm('Очистить историю чата для этого узла?')) return;
+            try {
+                const resp = await fetch('{{ base_path }}/api/chat/clear', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ exp_id, node_id })
+                });
+                if (!resp.ok) throw new Error('clear failed');
+                const container = document.getElementById('chatMessages');
+                if (container) container.innerHTML = '';
+                lastUserPrompt = '';
+                showChatEmptyIfNeeded();
+                refreshChatIcons();
+            } catch (e) {
+                alert('Не удалось очистить чат');
+            }
+        }
+
+        async function regenerateLast(btn) {
+            if (chatBusy) return;
+            const row = btn.closest('.msg-row');
+            if (!row || row.dataset.role !== 'assistant') return;
+
+            let prev = row.previousElementSibling;
+            while (prev && !(prev.classList.contains('msg-row') && prev.dataset.role === 'user')) {
+                prev = prev.previousElementSibling;
+            }
+            const prompt = prev?.querySelector('.message')?.textContent?.trim();
+            if (!prompt) return;
+
+            // Drop this assistant reply and everything after it in the UI
+            let cur = row;
+            while (cur) {
+                const next = cur.nextElementSibling;
+                if (cur.classList.contains('msg-row') || cur.id === 'chatTyping') cur.remove();
+                cur = next;
+            }
+            await chatWithAI(prompt, { regenerate: true });
+        }
+
+        function getNotebookContext() {
+            const editor = getNoteEditor();
+            if (!editor) return [];
+            return Array.from(editor.querySelectorAll('.code-cell .code-editor')).map((ta, i) => ({
+                index: i + 1,
+                code: ta.value || '',
+            }));
+        }
+
+        function appendHtmlToNotebook(html) {
+            const editor = getNoteEditor();
+            if (!editor || !html) return false;
+            const wrap = document.createElement('div');
+            wrap.className = 'assistant-html-block';
+            wrap.contentEditable = 'false';
+            wrap.innerHTML = html;
+            const tail = document.createElement('p');
+            tail.innerHTML = '<br>';
+            editor.appendChild(wrap);
+            editor.appendChild(tail);
+            placeCaretInElement(tail);
+            return true;
+        }
+
+        function applyAssistantNotebookActions(data) {
+            let changed = false;
+            if (data.edit_html) {
+                const editor = getNoteEditor();
+                if (editor) {
+                    editor.innerHTML = data.edit_html;
+                    upgradeLegacyCodeCells();
+                    document.querySelectorAll('.code-editor').forEach(autoExpand);
+                    changed = true;
+                }
+            }
+            if (data.append_html && appendHtmlToNotebook(data.append_html)) {
+                changed = true;
+            }
+            if (data.edit_code_cell && data.edit_code_cell.code != null) {
+                if (updateCodeCellAtIndex(data.edit_code_cell.index, data.edit_code_cell.code)) {
+                    changed = true;
+                }
+            }
+            let code = data.insert_code;
+            if (!code && !data.edit_code_cell && !data.edit_html && !data.append_html) {
+                code = extractPythonFromAssistantReply(data.reply || '');
+            }
+            if (code) {
+                insertCodeFromAssistant(code);
+                changed = true;
+            }
+            if (changed) autoSave();
+            return changed;
+        }
+
+        async function chatWithAI(text, opts = {}) {
+            lastUserPrompt = text;
+            showTyping();
+            setComposerLoading(true);
+            chatAbort = new AbortController();
+
+            try {
+                const currentHtml = getEditorHtmlForSave();
+                const resp = await fetch('{{ base_path }}/api/chat', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        exp_id,
+                        node_id,
+                        message: text,
+                        html_context: currentHtml,
+                        notebook_context: getNotebookContext(),
+                        regenerate: !!opts.regenerate
+                    }),
+                    signal: chatAbort.signal
+                });
+                let data = {};
+                try { data = await resp.json(); } catch (_) {}
+                hideTyping();
+
+                if (resp.status === 401 || data.error === 'LoginRequired') {
+                    appendMessage('assistant', 'Сессия истекла. Выйдите и войдите снова через https://anticus.tech/bio-notebook/ — без входа чат не работает.');
+                    return;
+                }
+                if (!resp.ok) {
+                    appendMessage('assistant', data.error || data.detail || `Ошибка сервера (${resp.status}).`);
+                    return;
+                }
+
+                const notebookChanged = applyAssistantNotebookActions(data);
+                let replyText = data.reply || '';
+                if (!notebookChanged && assistantClaimsNotebookEdit(replyText)) {
+                    replyText += '\n\n⚠️ В блокнот ничего не попало — ассистент не вернул [INSERT_CODE] / [EDIT_CODE_CELL]. Нажмите «Добавь таблицу» ещё раз или попросите явно обернуть код в теги.';
+                }
+                if (notebookChanged || replyText) {
+                    appendMessage('assistant', replyText || 'Обновил блокнот.');
+                } else {
+                    appendMessage('assistant', 'Пустой ответ от ассистента.');
                 }
             } catch (e) {
+                hideTyping();
+                if (e.name === 'AbortError') {
+                    appendMessage('assistant', 'Ответ остановлен.', { allowRegen: true });
+                    return;
+                }
                 appendMessage('assistant', 'Произошла ошибка при связи с AI ассистентом.');
+            } finally {
+                chatAbort = null;
+                setComposerLoading(false);
             }
         }
 
         async function sendMessage(e) {
             e.preventDefault();
+            if (chatBusy) return;
             const input = document.getElementById('chatInput');
-            const text = input.value.trim();
+            const text = (input.value || '').trim();
             if (!text) return;
 
-            // Add user message to UI
             appendMessage('user', text);
             input.value = '';
-
+            autoGrowChatInput();
             await chatWithAI(text);
         }
+
+        (function initChatUX() {
+            const input = document.getElementById('chatInput');
+            const messages = document.getElementById('chatMessages');
+            if (input) {
+                input.addEventListener('input', autoGrowChatInput);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!chatBusy) document.getElementById('chatForm').requestSubmit();
+                    }
+                });
+            }
+            if (messages) {
+                messages.addEventListener('scroll', updateChatScrollBtn);
+                scrollChatToBottom(true);
+            }
+            // Capture last user prompt from SSR history
+            const lastUser = [...document.querySelectorAll('.msg-row.user .message')].pop();
+            if (lastUser) lastUserPrompt = lastUser.textContent.trim();
+            refreshChatIcons();
+        })();
+
+        // ── Editor caret / contenteditable helpers ──
+        let savedEditorRange = null;
+
+        function getNoteEditor() {
+            return document.getElementById('editor');
+        }
+
+        function exitEditorOverlayModes() {
+            // "Рисунок" sets contentEditable=false — always restore before other inserts
+            if (typeof isDrawingMode !== 'undefined' && isDrawingMode && typeof cancelDrawing === 'function') {
+                cancelDrawing();
+            }
+            const editor = getNoteEditor();
+            if (!editor) return;
+            {% if not is_public_view %}
+            editor.contentEditable = 'true';
+            {% endif %}
+            const drawingControls = document.getElementById('drawingControls');
+            if (drawingControls) drawingControls.style.display = 'none';
+            const sketchModal = document.getElementById('sketchpadModal');
+            const sketchBackdrop = document.getElementById('sketchpadBackdrop');
+            if (sketchModal) sketchModal.classList.remove('open');
+            if (sketchBackdrop) sketchBackdrop.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        function saveEditorSelection() {
+            const editor = getNoteEditor();
+            const sel = window.getSelection();
+            if (!editor || !sel || !sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            if (editor.contains(range.commonAncestorContainer)) {
+                savedEditorRange = range.cloneRange();
+            }
+        }
+
+        function restoreEditorSelection() {
+            const editor = getNoteEditor();
+            if (!editor) return;
+            editor.focus();
+            const sel = window.getSelection();
+            if (savedEditorRange && sel) {
+                try {
+                    sel.removeAllRanges();
+                    sel.addRange(savedEditorRange);
+                    return;
+                } catch (e) {}
+            }
+            // Fallback: end of editor
+            placeCaretAtEditableTail();
+        }
+
+        function ensureEditableTail() {
+            const editor = getNoteEditor();
+            if (!editor) return null;
+            let last = editor.lastElementChild;
+            const isBlocked = (el) => el && (
+                el.classList?.contains('code-cell') ||
+                el.getAttribute?.('contenteditable') === 'false' ||
+                el.tagName === 'IMG' ||
+                el.classList?.contains('anchored-drawing')
+            );
+            if (!last || isBlocked(last) || (last.tagName === 'P' && last.querySelector('.code-cell'))) {
+                const p = document.createElement('p');
+                p.innerHTML = '<br>';
+                editor.appendChild(p);
+                return p;
+            }
+            if (last.tagName !== 'P') {
+                const p = document.createElement('p');
+                p.innerHTML = '<br>';
+                editor.appendChild(p);
+                return p;
+            }
+            // Ensure empty paragraphs remain focusable
+            if (!last.innerHTML.trim()) last.innerHTML = '<br>';
+            return last;
+        }
+
+        function placeCaretInElement(el) {
+            const editor = getNoteEditor();
+            if (!editor || !el) return;
+            exitEditorOverlayModes();
+            editor.focus();
+            const range = document.createRange();
+            const sel = window.getSelection();
+            if (el.childNodes.length) {
+                range.setStart(el, Math.min(1, el.childNodes.length));
+                range.collapse(true);
+            } else {
+                range.selectNodeContents(el);
+                range.collapse(true);
+            }
+            sel.removeAllRanges();
+            sel.addRange(range);
+            savedEditorRange = range.cloneRange();
+        }
+
+        function placeCaretAtEditableTail() {
+            const tail = ensureEditableTail();
+            placeCaretInElement(tail);
+            return tail;
+        }
+
+        function insertHtmlIntoEditor(html) {
+            const editor = getNoteEditor();
+            if (!editor) return;
+            exitEditorOverlayModes();
+            restoreEditorSelection();
+            try {
+                document.execCommand('insertHTML', false, html);
+            } catch (e) {
+                editor.insertAdjacentHTML('beforeend', html);
+            }
+            placeCaretAtEditableTail();
+            autoSave();
+        }
+
+        // Save caret when clicking toolbar (do NOT preventDefault — it can swallow click)
+        document.querySelector('.workspace-toolbar')?.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button, .tool-btn')) saveEditorSelection();
+        });
+
+        // Click empty note area / after code cells → return to typing
+        document.getElementById('editor')?.addEventListener('mousedown', (e) => {
+            exitEditorOverlayModes();
+            const editor = getNoteEditor();
+            if (!editor) return;
+            // Click on editor padding / empty zone
+            if (e.target === editor) {
+                e.preventDefault();
+                placeCaretAtEditableTail();
+                return;
+            }
+            // Click on a non-editable block but not on its inputs → jump to text after it
+            const blocked = e.target.closest('.code-cell, .anchored-drawing');
+            if (blocked && !e.target.closest('textarea, input, select, button, a')) {
+                // Allow focusing textarea normally; only redirect chrome clicks
+                if (e.target.classList?.contains('code-editor')) return;
+                if (e.target.closest('.code-editor')) return;
+                // If user clicked the cell border/head (not the textarea), place caret after cell
+                if (e.target.closest('.code-cell-head, .code-actions, .code-output')) return;
+            }
+        });
 
         // Image Upload
         async function uploadImage(input) {
@@ -470,26 +1915,14 @@
             formData.append('file', input.files[0]);
 
             try {
-                const resp = await fetch('/api/upload', {
+                const resp = await fetch('{{ base_path }}/api/upload', {
                     method: 'POST',
                     body: formData
                 });
                 const data = await resp.json();
-                
-                // Insert into editor
-                const img = `<img src="${data.url}" alt="Uploaded image">`;
-                document.getElementById('editor').innerHTML += img;
-                autoSave();
+                insertHtmlIntoEditor(`<p><img src="${data.url}" alt="Uploaded image"></p><p><br></p>`);
             } catch (e) { alert('Ошибка загрузки'); }
-        }
-
-        function appendMessage(role, text) {
-            const container = document.getElementById('chatMessages');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${role}`;
-            msgDiv.innerText = text;
-            container.appendChild(msgDiv);
-            container.scrollTop = container.scrollHeight;
+            input.value = '';
         }
 
         // Image Editing Logic
@@ -556,64 +1989,119 @@
             }
         }
 
+        async function imageToDataUrl(imgEl) {
+            if (imgEl.src && imgEl.src.startsWith('data:image/')) {
+                return imgEl.src;
+            }
+            if (!imgEl.complete || !(imgEl.naturalWidth || imgEl.width)) {
+                await new Promise((resolve, reject) => {
+                    imgEl.onload = () => resolve();
+                    imgEl.onerror = () => reject(new Error('Изображение не загрузилось'));
+                });
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = imgEl.naturalWidth || imgEl.width;
+            canvas.height = imgEl.naturalHeight || imgEl.height;
+            if (!canvas.width || !canvas.height) {
+                throw new Error('Нулевой размер изображения');
+            }
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imgEl, 0, 0);
+            try {
+                return canvas.toDataURL('image/jpeg', 0.88);
+            } catch (err) {
+                const src = imgEl.currentSrc || imgEl.src;
+                if (!src || src.startsWith('data:')) throw err;
+                const r = await fetch(src, { credentials: 'same-origin' });
+                if (!r.ok) throw new Error('Не удалось загрузить файл изображения');
+                const blob = await r.blob();
+                return await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+                    reader.readAsDataURL(blob);
+                });
+            }
+        }
+
         async function runOCR() {
             if (!activeImg) return;
             appendMessage('assistant', 'Анализирую изображение...');
 
             try {
-                // Convert image to base64 for vision API
-                const canvas = document.createElement('canvas');
-                const imgEl = activeImg;
-                canvas.width = imgEl.naturalWidth || imgEl.width;
-                canvas.height = imgEl.naturalHeight || imgEl.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(imgEl, 0, 0);
-                const base64 = canvas.toDataURL('image/jpeg', 0.85);
-
-                const resp = await fetch('/api/ocr', {
+                const base64 = await imageToDataUrl(activeImg);
+                const resp = await fetch('{{ base_path }}/api/ocr', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image_b64: base64, exp_id, node_id })
                 });
-                const data = await resp.json();
-                
+                let data = {};
+                try {
+                    data = await resp.json();
+                } catch (parseErr) {
+                    throw new Error(resp.status === 401 ? 'Нужно войти в аккаунт' : ('Ответ сервера ' + resp.status));
+                }
+                const text = (data && data.text) ? String(data.text) : '';
+                if (!resp.ok && !text) {
+                    appendMessage('assistant', 'OCR не удался (HTTP ' + resp.status + ').');
+                    return;
+                }
+                if (!text || text === 'Текст не найден.') {
+                    appendMessage('assistant', text || 'Текст на изображении не найден.');
+                    return;
+                }
+
                 const textNode = document.createElement('p');
                 textNode.style.cssText = 'background:rgba(100,206,251,0.08);padding:1rem;border-radius:8px;margin-top:1rem;border:1px solid rgba(100,206,251,0.2);';
-                textNode.innerHTML = `<strong>Результат OCR:</strong><br>${data.text}`;
+                const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                textNode.innerHTML = `<strong>Результат OCR:</strong><br>${safeText}`;
                 activeImg.after(textNode);
                 appendMessage('assistant', 'Готово! Текст добавлен в заметки под изображением.');
                 autoSave();
             } catch (e) {
-                appendMessage('assistant', 'Ошибка при распознавании изображения.');
+                const msg = (e && e.message) ? e.message : 'Ошибка при распознавании изображения.';
+                appendMessage('assistant', msg);
             }
         }
-        // Global Annotation Logic
-        const mainCanvas = document.getElementById('drawingCanvas');
-        const mainCtx = mainCanvas.getContext('2d');
+        // Sketch pad (compact modal — not full-note overlay)
+        const mainCanvas = document.getElementById('sketchCanvas');
+        const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
         const drawingControls = document.getElementById('drawingControls');
-        const annotationLayer = document.getElementById('annotationLayer');
+        const sketchModal = document.getElementById('sketchpadModal');
+        const sketchBackdrop = document.getElementById('sketchpadBackdrop');
         const editor = document.getElementById('editor');
-        const workspace = document.querySelector('.workspace');
-        
+
         let isDrawingMode = false;
         let isDrawing = false;
-
-        let drawingStartTop = 0;
         let drawingInsertRange = null;
-        let prevWorkspaceOverflowY = '';
+
+        function measureSketchCanvasCssSize() {
+            if (!mainCanvas) return { cssW: 320, cssH: 240 };
+            const rect = mainCanvas.getBoundingClientRect();
+            const cssW = Math.max(1, Math.floor(rect.width));
+            const cssH = Math.max(1, Math.floor(rect.height));
+            return { cssW, cssH };
+        }
 
         function syncDrawingCanvasSize() {
-            // Ensure internal canvas resolution matches CSS size (fixes offset + blurry lines on retina)
+            if (!mainCanvas || !mainCtx) return;
+            mainCanvas.style.width = '100%';
+            mainCanvas.style.height = 'auto';
+            mainCanvas.style.maxWidth = '100%';
+            const { cssW, cssH } = measureSketchCanvasCssSize();
             const dpr = window.devicePixelRatio || 1;
-            const rect = mainCanvas.getBoundingClientRect();
-            const w = Math.max(1, Math.round(rect.width * dpr));
-            const h = Math.max(1, Math.round(rect.height * dpr));
-            if (mainCanvas.width !== w) mainCanvas.width = w;
-            if (mainCanvas.height !== h) mainCanvas.height = h;
+            const w = Math.max(1, Math.round(cssW * dpr));
+            const h = Math.max(1, Math.round(cssH * dpr));
+            if (mainCanvas.width !== w || mainCanvas.height !== h) {
+                mainCanvas.width = w;
+                mainCanvas.height = h;
+            }
             mainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         }
 
         function getCanvasPoint(e) {
+            if (!mainCanvas) return { x: 0, y: 0 };
             const rect = mainCanvas.getBoundingClientRect();
             return {
                 x: e.clientX - rect.left,
@@ -622,61 +2110,67 @@
         }
 
         function openSketchpad() {
+            if (!mainCanvas || !mainCtx || !sketchModal) {
+                alert('Холст рисования недоступен');
+                return;
+            }
+            saveEditorSelection();
             isDrawingMode = true;
-            mainCanvas.style.display = 'block';
-            drawingControls.style.display = 'flex';
-            
-            // Remember caret position to insert drawing back where user was
+            sketchModal.classList.add('open');
+            if (sketchBackdrop) sketchBackdrop.classList.add('open');
+            document.body.style.overflow = 'hidden';
+
             try {
-                const sel = window.getSelection();
-                if (sel && sel.rangeCount > 0) {
-                    const r = sel.getRangeAt(0);
-                    if (editor.contains(r.startContainer)) drawingInsertRange = r.cloneRange();
+                if (savedEditorRange) {
+                    drawingInsertRange = savedEditorRange.cloneRange();
+                } else {
+                    const sel = window.getSelection();
+                    if (sel && sel.rangeCount > 0) {
+                        const r = sel.getRangeAt(0);
+                        if (editor.contains(r.startContainer)) drawingInsertRange = r.cloneRange();
+                    }
                 }
             } catch (e) {
                 drawingInsertRange = null;
             }
 
-            // Lock workspace scroll during drawing to keep coordinates stable
-            prevWorkspaceOverflowY = workspace.style.overflowY || '';
-            workspace.style.overflowY = 'hidden';
-
-            // Sync overlay height to editor content height (so it covers full note)
-            const targetH = Math.max(editor.scrollHeight, 1000);
-            mainCanvas.style.height = `${targetH}px`;
-            // Width is controlled by CSS (calc(100% - 2rem)), but internal resolution must match
-            syncDrawingCanvasSize();
-            
-            drawingStartTop = workspace.scrollTop;
-            
-            mainCtx.strokeStyle = '#00A3FF';
-            mainCtx.lineWidth = 4;
-            mainCtx.lineCap = 'round';
-            mainCtx.lineJoin = 'round';
-            
-            // Disable editor while drawing
-            editor.contentEditable = "false";
+            requestAnimationFrame(() => {
+                syncDrawingCanvasSize();
+                clearDrawing();
+                mainCtx.strokeStyle = '#00A3FF';
+                mainCtx.lineWidth = 3;
+                mainCtx.lineCap = 'round';
+                mainCtx.lineJoin = 'round';
+            });
         }
 
         function cancelDrawing() {
             isDrawingMode = false;
-            mainCanvas.style.display = 'none';
-            drawingControls.style.display = 'none';
-            editor.contentEditable = "true";
-            workspace.style.overflowY = prevWorkspaceOverflowY;
+            if (sketchModal) sketchModal.classList.remove('open');
+            if (sketchBackdrop) sketchBackdrop.classList.remove('open');
+            document.body.style.overflow = '';
             clearDrawing();
+            setTimeout(() => placeCaretAtEditableTail(), 0);
         }
 
         function clearDrawing() {
+            if (!mainCtx || !mainCanvas) return;
             mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
         }
 
-        mainCanvas.addEventListener('mousedown', startDraw);
-        mainCanvas.addEventListener('mousemove', draw);
-        mainCanvas.addEventListener('mouseup', stopDraw);
-        mainCanvas.addEventListener('mouseleave', stopDraw);
+        window.addEventListener('resize', () => {
+            if (isDrawingMode) syncDrawingCanvasSize();
+        }, { passive: true });
+
+        if (mainCanvas) {
+            mainCanvas.addEventListener('mousedown', startDraw);
+            mainCanvas.addEventListener('mousemove', draw);
+            mainCanvas.addEventListener('mouseup', stopDraw);
+            mainCanvas.addEventListener('mouseleave', stopDraw);
+        }
 
         function startDraw(e) {
+            if (!mainCtx) return;
             isDrawing = true;
             const pt = getCanvasPoint(e);
             mainCtx.beginPath();
@@ -684,7 +2178,7 @@
         }
 
         function draw(e) {
-            if (!isDrawing) return;
+            if (!isDrawing || !mainCtx) return;
             const pt = getCanvasPoint(e);
             mainCtx.lineTo(pt.x, pt.y);
             mainCtx.stroke();
@@ -709,7 +2203,7 @@
                 const formData = new FormData();
                 formData.append('file', blob, 'sketch.png');
                 
-                const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+                const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
                 const data = await resp.json();
                 
                 // Insert drawing as a normal image at the remembered caret position
@@ -726,17 +2220,23 @@
                 const imgHTML = `<p><img src="${data.url}" alt="Рисунок"></p><p><br></p>`;
                 document.execCommand('insertHTML', false, imgHTML);
 
-                cancelDrawing();
+                isDrawingMode = false;
+                if (sketchModal) sketchModal.classList.remove('open');
+                if (sketchBackdrop) sketchBackdrop.classList.remove('open');
+                document.body.style.overflow = '';
+                clearDrawing();
+                placeCaretAtEditableTail();
                 autoSave();
             } catch (e) {
                 console.error('Save failed', e);
                 alert('Ошибка сохранения');
+                cancelDrawing();
             }
         }
 
         async function downloadDocx() {
             try {
-                const resp = await fetch(`/api/node/export_docx?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`);
+                const resp = await fetch(`{{ base_path }}/api/node/export_docx?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`);
                 if (!resp.ok) {
                     alert('Не удалось сформировать DOCX');
                     return;
@@ -755,65 +2255,271 @@
             }
         }
         // Code Cell Logic
+        function requestMediaTool(kind) {
+            try { saveEditorSelection(); } catch (e) {}
+            if (kind === 'photo') document.getElementById('imageUpload')?.click();
+            else if (kind === 'audio') toggleRecording();
+            else if (kind === 'draw') openSketchpad();
+        }
+        window.requestMediaTool = requestMediaTool;
+
+        function upgradeLegacyCodeCells() {
+            document.querySelectorAll('.code-cell').forEach(cell => {
+                cell.querySelectorAll('.compute-unit-select').forEach(el => el.remove());
+                if (!cell.querySelector('.code-cell-head')) {
+                    const head = document.createElement('div');
+                    head.className = 'code-cell-head';
+                    head.contentEditable = 'false';
+                    head.innerHTML = '<span class="code-cell-tag">Python</span><span class="code-cell-hint">@@ → автодополнение</span>';
+                    cell.insertBefore(head, cell.firstChild);
+                }
+                const actions = cell.querySelector('.code-actions');
+                if (actions) {
+                    const legacyDel = actions.querySelector('button:not(.run-btn):not(.cell-del-btn)');
+                    if (legacyDel && !actions.querySelector('.cell-del-btn')) {
+                        const id = cell.id;
+                        legacyDel.className = 'cell-del-btn';
+                        legacyDel.removeAttribute('style');
+                        legacyDel.title = 'Удалить ячейку';
+                        legacyDel.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
+                        if (id) legacyDel.setAttribute('onclick', `deleteCodeCell('${id}')`);
+                    }
+                    actions.querySelectorAll('span').forEach(s => {
+                        if ((s.textContent || '').includes('автодополнение')) s.remove();
+                    });
+                }
+                const runBtn = cell.querySelector('.run-btn');
+                if (runBtn) {
+                    runBtn.removeAttribute('style');
+                    runBtn.className = 'run-btn';
+                    runBtn.disabled = false;
+                    if (!runBtn.querySelector('i')) {
+                        runBtn.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> Run';
+                    }
+                }
+                const area = cell.querySelector('.code-editor');
+                if (area) refreshCodeHighlight(area);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        const PY_KEYWORDS = new Set(('and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case').split(' '));
+        const PY_CONSTANTS = new Set(['True', 'False', 'None', 'Ellipsis', 'NotImplemented', '__name__', '__file__']);
+        const PY_BUILTINS = new Set(('abs all any ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip Exception ValueError TypeError KeyError IndexError FileNotFoundError ImportError ModuleNotFoundError RuntimeError ZeroDivisionError AttributeError NameError StopIteration OSError').split(' '));
+        const PY_TOKEN_RE = /(#[^\n]*)|((?:\b[rRbBuUfF]{1,2})?(?:"""[\s\S]*?(?:"""|(?![\s\S]))|'''[\s\S]*?(?:'''|(?![\s\S]))|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?))|(^[ \t]*@[A-Za-z_][\w.]*)|(\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*\.?[\d_]*(?:[eE][+-]?\d+)?j?)\b|\.\d+(?:[eE][+-]?\d+)?\b)|([A-Za-z_]\w*)|([-+*/%=<>!&|^~@:]+)/gm;
+
+        function escapeCodeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function highlightPython(src) {
+            let out = '';
+            let last = 0;
+            let prevWord = '';
+            PY_TOKEN_RE.lastIndex = 0;
+            let m;
+            while ((m = PY_TOKEN_RE.exec(src)) !== null) {
+                if (m[0] === '') { PY_TOKEN_RE.lastIndex++; continue; }
+                out += escapeCodeHtml(src.slice(last, m.index));
+                last = m.index + m[0].length;
+                const tok = escapeCodeHtml(m[0]);
+                let cls = '';
+                if (m[1]) cls = 't-com';
+                else if (m[2]) cls = 't-str';
+                else if (m[3]) cls = 't-dec';
+                else if (m[4]) cls = 't-num';
+                else if (m[5]) {
+                    const w = m[0];
+                    if (prevWord === 'def' || prevWord === 'class') cls = 't-def';
+                    else if (PY_KEYWORDS.has(w)) cls = 't-kw';
+                    else if (PY_CONSTANTS.has(w)) cls = 't-const';
+                    else if (w === 'self' || w === 'cls') cls = 't-self';
+                    else if (PY_BUILTINS.has(w)) cls = 't-bi';
+                    else if (/^\s*\(/.test(src.slice(last, last + 8))) cls = 't-fn';
+                    prevWord = w;
+                } else if (m[6]) cls = 't-op';
+                if (!m[5]) prevWord = '';
+                out += cls ? `<span class="${cls}">${tok}</span>` : tok;
+            }
+            out += escapeCodeHtml(src.slice(last));
+            return out;
+        }
+
+        function ensureCodeHighlightLayer(area) {
+            if (!area) return null;
+            let wrap = area.parentElement;
+            if (!wrap || !wrap.classList.contains('code-editor-wrap')) {
+                wrap = document.createElement('div');
+                wrap.className = 'code-editor-wrap';
+                area.parentNode.insertBefore(wrap, area);
+                wrap.appendChild(area);
+            }
+            let pre = wrap.querySelector('.code-hl');
+            if (!pre) {
+                pre = document.createElement('pre');
+                pre.className = 'code-hl';
+                pre.setAttribute('aria-hidden', 'true');
+                pre.contentEditable = 'false';
+                wrap.insertBefore(pre, area);
+            }
+            area.spellcheck = false;
+            return pre;
+        }
+
+        function refreshCodeHighlight(area) {
+            const pre = ensureCodeHighlightLayer(area);
+            if (!pre) return;
+            const val = area.value || '';
+            if (area.textContent !== val) area.textContent = val;
+            pre.innerHTML = highlightPython(val) + (val.endsWith('\n') || !val ? ' ' : '');
+        }
+
+        function getEditorHtmlForSave() {
+            const editor = document.getElementById('editor');
+            if (!editor) return '';
+            if (!editor.querySelector('.code-cell')) return editor.innerHTML;
+            const clone = editor.cloneNode(true);
+            clone.querySelectorAll('.code-hl, .run-time.is-running').forEach(el => el.remove());
+            clone.querySelectorAll('.run-btn[disabled]').forEach(el => el.removeAttribute('disabled'));
+            return clone.innerHTML;
+        }
+
         function autoExpand(el) {
             el.style.height = 'inherit';
             el.style.height = (el.scrollHeight) + 'px';
+            if (el.classList && el.classList.contains('code-editor')) refreshCodeHighlight(el);
+        }
+
+        document.getElementById('editor')?.addEventListener('input', (e) => {
+            if (e.target.classList?.contains('code-editor')) refreshCodeHighlight(e.target);
+        });
+
+        function buildCodeCellElement(initialCode) {
+            const cellId = 'cell_' + Math.random().toString(36).substr(2, 9);
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `
+                <div class="code-cell" id="${cellId}" contenteditable="false">
+                    <div class="code-cell-head" contenteditable="false">
+                        <span class="code-cell-tag">Python</span>
+                        <span class="code-cell-hint">@@ → автодополнение</span>
+                    </div>
+                    <textarea
+                        class="code-editor"
+                        placeholder="Введите Python-код…"
+                        oninput="autoExpand(this)"
+                    ></textarea>
+                    <div class="code-actions">
+                        <button type="button" class="cell-del-btn" title="Удалить ячейку" onclick="deleteCodeCell('${cellId}')">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <div class="code-actions-right">
+                            <button type="button" class="run-btn" title="Выполнить" data-cell-id="${cellId}">
+                                <i data-lucide="play" class="w-3.5 h-3.5"></i> Run
+                            </button>
+                        </div>
+                    </div>
+                    <div class="code-output"><span style="color:rgba(255,255,255,0.35)">Вывод появится после запуска</span></div>
+                </div>`;
+            const cell = wrap.firstElementChild;
+            const area = cell.querySelector('.code-editor');
+            if (area) {
+                area.value = initialCode || 'print("Hello Bio-Notebook!")';
+                refreshCodeHighlight(area);
+            }
+            return { cell, cellId };
+        }
+
+        function mountCodeCell(cell, opts = {}) {
+            const editor = getNoteEditor();
+            if (!editor || !cell) return null;
+
+            const textAfter = document.createElement('p');
+            textAfter.innerHTML = '<br>';
+
+            if (opts.appendToEnd) {
+                editor.appendChild(cell);
+                editor.appendChild(textAfter);
+            } else {
+                restoreEditorSelection();
+                const sel = window.getSelection();
+                let inserted = false;
+                if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+                    try {
+                        const range = sel.getRangeAt(0);
+                        range.deleteContents();
+                        range.insertNode(textAfter);
+                        range.insertNode(cell);
+                        inserted = true;
+                    } catch (e) { inserted = false; }
+                }
+                if (!inserted) {
+                    editor.appendChild(cell);
+                    editor.appendChild(textAfter);
+                }
+            }
+
+            if (!opts.skipCaret) placeCaretInElement(textAfter);
+            return textAfter;
+        }
+
+        function insertCodeFromAssistant(code) {
+            exitEditorOverlayModes();
+            const { cell, cellId } = buildCodeCellElement(code);
+            mountCodeCell(cell, { appendToEnd: true, skipCaret: true });
+            setTimeout(() => {
+                const newArea = document.querySelector(`#${cellId} .code-editor`);
+                if (newArea) {
+                    autoExpand(newArea);
+                    newArea.focus();
+                }
+                if (window.lucide) lucide.createIcons();
+            }, 10);
+        }
+
+        function updateCodeCellAtIndex(index, code) {
+            const editor = getNoteEditor();
+            if (!editor) return false;
+            const cells = editor.querySelectorAll('.code-cell .code-editor');
+            const ta = cells[(Number(index) || 1) - 1];
+            if (!ta) {
+                insertCodeFromAssistant(code);
+                return true;
+            }
+            ta.value = code;
+            autoExpand(ta);
+            ta.focus();
+            return true;
         }
 
         function addCodeCell() {
-            const cellId = 'cell_' + Math.random().toString(36).substr(2, 9);
-            const cellHTML = `
-                <div class="code-cell" id="${cellId}" contenteditable="false">
-                    <textarea
-                        class="code-editor"
-                        placeholder="Введите Python-код… (для автодополнения напишите @@)"
-                        oninput="autoExpand(this)"
-                    >print(\"Hello Bio-Notebook!\")</textarea>
-                    <div class="code-actions">
-                        <button
-                            class="btn"
-                            title="Удалить блок"
-                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.2rem 0.6rem;"
-                            onclick="deleteCodeCell('${cellId}')"
-                        >✕</button>
-                        <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.45);font-family: 'Fira Code', monospace; white-space:nowrap;">Подсказка: @@ → автодополнение</span>
-                            <button
-                                class="btn run-btn"
-                                title="Выполнить код"
-                                style="padding: 0.2rem 0.9rem; font-size: 0.8rem; background: rgba(100,206,251,0.15); border: 1px solid rgba(100,206,251,0.25); color: #64CEFB;"
-                                data-cell-id="${cellId}"
-                            >▶ Run</button>
-                        </div>
-                    </div>
-                    <div class="code-output"><span style="color:rgba(255,255,255,0.45)">Вывод появится здесь после запуска.</span></div>
-                </div>
-                <p><br></p>
-            `;
-            const editor = document.getElementById('editor');
-            editor.focus();
-            document.execCommand('insertHTML', false, cellHTML);
-            
-            // Initial expansion for pre-filled code
+            exitEditorOverlayModes();
+            const { cell, cellId } = buildCodeCellElement('print("Hello Bio-Notebook!")');
+            mountCodeCell(cell);
+            autoSave();
             setTimeout(() => {
                 const newArea = document.querySelector(`#${cellId} .code-editor`);
-                if(newArea) autoExpand(newArea);
+                if (newArea) autoExpand(newArea);
+                if (window.lucide) lucide.createIcons();
             }, 10);
         }
 
         function deleteCodeCell(cellId) {
             const cell = document.getElementById(cellId);
             if (cell) {
+                const parent = cell.parentElement;
                 cell.remove();
+                if (parent === getNoteEditor()) ensureEditableTail();
+                placeCaretAtEditableTail();
                 autoSave();
             }
         }
 
         // Event delegation for Run buttons and Autocomplete
         document.getElementById('editor').addEventListener('click', (e) => {
-            if (e.target.classList.contains('run-btn')) {
-                const cellId = e.target.dataset.cellId;
-                runCode(cellId);
+            const runBtn = e.target.closest('.run-btn');
+            if (runBtn) {
+                const cellId = runBtn.dataset.cellId;
+                if (cellId) runCode(cellId);
             }
         });
 
@@ -830,7 +2536,7 @@
                         const originalBg = e.target.style.background;
                         e.target.style.background = 'rgba(0, 163, 255, 0.05)';
                         try {
-                            const resp = await fetch('/api/kernel/autocomplete', {
+                            const resp = await fetch('{{ base_path }}/api/kernel/autocomplete', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ code: textBeforeCursor })
@@ -859,23 +2565,107 @@
             const cell = document.getElementById(cellId);
             const code = cell.querySelector('.code-editor').value;
             const outputArea = cell.querySelector('.code-output');
-            outputArea.innerText = 'Executing...';
-            outputArea.style.color = '#60a5fa';
+            const runBtn = cell.querySelector('.run-btn');
+            if (runBtn?.disabled) return;
 
+            const timeBadge = ensureRunTimeBadge(cell);
+            const started = performance.now();
+            const elapsed = () => formatRunDuration(performance.now() - started);
+            const tick = () => {
+                const t = elapsed();
+                outputArea.innerText = `Выполнение… ${t}`;
+                if (timeBadge) timeBadge.textContent = t;
+            };
+
+            outputArea.style.color = '#60a5fa';
+            if (timeBadge) timeBadge.className = 'run-time is-running';
+            if (runBtn) runBtn.disabled = true;
+            tick();
+            const timer = setInterval(tick, 100);
+
+            let failed = false;
             try {
-                const resp = await fetch('/api/kernel/execute', {
+                const resp = await fetch('{{ base_path }}/api/kernel/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ exp_id, code })
+                    body: JSON.stringify({ exp_id, code, compute_unit: 'rtx4090' })
                 });
                 const data = await resp.json();
-                outputArea.innerText = data.output || data.error;
-                outputArea.style.color = data.error ? '#ef4444' : '#10b981';
-                autoSave();
+                clearInterval(timer);
+                failed = !!data.error;
+                if (failed) {
+                    outputArea.textContent = data.output || data.error || 'Ошибка';
+                } else {
+                    renderCodeOutput(outputArea, data, false);
+                }
+                outputArea.style.color = failed ? '#ef4444' : '#10b981';
             } catch (e) {
+                clearInterval(timer);
+                failed = true;
                 outputArea.innerText = 'Error connecting to kernel.';
                 outputArea.style.color = '#ef4444';
+            } finally {
+                clearInterval(timer);
+                if (runBtn) runBtn.disabled = false;
+                if (timeBadge) {
+                    timeBadge.className = 'run-time ' + (failed ? 'is-error' : 'is-done');
+                    timeBadge.textContent = elapsed();
+                    timeBadge.title = `Выполнено ${new Date().toLocaleTimeString('ru-RU')} за ${elapsed()}`;
+                }
+                autoSave();
             }
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderCodeOutput(outputArea, data, failed) {
+            const parts = [];
+            const text = (data.output || '').trim();
+            if (text) {
+                parts.push(`<pre class="code-out-text">${escapeHtml(text)}</pre>`);
+            }
+            const imgs = Array.isArray(data.images) ? data.images : [];
+            for (const img of imgs) {
+                const url = img.url || '';
+                const name = escapeHtml(img.name || 'plot');
+                parts.push(
+                    `<figure class="code-output-fig">` +
+                    `<img src="${escapeHtml(url)}" alt="${name}" loading="lazy" decoding="async">` +
+                    `<figcaption>${name}</figcaption></figure>`
+                );
+            }
+            if (!parts.length) {
+                outputArea.textContent = failed ? 'Ошибка выполнения' : 'Готово (без вывода)';
+            } else {
+                outputArea.innerHTML = parts.join('');
+            }
+        }
+
+        function formatRunDuration(ms) {
+            const s = ms / 1000;
+            if (s < 60) return `${s.toFixed(1)} с`;
+            const m = Math.floor(s / 60);
+            const rest = Math.floor(s % 60);
+            return `${m} мин ${String(rest).padStart(2, '0')} с`;
+        }
+
+        function ensureRunTimeBadge(cell) {
+            const right = cell.querySelector('.code-actions-right');
+            if (!right) return null;
+            let badge = right.querySelector('.run-time');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'run-time';
+                badge.contentEditable = 'false';
+                right.insertBefore(badge, right.querySelector('.run-btn'));
+            }
+            return badge;
         }
 
         // Paste Handling: Prevent Base64 images
@@ -889,7 +2679,7 @@
                     formData.append('file', blob, 'pasted-image.png');
                     
                     try {
-                        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+                        const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
                         const data = await resp.json();
                         const imgHTML = `<img src="${data.url}" alt="Pasted Image">`;
                         document.execCommand('insertHTML', false, imgHTML);
@@ -907,7 +2697,7 @@
 
         async function travelTime(direction) {
             try {
-                const resp = await fetch(`/api/node/version/list?exp_id=${exp_id}&node_id=${node_id}`);
+                const resp = await fetch(`{{ base_path }}/api/node/version/list?exp_id=${exp_id}&node_id=${node_id}`);
                 const data = await resp.json();
                 currentVersions = data.versions || [];
 
@@ -942,13 +2732,32 @@
         }
 
         async function applyVersionToUI(version) {
-            const r = await fetch(`/api/node/version/${version.id}`);
+            const r = await fetch(`{{ base_path }}/api/node/version/${version.id}`);
             if (!r.ok) return;
             const data = await r.json();
             const editor = document.getElementById('editor');
             editor.innerHTML = data.html_snapshot || '';
             document.querySelectorAll('.code-editor').forEach(autoExpand);
+            upgradeLegacyCodeCells();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            upgradeLegacyCodeCells();
+            initAssistantMarkdown();
+            if (!initLucideIcons()) {
+                const t0 = Date.now();
+                const waitLucide = setInterval(() => {
+                    if (initLucideIcons() || Date.now() - t0 > 8000) clearInterval(waitLucide);
+                }, 100);
+            }
+        });
+        // Also run soon in case DOMContentLoaded already fired
+        setTimeout(upgradeLegacyCodeCells, 50);
+        setTimeout(initAssistantMarkdown, 50);
+        if (document.readyState !== 'loading') {
+            setTimeout(() => { if (!initLucideIcons()) { /* defer script still loading */ } }, 0);
         }
     </script>
+{% include "yandex_metrika.html" %}
 </body>
 </html>

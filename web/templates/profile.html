@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile.username }}{% endblock %}
+{% block nav_subtitle %}Профиль{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-image: var(--bg-radial) !important;
+    }
+    .profile-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 24px;
+        padding: 28px 32px;
+        border-radius: 24px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+    }
+    .profile-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 28px;
+        flex-shrink: 0;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        color: var(--primary);
+        border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    }
+    .profile-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-left: auto;
+    }
+    .profile-actions button,
+    .profile-actions a {
+        white-space: nowrap;
+    }
+    .profile-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+    }
+    .profile-stat {
+        padding: 16px 18px;
+        border-radius: 16px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+    }
+    .profile-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        font-family: var(--font-heading, inherit);
+        color: var(--primary);
+    }
+    .profile-stat-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+    .exp-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ base_path }}/friends?user={{ user }}" class="text-sm flex items-center gap-1 mb-6 no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+    Назад к друзьям
+</a>
+
+<div class="profile-hero mb-8">
+    <div class="profile-avatar">{{ profile.username[:1].upper() }}</div>
+    <div class="min-w-0 flex-grow">
+        <h1 class="text-3xl md:text-4xl font-heading tracking-tight mb-1 truncate">{{ profile.display_name or profile.username }}</h1>
+        {% if profile.display_name and profile.display_name != profile.username %}
+        <div class="text-sm mb-1" style="color: var(--text-muted);">@{{ profile.username }}</div>
+        {% endif %}
+        {% if show_email and profile.email %}
+        <div class="text-sm flex items-center gap-1.5" style="color: var(--text-muted);">
+            <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+            {{ profile.email }}
+        </div>
+        {% endif %}
+        {% if is_own %}
+        <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);">
+            Это ваш профиль
+        </div>
+        {% elif fr_status == 'accepted' %}
+        <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: rgba(34,197,94,0.12); color: #22c55e;">
+            <i data-lucide="user-check" class="w-3 h-3"></i> В друзьях
+        </div>
+        {% elif fr_status == 'pending_in' %}
+        <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);">
+            <i data-lucide="bell" class="w-3 h-3"></i> Хочет добавить вас в друзья
+        </div>
+        {% elif fr_status == 'pending_out' %}
+        <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: rgba(245,158,11,0.12); color: #f59e0b;">
+            <i data-lucide="clock" class="w-3 h-3"></i> Запрос отправлен
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="profile-actions">
+        {% if is_own %}
+        <a href="{{ base_path }}/dashboard?user={{ user }}" class="text-xs font-bold py-2.5 px-5 rounded-full no-underline transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            Мои эксперименты
+        </a>
+        {% elif fr_status == 'pending_in' %}
+        <button onclick="acceptFriend('{{ profile.username }}')" class="text-xs font-bold py-2.5 px-5 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            Принять
+        </button>
+        <button onclick="rejectFriend('{{ profile.username }}')" class="text-xs py-2.5 px-5 rounded-full transition-colors" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted); cursor: pointer;" onmouseover="this.style.borderColor='var(--text-muted)'" onmouseout="this.style.borderColor='var(--glass-border)'">
+            Отклонить
+        </button>
+        {% elif fr_status == 'accepted' %}
+        <button onclick="removeFriend('{{ profile.username }}')" class="text-xs py-2.5 px-5 rounded-full transition-colors" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted); cursor: pointer;" onmouseover="this.style.color='#ef4444'; this.style.borderColor='#ef4444'" onmouseout="this.style.color='var(--text-muted)'; this.style.borderColor='var(--glass-border)'">
+            Удалить из друзей
+        </button>
+        {% elif fr_status == 'pending_out' %}
+        <button disabled class="text-xs py-2.5 px-5 rounded-full" style="background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); cursor: default;">
+            Ожидает ответа
+        </button>
+        {% else %}
+        <button onclick="sendRequest('{{ profile.username }}')" id="addFriendBtn" class="text-xs font-bold py-2.5 px-5 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            + В друзья
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="profile-stats mb-10">
+    <div class="profile-stat">
+        <div class="profile-stat-value">{{ public_exps|length }}</div>
+        <div class="profile-stat-label">Публичных экспериментов</div>
+    </div>
+    <div class="profile-stat">
+        <div class="profile-stat-value">{{ friends_count }}</div>
+        <div class="profile-stat-label">Друзей</div>
+    </div>
+    {% if is_own or fr_status == 'accepted' %}
+    <div class="profile-stat">
+        <div class="profile-stat-value">{{ total_exps }}</div>
+        <div class="profile-stat-label">Всего экспериментов</div>
+    </div>
+    {% endif %}
+</div>
+
+<h2 class="text-lg font-heading font-bold mb-4 flex items-center gap-2">
+    <i data-lucide="flask-conical" class="w-5 h-5" style="color: var(--primary);"></i>
+    {% if is_own %}Ваши публичные эксперименты{% else %}Публичные эксперименты{% endif %}
+    <span class="text-sm font-normal" style="color: var(--text-muted);">({{ public_exps|length }})</span>
+</h2>
+
+{% if public_exps|length == 0 %}
+<div class="text-center py-14 rounded-2xl" style="border: 1px dashed var(--glass-border); background: var(--glass-bg);">
+    <i data-lucide="globe" class="w-10 h-10 mx-auto mb-4" style="color: var(--text-muted);"></i>
+    <p style="color: var(--text-muted);">Пока нет публичных экспериментов</p>
+</div>
+{% else %}
+<div class="exp-grid">
+    {% for exp in public_exps %}
+    <a href="{{ base_path }}/experiment/{{ profile.username }}/{{ exp.id }}?viewing_user={{ user }}" class="liquid-glass rounded-2xl p-5 flex flex-col no-underline group" style="color: var(--text-main);">
+        <div class="flex justify-between items-start mb-4">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center border" style="background: color-mix(in srgb, var(--primary) 10%, transparent); border-color: color-mix(in srgb, var(--primary) 20%, transparent);">
+                <i data-lucide="folder-git-2" class="w-4 h-4" style="color: var(--primary);"></i>
+            </div>
+            <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border" style="background: var(--glass-bg); color: var(--text-muted); border-color: var(--glass-border);">ID: {{ exp.id[:6] }}</span>
+        </div>
+        <h3 class="text-lg font-heading mb-2 group-hover:brightness-110 transition-colors">{{ exp.name }}</h3>
+        <p class="text-sm flex-grow line-clamp-3 leading-relaxed" style="color: var(--text-muted);">{{ exp.description }}</p>
+        <div class="mt-4 pt-3 border-t flex items-center justify-between" style="border-color: var(--glass-border);">
+            <span class="text-xs" style="color: var(--text-muted);">{{ exp.levels|map('length')|sum }} узлов</span>
+            <span class="text-sm font-medium flex items-center gap-1" style="color: var(--primary);">
+                Открыть <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const BASE_PATH = '{{ base_path }}';
+    const CURRENT_USER = '{{ user }}';
+
+    async function sendRequest(friendId) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json();
+            if (data.ok) location.reload();
+            else alert(data.error || 'Ошибка');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function acceptFriend(friendId) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/accept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json();
+            if (data.ok) location.reload();
+            else alert(data.error || 'Ошибка');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function rejectFriend(friendId) {
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json();
+            if (data.ok) location.href = `${BASE_PATH}/friends?user=${CURRENT_USER}`;
+            else alert(data.error || 'Ошибка');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function removeFriend(friendId) {
+        if (!confirm('Удалить из друзей?')) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/friends/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: CURRENT_USER, friend_id: friendId }),
+            });
+            const data = await resp.json();
+            if (data.ok) location.reload();
+            else alert(data.error || 'Ошибка');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+</script>
+{% endblock %}

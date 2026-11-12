@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход и регистрация — Bio-Notebook, электронный лабораторный журнал</title>
+    <meta name="description" content="Вход и регистрация в Bio-Notebook — электронный лабораторный журнал: эксперименты, OCR рукописных записей, ИИ-ассистент и отчёты.">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="{{ site_origin }}{{ base_path }}/login">
+    <meta name="theme-color" content="#05070a">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ site_origin }}{{ base_path }}/login">
+    <meta property="og:title" content="Вход в Bio-Notebook — электронный лабораторный журнал">
+    <meta property="og:description" content="Войдите или создайте аккаунт в Bio-Notebook — электронном лабораторном журнале с ИИ и OCR.">
+    <meta property="og:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ base_path }}/static/apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        html {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            color: #1d232e;
+            height: 100svh;
+            max-height: 100svh;
+            overflow: hidden;
+            background: linear-gradient(180deg, #fbfaf6 0%, #f4f0e8 100%);
+        }
+        h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+
+        .topbar {
+            position: fixed; top: 1.4rem; left: 1.4rem; right: 1.4rem; z-index: 30;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .brand { display: inline-flex; align-items: center; gap: .65rem; color: #1d232e; text-decoration: none; }
+        .brand .mark {
+            width: 2.1rem; height: 2.1rem; flex: none;
+            border: 2px solid #64CEFB; border-radius: 99px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .brand .mark::after { content: ""; width: .85rem; height: .85rem; border-radius: 99px; background: #64CEFB; }
+        .brand b { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em; color: #1d232e; }
+        .home-link { color: #8b93a0; text-decoration: none; font-size: .85rem; transition: color .2s; }
+        .home-link:hover { color: #0e7490; }
+
+        .wrap {
+            height: 100svh;
+            max-height: 100svh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4.5rem 1rem 1rem;
+            overflow: hidden;
+        }
+
+        .card {
+            width: 100%; max-width: 460px;
+            background: #ffffff;
+            border: 1px solid rgba(29,35,46,.09);
+            border-radius: 1.4rem;
+            padding: 2.3rem 2.1rem 2rem;
+            box-shadow: 0 40px 90px -70px rgba(29,35,46,.55), 0 4px 14px -10px rgba(29,35,46,.12);
+        }
+        .tabs { display: flex; gap: .3rem; background: rgba(29,35,46,.06); border-radius: 99px; padding: .3rem; margin-bottom: 1.6rem; }
+        .tab { flex: 1; border: 0; background: transparent; color: #8b93a0; font: 600 .92rem 'Inter', sans-serif; padding: .55rem 0; border-radius: 99px; cursor: pointer; transition: all .2s; }
+        .tab.active { background: #ffffff; color: #0e7490; box-shadow: 0 6px 16px -10px rgba(29,35,46,.4); }
+        .auth-header { padding: 0 .1rem 1.3rem; }
+        .auth-header h1 { margin: 0 0 .3rem; font-size: 1.5rem; letter-spacing: -.01em; color: #14181f; }
+        .auth-header p { margin: 0; color: #8b93a0; font-size: .88rem; }
+
+        .alert { display: flex; gap: .55rem; align-items: flex-start; border-radius: .8rem; padding: .7rem .85rem; font-size: .8rem; line-height: 1.5; margin-bottom: 1rem; }
+        .alert.error { background: rgba(190,18,60,.06); border: 1px solid rgba(190,18,60,.2); color: #be123c; }
+        .alert i { flex-shrink: 0; margin-top: .1rem; }
+        .hidden { display: none !important; }
+
+        .field { margin-bottom: .9rem; }
+        .label { display: block; font-size: .76rem; font-weight: 600; color: #5c6570; margin-bottom: .4rem; }
+        .input-wrap { position: relative; }
+        .input-wrap .field-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #b3b9c2; }
+        .form-input {
+            width: 100%; background: #f7f5f0; border: 1px solid rgba(29,35,46,.12);
+            border-radius: .85rem; color: #1d232e; font: .95rem 'Inter', sans-serif;
+            padding: .8rem 2.9rem .8rem 2.55rem; outline: none;
+            transition: border-color .2s, box-shadow .2s, background .2s;
+        }
+        .form-input::placeholder { color: #b3b7bd; }
+        .form-input:focus { border-color: rgba(14,116,144,.6); background: #ffffff; box-shadow: 0 0 0 4px rgba(14,116,144,.09); }
+        .toggle-pass { position: absolute; right: .55rem; top: 50%; transform: translateY(-50%); background: transparent; border: 0; color: #9aa1ac; cursor: pointer; padding: .4rem; border-radius: .5rem; display: flex; }
+        .toggle-pass:hover { color: #0e7490; background: rgba(14,116,144,.07); }
+
+        .consent-box { border-top: 1px dashed rgba(29,35,46,.14); padding-top: .7rem; margin-top: .2rem; }
+        .consent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem .9rem; }
+        .consent-item { display: flex; align-items: flex-start; gap: .45rem; font-size: .76rem; color: #5c6570; cursor: pointer; }
+        .consent-item input { margin-top: .18rem; accent-color: #0e7490; }
+        .consent-item a { color: #0e7490; text-decoration: none; }
+        .consent-item a:hover { text-decoration: underline; }
+        .consent-item .req { color: #e11d48; }
+        .hint { font-size: .78rem; margin: .4rem 0 0; }
+        .hint.ok { color: #0f9d6e; }
+        .hint.error { color: #be123c; }
+
+        .btn-primary {
+            width: 100%; margin-top: 1.25rem; border: 0; border-radius: 99px;
+            background: #0e7490; color: #ffffff; font: 700 1rem 'Inter', sans-serif;
+            padding: .95rem; cursor: pointer;
+            box-shadow: 0 14px 28px -16px rgba(14,116,144,.8);
+            transition: filter .15s;
+        }
+        .btn-primary:hover { filter: brightness(1.09); }
+        .btn-primary:disabled { opacity: .5; cursor: default; box-shadow: none; }
+
+        .divider { display: flex; align-items: center; gap: .9rem; color: #b3b7bd; font-size: .76rem; margin: 1.15rem 0 .8rem; }
+        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: rgba(29,35,46,.1); }
+        /* Основная кнопка Яндекс ID (официальный стиль main / light) */
+        .btn-yandex {
+            width: 100%; display: flex; align-items: center; justify-content: center; gap: .7rem;
+            background: #000000; color: #ffffff; border: 0; border-radius: 12px;
+            font: 600 .95rem 'Inter', sans-serif; padding: .88rem 1rem; cursor: pointer;
+            transition: filter .15s, transform .1s;
+        }
+        .btn-yandex:hover { filter: brightness(1.12); }
+        .btn-yandex:active { transform: scale(0.99); }
+        .btn-yandex:disabled { opacity: .55; cursor: default; filter: none; transform: none; }
+        .btn-yandex .ya-logo {
+            flex-shrink: 0;
+            display: block;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+        }
+        .btn-yandex-note {
+            margin: .55rem 0 0;
+            text-align: center;
+            font-size: .7rem;
+            line-height: 1.4;
+            color: #9aa1ac;
+        }
+        .btn-yandex-note a { color: #5c6570; text-decoration: none; }
+        .btn-yandex-note a:hover { text-decoration: underline; color: #0e7490; }
+        #yandex-quick-block { margin-bottom: .35rem; }
+        #yandex-quick-block.hidden { display: none; }
+        .card.register-mode #auth-yandex-block { display: none; }
+
+        .foot { text-align: center; margin-top: 1.4rem; color: #9aa1ac; font-size: .78rem; }
+        .foot a { color: #5c6570; text-decoration: none; }
+        .foot a:hover { color: #0e7490; }
+
+        @media (max-width: 520px) {
+            .consent-grid { grid-template-columns: 1fr; }
+            .card { padding: 1.9rem 1.4rem 1.6rem; }
+        }
+
+        .trial-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.65rem;
+            padding: 0.75rem 0.85rem;
+            margin-bottom: 1rem;
+            border-radius: 0.85rem;
+            background: rgba(14, 116, 144, 0.08);
+            border: 1px solid rgba(14, 116, 144, 0.22);
+            font-size: 0.8rem;
+            line-height: 1.45;
+            color: #0f4c5c;
+        }
+        .trial-banner b { display: block; font-size: 0.85rem; margin-bottom: 0.15rem; color: #0e7490; }
+        .trial-banner.hidden { display: none !important; }
+
+        /* Регистрация: всё на один экран без прокрутки */
+        .card.register-mode {
+            max-width: 520px;
+            padding: 1.35rem 1.5rem 1.1rem;
+        }
+        .card.register-mode .tabs { margin-bottom: 0.85rem; }
+        .card.register-mode .tab { padding: 0.45rem 0; font-size: 0.86rem; }
+        .card.register-mode .trial-banner {
+            margin-bottom: 0.55rem;
+            padding: 0.5rem 0.65rem;
+            font-size: 0.72rem;
+            line-height: 1.35;
+            gap: 0.45rem;
+        }
+        .card.register-mode .trial-banner b { font-size: 0.78rem; margin-bottom: 0.05rem; }
+        .card.register-mode .auth-header { padding-bottom: 0.45rem; }
+        .card.register-mode .auth-header h1 { font-size: 1.2rem; margin-bottom: 0; }
+        .card.register-mode .auth-header p { display: none; }
+        .card.register-mode .field { margin-bottom: 0.5rem; }
+        .card.register-mode .label { font-size: 0.7rem; margin-bottom: 0.25rem; }
+        .card.register-mode .form-input {
+            padding: 0.62rem 2.5rem 0.62rem 2.35rem;
+            font-size: 0.88rem;
+        }
+        .card.register-mode .consent-box { padding-top: 0.45rem; margin-top: 0; }
+        .card.register-mode .consent-item { font-size: 0.72rem; gap: 0.4rem; line-height: 1.35; }
+        .card.register-mode .btn-primary { margin-top: 0.65rem; padding: 0.72rem; font-size: 0.92rem; }
+        .card.register-mode .divider { margin: 0.65rem 0 0.5rem; }
+        .card.register-mode .btn-yandex { padding: 0.65rem; font-size: 0.88rem; }
+        .card.register-mode .foot { margin-top: 0.65rem; font-size: 0.72rem; }
+
+        @media (max-width: 520px) {
+            .card.register-mode { padding: 1.15rem 1.15rem 0.95rem; }
+            .wrap { padding-top: 4rem; }
+        }
+        @media (max-height: 720px) {
+            .topbar { top: 0.75rem; left: 0.75rem; right: 0.75rem; }
+            .wrap { padding-top: 3.5rem; }
+            .card.register-mode .trial-banner span[aria-hidden] { display: none; }
+            .card.register-mode { transform: scale(0.94); transform-origin: center center; }
+        }
+        @media (max-width: 520px) and (max-height: 820px) {
+            .card.register-mode { transform: scale(0.9); transform-origin: center center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <a class="brand" href="{{ base_path }}/">
+            <span class="mark"></span>
+            <b>Bio-Notebook</b>
+        </a>
+        <a class="home-link" href="{{ base_path }}/">← На главную</a>
+    </div>
+
+    <div class="wrap">
+        <div class="card" id="auth-card">
+            <div class="tabs">
+                <button onclick="setAuthMode('login')" id="tab-login" type="button" class="tab active">Вход</button>
+                <button onclick="setAuthMode('register')" id="tab-register" type="button" class="tab">Регистрация</button>
+            </div>
+
+            <div id="trial-banner" class="trial-banner hidden">
+                <span aria-hidden="true">🎁</span>
+                <div>
+                    <b>Free 0&nbsp;₽ · Pro 319&nbsp;₽/мес</b>
+                    OCR, ИИ и безлимит экспериментов. Без карты.
+                </div>
+            </div>
+
+            <div class="auth-header">
+                <h1 id="auth-title">С возвращением</h1>
+                <p id="auth-desc">Войдите в лабораторный журнал</p>
+            </div>
+
+            {% if yandex_enabled %}
+            <div id="yandex-quick-block" class="hidden">
+                <button type="button" id="btn-yandex-quick" onclick="loginWithYandex({quick:true})" class="btn-yandex" aria-label="Яндекс">
+                    <img class="ya-logo" src="{{ base_path }}/static/yandex-id-logo.svg?v=3" width="24" height="24" alt="" decoding="async">
+                    <span>Яндекс</span>
+                </button>
+                <p class="btn-yandex-note">
+                    Нажимая кнопку, вы принимаете
+                    <a href="{{ legal_base_url }}/public-offer" target="_blank" rel="noopener">оферту</a>,
+                    <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener">политику</a>
+                    и
+                    <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener">обработку данных</a>
+                </p>
+                <div class="divider">или через email</div>
+            </div>
+            {% endif %}
+
+            <div id="auth-server-error" class="alert error {% if not error %}hidden{% endif %}">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                <span>
+                    {% if error == 'UserNotFound' %}Аккаунт не найден. Проверьте email/логин или зарегистрируйтесь.
+                    {% elif error == 'WrongPassword' %}Неверный пароль.
+                    {% elif error == 'UserExists' %}Такой логин уже занят — войдите или укажите другой email.
+                    {% elif error == 'EmailExists' %}Этот email уже зарегистрирован — войдите.
+                    {% elif error == 'InvalidEmail' %}Укажите корректный email.
+                    {% elif error == 'WeakPassword' %}Пароль — минимум 6 символов.
+                    {% elif error == 'NonRussianEmail' %}Укажите корректный email.
+                    {% elif error == 'ConsentRequired' %}Примите условия, чтобы продолжить.
+                    {% elif error == 'InvalidUsername' %}Логин: 3–32 символа, латиница, цифры, «_», «.», «-».
+                    {% elif error == 'UserBanned' %}Аккаунт заблокирован. Обратитесь в поддержку.
+                    {% elif error == 'UseYandexLogin' %}Этот аккаунт привязан к Яндекс ID — войдите через кнопку ниже.
+                    {% elif error == 'YandexAuthFailed' %}Не удалось войти через Яндекс. Попробуйте снова.
+                    {% elif error == 'YandexAccountNotFound' %}Аккаунт не найден. Сначала зарегистрируйтесь.
+                    {% elif error == 'YandexNotConfigured' %}Вход через Яндекс временно недоступен.
+                    {% elif error == 'LoginRequired' %}Нужно войти в свой аккаунт. Чужой кабинет по ссылке больше недоступен.
+                    {% else %}Произошла ошибка. Попробуйте ещё раз.{% endif %}
+                </span>
+            </div>
+            <div id="auth-client-error" class="alert error hidden">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                <span id="auth-client-error-text"></span>
+            </div>
+
+            <form id="auth-form" action="{{ base_path }}/login" method="POST" novalidate>
+                <div id="row-user-email">
+                    <div class="field" id="login-field-wrap">
+                        <label class="label" for="username-input" id="login-field-label">Email или логин</label>
+                        <div class="input-wrap">
+                            <i data-lucide="user" class="field-icon" id="login-field-icon" style="width:15px;height:15px"></i>
+                            <input type="text" id="username-input" name="username" class="form-input" required placeholder="email@mail.ru" autocomplete="username">
+                        </div>
+                    </div>
+                    <div class="field hidden" id="email-field-wrap">
+                        <label class="label" for="email-input">Email</label>
+                        <div class="input-wrap">
+                            <i data-lucide="mail" class="field-icon" style="width:15px;height:15px"></i>
+                            <input type="email" id="email-input" name="email" class="form-input" placeholder="email@mail.ru" autocomplete="email">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="row-passwords">
+                    <div class="field">
+                        <label class="label" for="password-input">Пароль</label>
+                        <div class="input-wrap">
+                            <i data-lucide="lock" class="field-icon" style="width:15px;height:15px"></i>
+                            <input type="password" id="password-input" name="password" class="form-input" required placeholder="••••••••" autocomplete="current-password" minlength="6">
+                            <button type="button" class="toggle-pass" onclick="togglePassword('password-input', this)" aria-label="Показать пароль">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="register-password-confirm" class="hidden">
+                    <div class="consent-box">
+                        <label class="consent-item" style="align-items:flex-start">
+                            <input type="checkbox" id="agree_terms" name="agree_terms" disabled>
+                            <span>Принимаю <a href="{{ legal_base_url }}/public-offer" target="_blank" rel="noopener">оферту</a>, <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener">политику</a> и <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener">обработку данных</a> <span class="req">*</span></span>
+                        </label>
+                        <label class="consent-item" style="margin-top:0.35rem">
+                            <input type="checkbox" id="agree_marketing" name="agree_marketing" disabled>
+                            <span><a href="{{ legal_base_url }}/consent-mailing" target="_blank" rel="noopener">Согласие на рассылку</a> (необязательно)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="auth-submit" type="submit" class="btn-primary">Войти</button>
+            </form>
+
+            {% if yandex_enabled %}
+            <div id="auth-yandex-block">
+                <div class="divider">или</div>
+                <button type="button" id="btn-yandex" onclick="loginWithYandex()" class="btn-yandex" aria-label="Яндекс">
+                    <img class="ya-logo" src="{{ base_path }}/static/yandex-id-logo.svg?v=3" width="24" height="24" alt="" decoding="async">
+                    <span id="btn-yandex-text">Яндекс</span>
+                </button>
+            </div>
+            {% endif %}
+
+            <p class="foot">Вопросы — на <a href="mailto:anticus.tech@internet.ru">anticus.tech@internet.ru</a></p>
+        </div>
+    </div>
+
+    <script>
+        function initLucide() {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            else setTimeout(initLucide, 100);
+        }
+        document.addEventListener('DOMContentLoaded', initLucide);
+
+        const basePath = "{{ base_path }}";
+        const yandexEnabled = {{ 'true' if yandex_enabled else 'false' }};
+
+        function hideClientError() {
+            document.getElementById('auth-client-error').classList.add('hidden');
+        }
+        function showClientError(msg) {
+            document.getElementById('auth-client-error-text').innerText = msg;
+            document.getElementById('auth-client-error').classList.remove('hidden');
+        }
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isPass = input.type === 'password';
+            input.type = isPass ? 'text' : 'password';
+            btn.innerHTML = isPass
+                ? '<i data-lucide="eye-off" class="w-4 h-4"></i>'
+                : '<i data-lucide="eye" class="w-4 h-4"></i>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function requiredConsentsOk() {
+            const el = document.getElementById('agree_terms');
+            return !!(el && el.checked);
+        }
+
+        function updateYandexButton() {
+            if (!yandexEnabled) return;
+            const isRegister = document.getElementById('auth-form').action.includes('register');
+            const quick = document.getElementById('yandex-quick-block');
+            const loginBlock = document.getElementById('auth-yandex-block');
+            if (quick) quick.classList.toggle('hidden', !isRegister);
+            if (loginBlock) loginBlock.style.display = isRegister ? 'none' : '';
+        }
+
+        function loginWithYandex(opts) {
+            hideClientError();
+            const quick = !!(opts && opts.quick);
+            const isRegister = quick || document.getElementById('auth-form').action.includes('register');
+            if (isRegister && !quick && !requiredConsentsOk()) {
+                showClientError('Примите условия (*)');
+                return;
+            }
+            const marketingEl = document.getElementById('agree_marketing');
+            const marketing = marketingEl ? marketingEl.checked : false;
+            const mode = isRegister ? 'register' : 'login';
+            window.location.href = basePath + '/auth/yandex?mode=' + mode + '&agree_marketing=' + marketing;
+        }
+
+        function setAuthMode(mode) {
+            const form = document.getElementById('auth-form');
+            const card = document.getElementById('auth-card');
+            const title = document.getElementById('auth-title');
+            const desc = document.getElementById('auth-desc');
+            const submitBtn = document.getElementById('auth-submit');
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            const regConfirm = document.getElementById('register-password-confirm');
+            const loginWrap = document.getElementById('login-field-wrap');
+            const emailWrap = document.getElementById('email-field-wrap');
+            const loginInput = document.getElementById('username-input');
+            const emailInput = document.getElementById('email-input');
+            const passwordInput = document.getElementById('password-input');
+            const checks = ['agree_terms', 'agree_marketing'];
+            const trialBanner = document.getElementById('trial-banner');
+            hideClientError();
+
+            if (mode === 'login') {
+                if (trialBanner) trialBanner.classList.add('hidden');
+                form.action = basePath + '/login';
+                title.innerText = 'С возвращением';
+                desc.innerText = 'Войдите по email или логину';
+                submitBtn.innerText = 'Войти';
+                tabLogin.classList.add('active');
+                tabRegister.classList.remove('active');
+                card.classList.remove('register-mode');
+                loginWrap.classList.remove('hidden');
+                emailWrap.classList.add('hidden');
+                regConfirm.classList.add('hidden');
+                loginInput.required = true;
+                loginInput.name = 'username';
+                loginInput.placeholder = 'email@mail.ru';
+                loginInput.autocomplete = 'username';
+                emailInput.required = false;
+                emailInput.disabled = true;
+                passwordInput.placeholder = '••••••••';
+                passwordInput.autocomplete = 'current-password';
+                checks.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+            } else {
+                if (trialBanner) trialBanner.classList.remove('hidden');
+                form.action = basePath + '/register';
+                title.innerText = 'Создать аккаунт';
+                desc.innerText = 'Email и пароль — логин создадим сами';
+                submitBtn.innerText = 'Зарегистрироваться';
+                tabRegister.classList.add('active');
+                tabLogin.classList.remove('active');
+                card.classList.add('register-mode');
+                loginWrap.classList.add('hidden');
+                emailWrap.classList.remove('hidden');
+                regConfirm.classList.remove('hidden');
+                loginInput.required = false;
+                loginInput.name = '';
+                emailInput.required = true;
+                emailInput.disabled = false;
+                passwordInput.placeholder = 'минимум 6 символов';
+                passwordInput.autocomplete = 'new-password';
+                checks.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+            }
+            updateYandexButton();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        ['agree_terms', 'agree_marketing'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', updateYandexButton);
+        });
+
+        document.getElementById('auth-form').addEventListener('submit', function(e) {
+            hideClientError();
+            if (this.action.includes('register')) {
+                if (!requiredConsentsOk()) {
+                    e.preventDefault();
+                    showClientError('Примите условия (*)');
+                    return;
+                }
+                const email = (document.getElementById('email-input').value || '').trim();
+                if (!email || !email.includes('@')) {
+                    e.preventDefault();
+                    showClientError('Укажите корректный email');
+                    return;
+                }
+                const pass = document.getElementById('password-input').value;
+                if (pass.length < 6) {
+                    e.preventDefault();
+                    showClientError('Пароль — минимум 6 символов');
+                }
+            }
+        });
+
+        const initialMode = "{{ 'register' if (mode == 'register' or error in ['UserExists','EmailExists','InvalidEmail','WeakPassword','NonRussianEmail','ConsentRequired','InvalidUsername','YandexAccountNotFound']) else 'login' }}";
+        document.addEventListener('DOMContentLoaded', () => setAuthMode(initialMode));
+    </script>
+{% include "yandex_metrika.html" %}
+</body>
+</html>

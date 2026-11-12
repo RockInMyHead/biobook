@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set page_url = site_origin ~ base_path ~ '/' ~ page.slug ~ '/' %}
+    <title>{{ page.seo_title }} — Bio-Notebook</title>
+    <meta name="description" content="{{ page.description }}">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="{{ page_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:title" content="{{ page.seo_title }}">
+    <meta property="og:description" content="{{ page.description }}">
+    <meta property="og:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ page.h1 }} — Bio-Notebook">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ page.seo_title }}">
+    <meta name="twitter:description" content="{{ page.description }}">
+    <meta name="twitter:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
+    {% if page_json_ld %}
+    <script type="application/ld+json">{{ page_json_ld | safe }}</script>
+    {% endif %}
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    {% include 'public_site_styles.html' %}
+    <style>
+        body { margin: 0; font-family: Inter, sans-serif; color: #1d232e; background: linear-gradient(180deg, #fbfaf6, #f4f0e8); min-height: 100svh; }
+        .site-footer { margin-top: 3rem; padding: 2rem 1.25rem; border-top: 1px solid rgba(29,35,46,.1); font-size: .78rem; color: #8b93a0; text-align: center; line-height: 1.55; }
+        .site-footer a { color: #0e7490; text-decoration: none; }
+        .wrap { max-width: 800px; margin: 0 auto; padding: 1.25rem 1.25rem 2rem; }
+        nav.crumbs ol { list-style: none; padding: 0; margin: 0 0 1.5rem; display: flex; flex-wrap: wrap; gap: .35rem .5rem; font-size: .8rem; color: #8b93a0; }
+        nav.crumbs li:not(:last-child)::after { content: "›"; margin-left: .5rem; color: #c4c9d1; }
+        nav.crumbs a { color: #0e7490; text-decoration: none; }
+        h1 { font-family: 'Space Grotesk', sans-serif; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.15; margin: 0 0 1rem; }
+        .meta { font-size: .8rem; color: #8b93a0; margin-bottom: 1.75rem; }
+        article.prose { background: #fff; border: 1px solid rgba(29,35,46,.09); border-radius: 1rem; padding: 1.5rem 1.35rem; line-height: 1.65; font-size: .95rem; }
+        .prose h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; margin: 1.75rem 0 .75rem; color: #14181f; }
+        .prose p { margin: 0 0 1rem; }
+        .prose ul, .prose ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+        .prose table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+        .prose th, .prose td { border: 1px solid rgba(29,35,46,.12); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+        .prose th { background: rgba(14,116,144,.08); }
+        .prose details { margin: 1rem 0; border: 1px solid rgba(29,35,46,.1); border-radius: .75rem; padding: .65rem 1rem; }
+        .prose summary { cursor: pointer; font-weight: 600; color: #0e7490; }
+        .cta { margin-top: 2rem; text-align: center; }
+        .cta a { display: inline-flex; padding: .85rem 1.5rem; border-radius: 999px; background: #0e7490; color: #fff; font-weight: 600; text-decoration: none; margin: 0 .35rem; }
+    </style>
+</head>
+<body class="has-pub-header">
+    {% include 'public_site_nav.html' %}
+    <main id="main" class="wrap">
+        <nav class="crumbs" aria-label="Хлебные крошки">
+            <ol>
+                <li><a href="{{ site_origin }}/">Главная</a></li>
+                <li><a href="{{ base_path }}/">Bio-Notebook</a></li>
+                <li><span aria-current="page">{{ page.h1 }}</span></li>
+            </ol>
+        </nav>
+        <article>
+            <h1>{{ page.h1 }}</h1>
+            <p class="meta">Обновлено <time datetime="{{ page.updated }}">{{ page.updated | ru_date }}</time></p>
+            <div class="prose">{{ page.body_html | safe }}</div>
+        </article>
+        <p class="cta">
+            <a href="{{ base_path }}/#ceny">Тарифы</a>
+            <a href="{{ base_path }}/guides/">Статьи</a>
+        </p>
+    </main>
+    {% include 'public_site_footer.html' %}
+{% include "yandex_metrika.html" %}
+</body>
+</html>

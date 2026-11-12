@@ -1,442 +1,945 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ exp.name }} | Bio-Notebook</title>
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        heading: ['Space Grotesk', 'sans-serif'],
-                    },
-                    colors: {
-                        black: '#000000',
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+{% extends "base.html" %}
 
-    <style>
-        body {
-            background-color: #000000;
-            color: white;
-            margin: 0;
-            overflow-x: hidden;
-            font-family: 'Inter', sans-serif;
-            background-image: radial-gradient(circle at 50% 0%, rgba(100, 206, 251, 0.05) 0%, transparent 70%);
-        }
+{% block title %}{{ exp.name }}{% endblock %}
+{% block nav_subtitle %}Эксперимент{% endblock %}
 
-        h1, h2, h3, h4, .font-heading {
-            font-family: 'Space Grotesk', sans-serif;
-        }
+{% block extra_head %}
+<style>
+    body { background-image: var(--bg-radial) !important; }
 
-        /* Liquid Glass Styles */
-        .liquid-glass {
-            background: rgba(255, 255, 255, 0.02);
-            background-blend-mode: luminosity;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        
-        .liquid-glass:hover {
-            border-color: rgba(100, 206, 251, 0.3);
-            background: rgba(255, 255, 255, 0.04);
-            transform: translateY(-2px);
-        }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: var(--modal-overlay);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal.active { display: flex; opacity: 1; }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%; max-width: 500px;
+    }
+    .modal.active .modal-content { transform: scale(1); }
 
-        .liquid-glass-strong {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);
-        }
+    .view-toggle {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 9999px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+    }
+    .view-toggle button {
+        padding: 6px 16px;
+        border-radius: 9999px;
+        font-size: 12px;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        background: transparent;
+    }
+    .view-toggle button.active {
+        background: var(--primary);
+        color: var(--primary-fg);
+        font-weight: 600;
+    }
 
-        .shiny-text {
-            background: linear-gradient(100deg, #64CEFB 20%, #ffffff 50%, #64CEFB 80%);
-            background-size: 200% auto;
-            color: transparent;
-            -webkit-background-clip: text;
-            background-clip: text;
-            animation: shine 3s linear infinite;
-        }
+    /* ── Animated tree ── */
+    .tree-wrapper {
+        position: relative;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding-bottom: 3rem;
+        overflow: visible !important;
+    }
 
-        @keyframes shine {
-            to { background-position: 200% center; }
-        }
+    .arrow-svg {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 1;
+        overflow: visible;
+    }
 
-        /* Tree Styles */
-        .tree-wrapper {
-            position: relative;
-            max-width: 1000px;
-            margin: 2rem auto;
-            padding-bottom: 4rem;
-        }
+    .arrow-svg path.tree-arrow {
+        fill: none;
+        stroke: var(--primary);
+        stroke-opacity: 0.85;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+    }
 
-        /* SVG canvas for arrows */
-        .arrow-svg {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none; z-index: 0; overflow: visible;
-        }
+    .arrow-svg path.tree-arrow-glow {
+        fill: none;
+        stroke: var(--primary);
+        stroke-opacity: 0.22;
+        stroke-width: 10;
+        stroke-linecap: round;
+        filter: blur(3px);
+    }
 
-        .arrow-svg path {
-            fill: none;
-            stroke: url(#arrowGradient);
-            stroke-width: 2;
-            stroke-linecap: round;
-        }
+    .arrow-svg circle.tree-particle {
+        fill: var(--primary);
+        filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 80%, transparent));
+    }
 
-        .arrow-svg .arrow-glow {
-            fill: none;
-            stroke: rgba(100, 206, 251, 0.15);
-            stroke-width: 8;
-            stroke-linecap: round;
-            filter: blur(4px);
-        }
+    .level-row {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 72px;
+    }
+    .level-row:last-of-type { margin-bottom: 0; }
 
-        .arrow-svg .flow-particle {
-            fill: rgba(100, 206, 251, 0.9);
-            filter: drop-shadow(0 0 4px rgba(100, 206, 251, 0.8));
-        }
+    .node-card {
+        flex: 1;
+        min-width: 260px;
+        max-width: 320px;
+        display: flex;
+        flex-direction: column;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+    .node-card:hover {
+        transform: translateY(-4px);
+        border-color: color-mix(in srgb, var(--primary) 40%, transparent) !important;
+    }
 
-        .arrow-svg polygon.arrow-head {
-            fill: rgba(100, 206, 251, 0.6);
-            filter: drop-shadow(0 0 3px rgba(100, 206, 251, 0.5));
-        }
+    .add-parallel-btn {
+        min-width: 48px;
+        max-width: 48px;
+        align-self: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px dashed color-mix(in srgb, var(--primary) 25%, transparent);
+        border-radius: 1rem;
+        background: transparent;
+        transition: all 0.25s ease;
+        color: color-mix(in srgb, var(--primary) 60%, var(--text-muted));
+    }
+    .add-parallel-btn:hover {
+        border-color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
+        color: var(--primary);
+    }
 
-        .level-row {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            flex-wrap: wrap;
-            margin-bottom: 80px;
-        }
+    /* List view */
+    .tree-level {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        padding-left: 40px;
+        margin-bottom: 4px;
+    }
+    .tree-level::before {
+        content: '';
+        position: absolute;
+        left: 12px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(to bottom, var(--primary), transparent);
+        opacity: 0.3;
+    }
+    .tree-node {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 12px;
+        margin: 4px 0;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        text-decoration: none;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        color: var(--text-main);
+        max-width: 100%;
+    }
+    .tree-node:hover {
+        border-color: var(--glass-border-hover);
+        background: var(--glass-hover);
+        transform: translateX(4px);
+    }
+    .tree-node .node-arrow {
+        color: var(--text-muted);
+        transition: transform 0.2s ease;
+    }
+    .tree-node:hover .node-arrow { transform: translateX(4px); }
 
-        .level-row:last-of-type { margin-bottom: 0; }
+    @media (max-width: 768px) {
+        .level-row { margin-bottom: 56px; gap: 1rem; }
+        .node-card { min-width: 100%; max-width: 100%; }
+        .tree-level { padding-left: 20px; }
+        .tree-level::before { left: 6px; }
+    }
 
-        /* Node Cards */
-        .node-card {
-            flex: 1;
-            min-width: 280px; max-width: 320px;
-            display: flex; flex-direction: column;
-            text-decoration: none;
-            color: inherit;
-        }
+    /* Sub-navigation tabs */
+    .exp-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 500;
+        border-radius: 12px 12px 0 0;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-muted);
+        background: transparent;
+        position: relative;
+        bottom: -1px;
+        text-decoration: none;
+    }
+    .exp-tab:hover {
+        color: var(--text-main);
+        background: rgba(255,255,255,0.03);
+    }
+    .exp-tab.active {
+        color: var(--primary);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-bottom-color: transparent;
+    }
+    .exp-tab-content { display: none; }
+    .exp-tab-content.active { display: block; }
 
-        .add-parallel-btn {
-            min-width: 48px; max-width: 48px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer;
-            border: 2px dashed rgba(100, 206, 251, 0.2);
-            border-radius: 1rem;
-            background: transparent;
-            transition: all 0.3s ease;
-            color: rgba(100, 206, 251, 0.5);
-        }
+    /* File items */
+    .file-item {
+        transition: all 0.15s ease;
+    }
+    .file-item:hover {
+        border-color: var(--glass-border-hover) !important;
+        background: var(--glass-hover);
+    }
+    .file-item .file-actions { opacity: 0; transition: opacity 0.15s; }
+    .file-item:hover .file-actions { opacity: 1; }
+</style>
+{% endblock %}
 
-        .add-parallel-btn:hover {
-            border-color: rgba(100, 206, 251, 0.5);
-            background: rgba(100, 206, 251, 0.1);
-            color: #64CEFB;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 100;
-            justify-content: center; align-items: center;
-            opacity: 0; transition: opacity 0.3s ease;
-        }
-        .modal.active { display: flex; opacity: 1; }
-        .modal-content {
-            transform: scale(0.95); transition: transform 0.3s ease;
-            width: 100%; max-width: 500px;
-        }
-        .modal.active .modal-content { transform: scale(1); }
-
-        .form-input {
-            width: 100%; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 0.75rem 1rem; border-radius: 0.5rem;
-            color: white; margin-bottom: 1rem; outline: none;
-            transition: border-color 0.2s;
-        }
-        .form-input:focus { border-color: #64CEFB; }
-    </style>
-</head>
-<body class="antialiased min-h-screen flex flex-col">
-
-    <!-- Navbar -->
-    <nav class="w-full px-6 lg:px-16 py-6 z-50 flex flex-wrap items-center justify-between gap-4 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0">
-        <div class="flex flex-wrap items-center gap-3 min-w-0">
-            <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass shrink-0" style="transform: none; border-color: rgba(255,255,255,0.5);">
-                <div class="w-4 h-4 rounded-full bg-[#64CEFB]"></div>
-            </div>
-            {% if not is_public_view %}
-                <a href="/dashboard?user={{ user }}" class="font-bold text-lg md:text-xl tracking-tight font-heading hover:text-[#64CEFB] transition-colors flex items-center gap-2 shrink-0">
-                    <i data-lucide="arrow-left" class="w-5 h-5"></i> Назад
-                </a>
-            {% else %}
-                <span class="font-bold text-xl tracking-tight font-heading">Bio-Notebook</span>
-            {% endif %}
-            <span class="text-white/50 font-sans text-sm hidden lg:inline">Дерево эксперимента</span>
+{% block content %}
+<div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div>
+        <a href="{{ base_path }}/dashboard?user={{ viewing_user or user }}" class="text-sm flex items-center gap-1 mb-3 no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Назад к исследованиям
+        </a>
+        <h1 class="text-3xl md:text-4xl font-heading tracking-tight">{{ exp.name }}</h1>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">ID: {{ exp.id }} · Исследователь: {{ user }}</p>
+        {% if not is_owner and viewing_user and viewing_user != user %}
+        <div class="mt-2">
+            <button onclick="toggleFriend('{{ user }}')" id="friendBtn" class="text-xs font-bold py-1.5 px-4 rounded-full transition-all flex items-center gap-1.5" style="background: {% if fr_status == 'accepted' %}rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3);{% elif fr_status == 'pending' %}rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);{% else %}var(--primary); color: var(--primary-fg); border: none;{% endif %}">
+                {% if fr_status == 'accepted' %}
+                <i data-lucide="user-check" class="w-3 h-3"></i> В друзьях
+                {% elif fr_status == 'pending' %}
+                <i data-lucide="clock" class="w-3 h-3"></i> Запрос отправлен
+                {% else %}
+                <i data-lucide="user-plus" class="w-3 h-3"></i> + В друзья
+                {% endif %}
+            </button>
         </div>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+        {% if is_owner %}
+        <form action="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/toggle_public" method="POST" style="display:inline;">
+            <button type="submit" class="text-sm px-3 py-1.5 rounded-full border transition-colors cursor-pointer" style="border-color: var(--glass-border); color: var(--text-muted); background: var(--glass-bg);">
+                {% if exp.is_public == 'true' %}
+                <i data-lucide="globe" class="w-3 h-3 inline mr-1"></i>Публичный
+                {% else %}
+                <i data-lucide="lock" class="w-3 h-3 inline mr-1"></i>Сделать публичным
+                {% endif %}
+            </button>
+        </form>
+        <button onclick="openAddNodeModal(-1)" class="font-bold py-2.5 px-5 rounded-full transition-colors text-sm" style="background: var(--primary); color: var(--primary-fg);">
+            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Добавить этап
+        </button>
+        {% elif exp.is_public == 'true' %}
+        <span class="text-sm px-3 py-1.5 rounded-full border" style="border-color: var(--status-active-border); color: var(--status-active-text); background: var(--status-active-bg);">
+            <i data-lucide="globe" class="w-3 h-3 inline mr-1"></i>Публичный доступ
+        </span>
+        {% endif %}
+    </div>
+</div>
 
-        {% if not is_public_view %}
-        <div class="hidden md:flex flex-wrap items-center gap-5 text-sm">
-            <a href="/dashboard?user={{ user }}" class="text-[#64CEFB] font-medium transition-colors">Эксперименты</a>
-            <a href="/projects?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Проекты</a>
-            <a href="/reagents?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Реагенты</a>
-            <a href="/consumables?user={{ user }}" class="text-white/50 hover:text-white transition-colors">Расходники</a>
+<div class="liquid-glass rounded-2xl p-6 mb-6">
+    <p class="leading-relaxed" style="color: var(--text-secondary);">{{ exp.description }}</p>
+</div>
+
+<!-- Sub-navigation tabs -->
+<div class="flex items-center gap-1 mb-6 flex-wrap" style="border-bottom: 1px solid var(--glass-border); padding-bottom: 0;">
+    <button class="exp-tab active" data-tab="nodes" onclick="switchExpTab('nodes')">
+        <i data-lucide="git-branch" class="w-4 h-4"></i> Узлы
+    </button>
+    <button class="exp-tab" data-tab="wiki" onclick="switchExpTab('wiki')">
+        <i data-lucide="book-open" class="w-4 h-4"></i> Wiki
+    </button>
+    <button class="exp-tab" data-tab="files" onclick="switchExpTab('files')">
+        <i data-lucide="folder-open" class="w-4 h-4"></i> Файлы
+    </button>
+</div>
+
+<!-- Tab: Nodes -->
+<div id="expTabNodes" class="exp-tab-content active">
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div class="view-toggle">
+        <button class="active" data-view="tree" onclick="switchView('tree')">
+            <i data-lucide="git-branch" class="w-4 h-4 inline mr-1"></i>Дерево
+        </button>
+        <button data-view="list" onclick="switchView('list')">
+            <i data-lucide="list" class="w-4 h-4 inline mr-1"></i>Список
+        </button>
+    </div>
+    <div class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
+        <span class="w-2 h-2 rounded-full" style="background: var(--primary);"></span>
+        <span>{{ exp.levels|length }} уровней</span>
+        <span class="mx-1">·</span>
+        <span>{{ exp.levels|map('length')|sum }} узлов</span>
+    </div>
+</div>
+
+<!-- Animated tree -->
+<div id="view-tree">
+    <div class="tree-wrapper rounded-2xl p-6 md:p-8 liquid-glass" id="treeWrapper" style="border-color: var(--glass-border); overflow: visible;">
+        <svg class="arrow-svg" id="arrowSvg" aria-hidden="true">
+            <defs>
+                <marker id="arrowMarker" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                    <polygon points="0 0, 10 4, 0 8" fill="var(--primary)" fill-opacity="0.85"/>
+                </marker>
+            </defs>
+        </svg>
+
+        {% for level in exp.levels %}
+        {% set level_idx = loop.index0 %}
+        <div class="level-row" data-level="{{ level_idx }}">
+            {% for node in level %}
+            <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-5 md:p-6 node-card group" style="border-color: var(--glass-border);">
+                <div class="flex justify-between items-start mb-3">
+                    <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md font-mono" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);">{{ node.id }}</span>
+                    <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
+                </div>
+                <h3 class="text-lg md:text-xl font-heading mb-2 group-hover:text-[#64CEFB] transition-colors">{{ node.title }}</h3>
+                <p class="text-sm mb-5 flex-grow leading-relaxed" style="color: var(--text-muted);">{{ node.content or '—' }}</p>
+                <div class="mt-auto border-t pt-3 flex items-center justify-between" style="border-color: var(--glass-border);">
+                    <span class="text-xs uppercase tracking-widest font-bold" style="color: var(--text-muted); opacity: 0.6;">Этап {{ level_idx + 1 }}</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4 transition-all group-hover:translate-x-1" style="color: var(--text-muted);"></i>
+                </div>
+            </a>
+            {% endfor %}
+            {% if is_owner %}
+            <button type="button" class="add-parallel-btn" onclick="openAddNodeModal({{ level_idx }})" title="Добавить параллельный блок">
+                <i data-lucide="plus" class="w-6 h-6"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if is_owner %}
+        <div class="flex justify-center relative z-10 mt-10">
+            <button type="button" onclick="openAddNodeModal(-1)" class="liquid-glass px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center gap-2 hover:-translate-y-0.5" style="color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                Добавить следующий этап
+            </button>
         </div>
         {% endif %}
 
-        <div class="flex items-center gap-6">
-            {% if not is_public_view %}
-                <div class="hidden sm:flex items-center gap-2 text-white/60">
-                    <i data-lucide="user" class="w-4 h-4"></i>
-                    <span class="text-sm font-medium">{{ user }}</span>
-                </div>
-                <a href="/" class="text-white/60 hover:text-white text-sm transition-colors flex items-center gap-2">
-                    Выйти
-                    <i data-lucide="log-out" class="w-4 h-4"></i>
-                </a>
-            {% else %}
-                <span class="text-[10px] uppercase tracking-wider px-3 py-1.5 bg-[#10b981]/10 text-[#10b981] rounded-full border border-[#10b981]/20 font-bold">Public View</span>
+        {% if exp.levels|length == 0 %}
+        <div class="text-center py-16 relative z-10" style="color: var(--text-muted);">
+            <i data-lucide="git-branch" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+            <p class="mb-4">Дерево эксперимента пусто</p>
+            {% if is_owner %}
+            <button type="button" onclick="openAddNodeModal(-1)" class="font-bold py-2.5 px-6 rounded-full text-sm" style="background: var(--primary); color: var(--primary-fg);">Добавить первый этап</button>
             {% endif %}
         </div>
-    </nav>
+        {% endif %}
+    </div>
+</div>
 
-    <!-- Main Content -->
-    <main class="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
-        
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
-            <div>
-                <div class="flex items-center gap-3 mb-2">
-                    <h1 class="text-4xl md:text-5xl font-heading tracking-tight shiny-text">{{ exp.name }}</h1>
-                </div>
-                <p class="text-white/50 text-sm flex items-center gap-2">
-                    <i data-lucide="hash" class="w-4 h-4"></i> ID: {{ exp.id }} &middot; Владелец: {{ user }}
-                </p>
-            </div>
-            
-            <div class="flex flex-wrap gap-3">
-                {% if not is_public_view %}
-                    <form action="/experiment/{{ user }}/{{ exp.id }}/toggle_public" method="POST" style="display:inline;">
-                        <button type="submit" class="liquid-glass px-5 py-2.5 rounded-full text-sm font-medium text-white hover:bg-white/10 transition-colors flex items-center gap-2">
-                            {% if exp.is_public == 'true' %}
-                                <i data-lucide="lock" class="w-4 h-4"></i> Сделать приватным
-                            {% else %}
-                                <i data-lucide="globe" class="w-4 h-4"></i> Сделать публичным
-                            {% endif %}
-                        </button>
-                    </form>
-                    {% if exp.is_public == 'true' %}
-                        <button onclick="copyShareLink('{{ exp.id }}')" class="liquid-glass border-[#64CEFB]/30 px-5 py-2.5 rounded-full text-sm font-medium text-[#64CEFB] hover:bg-[#64CEFB]/10 transition-colors flex items-center gap-2">
-                            <i data-lucide="share-2" class="w-4 h-4"></i> Поделиться ссылкой
-                        </button>
+<!-- List view -->
+<div id="view-list" style="display:none;">
+    <div class="space-y-1">
+        {% for level in exp.levels %}
+        <div class="tree-level">
+            {% for node in level %}
+            <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="tree-node group">
+                <span class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border" style="background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary);">
+                    {{ loop.index }}
+                </span>
+                <div class="flex-grow min-w-0">
+                    <div class="font-medium truncate">{{ node.title }}</div>
+                    {% if node.content %}
+                    <div class="text-xs truncate" style="color: var(--text-muted);">{{ node.content }}</div>
                     {% endif %}
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Tree Area -->
-        <div class="tree-wrapper" id="treeWrapper">
-            <!-- SVG layer for arrows -->
-            <svg class="arrow-svg" id="arrowSvg">
-                <defs>
-                    <linearGradient id="arrowGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="rgba(100, 206, 251, 0.5)"/>
-                        <stop offset="100%" stop-color="rgba(100, 206, 251, 0.1)"/>
-                    </linearGradient>
-                    <marker id="arrowMarker" markerWidth="10" markerHeight="8" refX="5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-                        <polygon points="0 0, 10 4, 0 8" fill="rgba(100, 206, 251, 0.5)"/>
-                    </marker>
-                </defs>
-            </svg>
-
-            <!-- Node levels -->
-            {% for level in exp.levels %}
-            {% set level_idx = loop.index0 %}
-            <div class="level-row" data-level="{{ level_idx }}">
-                {% for node in level %}
-                <a href="/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-6 node-card group">
-                    <div class="flex justify-between items-start mb-4">
-                        <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-[#64CEFB]/10 text-[#64CEFB] rounded-md border border-[#64CEFB]/20 font-mono">{{ node.id }}</span>
-                        <div class="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
-                    </div>
-                    <h3 class="text-xl font-heading mb-2 group-hover:text-[#64CEFB] transition-colors">{{ node.title }}</h3>
-                    <p class="text-white/50 text-sm mb-6 flex-grow leading-relaxed">{{ node.content }}</p>
-                    
-                    <div class="mt-auto border-t border-white/10 pt-4 flex items-center justify-between">
-                        <span class="text-xs text-white/30 uppercase tracking-widest font-bold">Этап {{ level_idx + 1 }}</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4 text-white/30 group-hover:text-[#64CEFB] group-hover:translate-x-1 transition-all"></i>
-                    </div>
-                </a>
-                {% endfor %}
-                {% if not is_public_view %}
-                <button class="add-parallel-btn" onclick="openAddNodeModal({{ level_idx }})" title="Добавить параллельный блок">
-                    <i data-lucide="plus" class="w-6 h-6"></i>
-                </button>
-                {% endif %}
-            </div>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 node-arrow flex-shrink-0"></i>
+            </a>
             {% endfor %}
-
-            <!-- Add new level -->
-            {% if not is_public_view %}
-            <div class="flex justify-center relative z-10 mt-12">
-                <button onclick="openAddNodeModal(-1)" class="liquid-glass border-[#64CEFB]/30 px-6 py-3 rounded-full text-sm font-medium text-[#64CEFB] hover:bg-[#64CEFB]/10 transition-all flex items-center gap-2 group hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(100,206,251,0.15)]">
-                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                    Добавить следующий этап
-                </button>
-            </div>
-            {% endif %}
         </div>
-    </main>
+        {% endfor %}
+    </div>
+</div>
+</div>
 
-    <!-- Modal -->
-    <div id="addNodeModal" class="modal">
-        <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-            <button onclick="document.getElementById('addNodeModal').classList.remove('active')" class="absolute top-4 right-4 text-white/50 hover:text-white p-2">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            
-            <div class="mb-8">
-                <h2 id="modalTitle" class="text-2xl font-heading font-bold mb-2">Добавить этап</h2>
-                <p class="text-white/60 text-sm">Определите следующий шаг в вашем исследовании</p>
+<!-- Tab: Files -->
+<div id="expTabFiles" class="exp-tab-content">
+    <div class="liquid-glass rounded-2xl p-6 md:p-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h3 class="text-xl font-heading font-semibold">Файлы</h3>
+                <p class="text-sm" style="color: var(--text-muted);">Загружайте и обменивайтесь файлами внутри этой лаборатории</p>
             </div>
-            
-            <form action="/experiment/{{ user }}/{{ exp.id }}/add_node" method="POST">
-                <input type="hidden" id="levelIdxInput" name="level_idx" value="-1">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-white/80 mb-1">Название</label>
-                    <input type="text" id="title" name="title" class="form-input liquid-glass" required placeholder="Например: Секвенирование">
-                </div>
-                <div class="mb-8">
-                    <label class="block text-sm font-medium text-white/80 mb-1">Описание</label>
-                    <textarea id="content" name="content" rows="4" class="form-input liquid-glass resize-none" required placeholder="Детали работ на этом этапе..."></textarea>
-                </div>
-                <button type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-black font-bold py-3 rounded-full transition-colors">
-                    Сохранить этап
-                </button>
-            </form>
+            <label class="font-bold py-2.5 px-5 rounded-full transition-colors text-sm cursor-pointer" style="background: var(--primary); color: var(--primary-fg);">
+                <i data-lucide="upload" class="w-4 h-4 inline mr-1"></i>Загрузить
+                <input type="file" id="fileUploadInput" style="display:none;" onchange="uploadFile(this)">
+            </label>
+        </div>
+        <div id="fileListContainer">
+            <div class="text-center py-12" style="color: var(--text-muted);" id="fileLoadingState">
+                <i data-lucide="loader" class="w-8 h-8 mx-auto mb-3 animate-spin"></i>
+                <p>Загрузка файлов...</p>
+            </div>
         </div>
     </div>
+</div>
 
-    <script>
-        lucide.createIcons();
+<!-- Tab: Wiki -->
+<div id="expTabWiki" class="exp-tab-content">
+    <div class="liquid-glass rounded-2xl p-6 md:p-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h3 class="text-xl font-heading font-semibold">Внутренняя Wiki</h3>
+                <p class="text-sm" style="color: var(--text-muted);">Протоколы, инструкции и заметки лаборатории</p>
+            </div>
+            <button onclick="openWikiNewPage()" class="font-bold py-2.5 px-5 rounded-full transition-colors text-sm" style="background: var(--primary); color: var(--primary-fg);">
+                <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Новая страница
+            </button>
+        </div>
+        <div id="wikiContainer">
+            <div class="text-center py-12" style="color: var(--text-muted);" id="wikiLoadingState">
+                <i data-lucide="loader" class="w-8 h-8 mx-auto mb-3 animate-spin"></i>
+                <p>Загрузка Wiki...</p>
+            </div>
+        </div>
+    </div>
+</div>
 
-        function openAddNodeModal(levelIdx) {
-            document.getElementById('levelIdxInput').value = levelIdx;
-            document.getElementById('modalTitle').innerText =
-                levelIdx === -1 ? 'Добавить новый этап' : 'Добавить параллельный блок';
-            document.getElementById('addNodeModal').classList.add('active');
+<!-- Wiki page viewer modal -->
+<div id="wikiViewModal" class="modal">
+    <div class="liquid-glass-strong rounded-[1.5rem] p-8 relative" style="width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease;">
+        <button onclick="closeWikiModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" type="button">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div id="wikiViewContent"></div>
+    </div>
+</div>
+
+<!-- Wiki edit/create modal -->
+<div id="wikiEditModal" class="modal">
+    <div class="liquid-glass-strong rounded-[1.5rem] p-8 relative" style="width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease;">
+        <button onclick="closeWikiEditModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" type="button">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <h2 class="text-2xl font-heading font-bold mb-6" id="wikiEditTitle">Новая страница Wiki</h2>
+        <input type="hidden" id="wikiEditPageId" value="">
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+            <input type="text" id="wikiPageTitle" class="form-input" placeholder="Название страницы">
+        </div>
+        <div class="mb-6">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Содержание (Markdown)</label>
+            <textarea id="wikiPageContent" rows="12" class="form-input resize-none font-mono text-sm w-full" placeholder="# Заголовок&#10;&#10;Ваш текст..."></textarea>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="saveWikiPage()" class="font-bold py-2.5 px-6 rounded-full transition-colors text-sm" style="background: var(--primary); color: var(--primary-fg);">
+                <i data-lucide="check" class="w-4 h-4 inline mr-1"></i>Сохранить
+            </button>
+            <button onclick="closeWikiEditModal()" class="py-2.5 px-6 rounded-full transition-colors text-sm" style="border: 1px solid var(--glass-border); color: var(--text-muted); background: transparent; cursor: pointer;">
+                Отмена
+            </button>
+        </div>
+    </div>
+</div>
+
+{% if is_owner %}
+<div id="addNodeModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeMod()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" type="button">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 id="modalTitle" class="text-2xl font-heading font-bold mb-2">Добавить этап</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Определите следующий шаг в исследовании</p>
+        </div>
+        <form action="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/add_node" method="POST">
+            <input type="hidden" id="levelIdxInput" name="level_idx" value="-1">
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+                <input type="text" name="title" class="form-input" required placeholder="Например: Подготовка образцов">
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Описание</label>
+                <textarea name="content" rows="3" class="form-input resize-none" placeholder="Кратко опишите этот этап"></textarea>
+            </div>
+            <button type="submit" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);">
+                Сохранить этап
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const modal = document.getElementById('addNodeModal');
+    const BASE_PATH = '{{ base_path }}';
+    const VIEWING_USER = '{{ viewing_user or user }}';
+
+    function openAddNodeModal(levelIdx) {
+        if (!modal) return;
+        document.getElementById('levelIdxInput').value = levelIdx;
+        document.getElementById('modalTitle').innerText =
+            levelIdx === -1 ? 'Добавить новый этап' : 'Добавить параллельный блок';
+        modal.classList.add('active');
+    }
+
+    function closeMod() {
+        if (!modal) return;
+        modal.classList.remove('active');
+    }
+
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) closeMod();
+        });
+    }
+
+    function switchView(view) {
+        document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.view-toggle button[data-view="${view}"]`).classList.add('active');
+        document.getElementById('view-tree').style.display = view === 'tree' ? 'block' : 'none';
+        document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
+        if (view === 'tree') {
+            setTimeout(drawArrows, 80);
+            setTimeout(drawArrows, 400);
         }
+    }
 
-        function copyShareLink(expId) {
-            const url = window.location.origin + '/share/' + expId;
-            navigator.clipboard.writeText(url).then(() => {
-                alert('Ссылка скопирована в буфер обмена:\n' + url);
+    function drawArrows() {
+        const svg = document.getElementById('arrowSvg');
+        const wrapper = document.getElementById('treeWrapper');
+        if (!svg || !wrapper) return;
+
+        const levels = wrapper.querySelectorAll('.level-row');
+        svg.querySelectorAll('.tree-arrow, .tree-arrow-glow, .tree-particle').forEach(el => el.remove());
+
+        const wRect = wrapper.getBoundingClientRect();
+        if (wRect.width < 10 || wRect.height < 10) return;
+
+        svg.setAttribute('width', wRect.width);
+        svg.setAttribute('height', wRect.height);
+        svg.setAttribute('viewBox', `0 0 ${wRect.width} ${wRect.height}`);
+
+        const ns = 'http://www.w3.org/2000/svg';
+        const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#64CEFB';
+        const markerPoly = svg.querySelector('#arrowMarker polygon');
+        if (markerPoly) markerPoly.setAttribute('fill', primary);
+
+        if (levels.length < 2) return;
+
+        for (let i = 0; i < levels.length - 1; i++) {
+            const fromCards = levels[i].querySelectorAll('.node-card');
+            const toCards = levels[i + 1].querySelectorAll('.node-card');
+
+            fromCards.forEach(fromCard => {
+                toCards.forEach(toCard => {
+                    const fromRect = fromCard.getBoundingClientRect();
+                    const toRect = toCard.getBoundingClientRect();
+
+                    const x1 = fromRect.left + fromRect.width / 2 - wRect.left;
+                    const y1 = fromRect.bottom - wRect.top + 2;
+                    const x2 = toRect.left + toRect.width / 2 - wRect.left;
+                    const y2 = toRect.top - wRect.top - 2;
+                    const midY = (y1 + y2) / 2;
+                    const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+
+                    const glow = document.createElementNS(ns, 'path');
+                    glow.setAttribute('d', d);
+                    glow.setAttribute('class', 'tree-arrow-glow');
+                    svg.appendChild(glow);
+
+                    const path = document.createElementNS(ns, 'path');
+                    path.setAttribute('d', d);
+                    path.setAttribute('class', 'tree-arrow');
+                    path.setAttribute('marker-end', 'url(#arrowMarker)');
+                    svg.appendChild(path);
+
+                    const circle = document.createElementNS(ns, 'circle');
+                    circle.setAttribute('r', '4');
+                    circle.setAttribute('class', 'tree-particle');
+                    const anim = document.createElementNS(ns, 'animateMotion');
+                    anim.setAttribute('dur', `${2.2 + Math.random() * 1.3}s`);
+                    anim.setAttribute('repeatCount', 'indefinite');
+                    anim.setAttribute('path', d);
+                    circle.appendChild(anim);
+                    svg.appendChild(circle);
+                });
             });
         }
+    }
 
-        // Modal close on outside click
-        document.getElementById('addNodeModal').addEventListener('click', function(e) {
-            if (e.target === this) this.classList.remove('active');
-        });
+    window.addEventListener('load', () => {
+        setTimeout(drawArrows, 100);
+        setTimeout(drawArrows, 500);
+        setTimeout(drawArrows, 1200);
+    });
+    window.addEventListener('resize', drawArrows);
 
-        // ── Draw SVG arrows between levels ──
-        function drawArrows() {
-            const svg = document.getElementById('arrowSvg');
-            const wrapper = document.getElementById('treeWrapper');
-            const levels = wrapper.querySelectorAll('.level-row');
+    const treeWrapper = document.getElementById('treeWrapper');
+    if (treeWrapper && typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => drawArrows()).observe(treeWrapper);
+    }
 
-            // Clear old arrows
-            svg.querySelectorAll('.dynamic-arrow').forEach(el => el.remove());
+    document.addEventListener('DOMContentLoaded', () => {
+        const themeBtn = document.getElementById('themeToggle');
+        if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(drawArrows, 50));
+    });
 
-            // Set SVG size to match wrapper
-            const wRect = wrapper.getBoundingClientRect();
-            svg.setAttribute('width', wRect.width);
-            svg.setAttribute('height', wRect.height);
+    async function toggleFriend(targetUser) {
+        const btn = document.getElementById('friendBtn');
+        if (!btn) return;
+        const currentStatus = btn.dataset.status || 'none';
 
-            for (let i = 0; i < levels.length - 1; i++) {
-                const fromCards = levels[i].querySelectorAll('.node-card');
-                const toCards   = levels[i + 1].querySelectorAll('.node-card');
-
-                fromCards.forEach(fromCard => {
-                    toCards.forEach(toCard => {
-                        const fromRect = fromCard.getBoundingClientRect();
-                        const toRect   = toCard.getBoundingClientRect();
-
-                        // Coordinates relative to wrapper
-                        const x1 = fromRect.left + fromRect.width / 2 - wRect.left;
-                        const y1 = fromRect.bottom - wRect.top;
-                        const x2 = toRect.left + toRect.width / 2 - wRect.left;
-                        const y2 = toRect.top - wRect.top;
-
-                        const midY = (y1 + y2) / 2;
-
-                        // Cubic bezier path
-                        const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-
-                        // Glow behind
-                        const glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        glow.setAttribute('d', d);
-                        glow.setAttribute('class', 'arrow-glow dynamic-arrow');
-                        svg.appendChild(glow);
-
-                        // Main path
-                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        path.setAttribute('d', d);
-                        path.setAttribute('class', 'dynamic-arrow');
-                        path.setAttribute('marker-end', 'url(#arrowMarker)');
-                        svg.appendChild(path);
-
-                        // Animated particle
-                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                        circle.setAttribute('r', '3');
-                        circle.setAttribute('class', 'flow-particle dynamic-arrow');
-                        const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-                        anim.setAttribute('dur', '3s');
-                        anim.setAttribute('repeatCount', 'indefinite');
-                        anim.setAttribute('path', d);
-                        circle.appendChild(anim);
-                        svg.appendChild(circle);
-                    });
-                });
-            }
+        if (currentStatus === 'accepted') {
+            if (!confirm(`Удалить ${targetUser} из друзей?`)) return;
+            await fetch(`${BASE_PATH}/api/friends/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: VIEWING_USER, friend_id: targetUser }),
+            });
+            location.reload();
+            return;
         }
+        if (currentStatus === 'pending') return;
 
-        // Draw on load and resize. 
-        // Also wait a bit for webfonts/tailwindcss to finish applying styles
-        window.addEventListener('load', () => {
-            setTimeout(drawArrows, 100);
-            setTimeout(drawArrows, 500); // safety redraw
+        const resp = await fetch(`${BASE_PATH}/api/friends/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: VIEWING_USER, friend_id: targetUser }),
         });
-        window.addEventListener('resize', drawArrows);
-    </script>
-</body>
-</html>
+        const data = await resp.json();
+        if (data.ok) {
+            btn.innerHTML = '<i data-lucide="clock" class="w-3 h-3"></i> Запрос отправлен';
+            btn.dataset.status = 'pending';
+            btn.disabled = true;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            alert(data.error || 'Ошибка');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('friendBtn');
+        if (btn) {
+            {% if fr_status == 'accepted' %}
+            btn.dataset.status = 'accepted';
+            {% elif fr_status == 'pending' %}
+            btn.dataset.status = 'pending';
+            {% else %}
+            btn.dataset.status = 'none';
+            {% endif %}
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+</script>
+
+<script>
+    // ── Tab switching for Nodes / Wiki / Files ──
+    function switchExpTab(tab) {
+        document.querySelectorAll('.exp-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.exp-tab-content').forEach(c => c.classList.remove('active'));
+        const btn = document.querySelector(`.exp-tab[data-tab="${tab}"]`);
+        const content = document.getElementById(`expTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+        if (btn) btn.classList.add('active');
+        if (content) {
+            content.classList.add('active');
+            if (tab === 'files') loadFiles();
+            if (tab === 'wiki') loadWikiPages();
+        }
+        if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    }
+
+    // ── File exchange ──
+    const EXP_ID = '{{ exp.id }}';
+    const USER = '{{ viewing_user or user }}';
+
+    async function loadFiles() {
+        const container = document.getElementById('fileListContainer');
+        container.innerHTML = '<div class="text-center py-12" style="color: var(--text-muted);"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-3 animate-spin"></i><p>Загрузка файлов...</p></div>';
+        if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/experiment/${EXP_ID}/files`);
+            const files = await resp.json();
+            if (!files.length) {
+                container.innerHTML = `
+                    <div class="text-center py-12" style="color: var(--text-muted);">
+                        <i data-lucide="folder-open" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+                        <p>Файлов пока нет. Загрузите первый файл.</p>
+                    </div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+            let html = '<div class="space-y-2">';
+            for (const f of files) {
+                const size = f.file_size > 1048576
+                    ? (f.file_size / 1048576).toFixed(1) + ' MB'
+                    : f.file_size > 1024
+                    ? (f.file_size / 1024).toFixed(1) + ' KB'
+                    : f.file_size + ' B';
+                const icon = f.mime_type?.startsWith('image/') ? 'image' :
+                    f.mime_type?.includes('pdf') ? 'file-text' :
+                    f.mime_type?.includes('zip') || f.mime_type?.includes('rar') ? 'archive' : 'file';
+                html += `
+                    <div class="file-item liquid-glass rounded-xl p-4 flex items-center gap-4" style="border-color: var(--glass-border);">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: color-mix(in srgb, var(--primary) 10%, transparent);">
+                            <i data-lucide="${icon}" class="w-5 h-5" style="color: var(--primary);"></i>
+                        </div>
+                        <div class="flex-grow min-w-0">
+                            <div class="text-sm font-medium truncate">${f.original_name}</div>
+                            <div class="text-xs mt-0.5" style="color: var(--text-muted);">
+                                ${size} · ${f.uploaded_by} · ${(f.created_at || '').slice(0, 10)}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 file-actions flex-shrink-0">
+                            <a href="${BASE_PATH}/api/experiment/${EXP_ID}/files/${f.id}/download"
+                               class="p-2 rounded-lg transition-colors" style="color: var(--text-muted);"
+                               title="Скачать" target="_blank">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                            </a>
+                            <button onclick="deleteFile('${f.id}')"
+                                    class="p-2 rounded-lg transition-colors" style="color: var(--text-muted);"
+                                    title="Удалить">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } catch(e) {
+            container.innerHTML = '<div class="text-center py-12" style="color: #ef4444;"><p>Ошибка загрузки файлов</p></div>';
+        }
+    }
+
+    async function uploadFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/experiment/${EXP_ID}/files/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                loadFiles();
+            } else {
+                alert('Ошибка загрузки: ' + (data.error || 'неизвестная'));
+            }
+        } catch(e) {
+            alert('Ошибка сети при загрузке файла');
+        }
+        input.value = '';
+    }
+
+    async function deleteFile(fileId) {
+        if (!confirm('Удалить этот файл?')) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/experiment/${EXP_ID}/files/delete`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_id: fileId, exp_id: EXP_ID}),
+            });
+            const data = await resp.json();
+            if (data.ok) loadFiles();
+        } catch(e) { alert('Ошибка'); }
+    }
+
+    // ── Wiki inline ──
+    let wikiPageData = [];
+    let wikiEditIsNew = true;
+
+    async function loadWikiPages() {
+        const container = document.getElementById('wikiContainer');
+        container.innerHTML = '<div class="text-center py-12" style="color: var(--text-muted);"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-3 animate-spin"></i><p>Загрузка Wiki...</p></div>';
+        if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/experiment/${EXP_ID}/wiki/pages`);
+            const data = await resp.json();
+            wikiPageData = data.pages || [];
+            if (!wikiPageData.length) {
+                container.innerHTML = `
+                    <div class="text-center py-12" style="color: var(--text-muted);">
+                        <i data-lucide="book-open" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+                        <p>Wiki пуста. Создайте первую страницу.</p>
+                    </div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+            let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+            for (const p of wikiPageData) {
+                const preview = (p.content || '').replace(/[#*`\[\]()>_-]/g, '').trim().slice(0, 120);
+                html += `
+                    <div class="wiki-page-item liquid-glass rounded-xl p-4 cursor-pointer" style="border-color: var(--glass-border);" onclick="viewWikiPage('${p.id}')">
+                        <div class="flex items-start justify-between gap-2">
+                            <h4 class="text-base font-heading font-semibold">${p.title}</h4>
+                            <i data-lucide="chevron-right" class="w-4 h-4 flex-shrink-0 mt-0.5" style="color: var(--text-muted);"></i>
+                        </div>
+                        ${preview ? `<p class="text-sm mt-1 line-clamp-2" style="color: var(--text-muted);">${preview}${preview.length >= 120 ? '...' : ''}</p>` : ''}
+                        <div class="mt-2 text-[10px] uppercase tracking-wider" style="color: var(--text-muted); opacity: 0.5;">
+                            ${(p.updated_at || p.created_at || '').slice(0, 10)}${p.created_by ? ' · ' + p.created_by : ''}
+                        </div>
+                    </div>`;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } catch(e) {
+            container.innerHTML = '<div class="text-center py-12" style="color: #ef4444;"><p>Ошибка загрузки Wiki</p></div>';
+        }
+    }
+
+    function viewWikiPage(pageId) {
+        const page = wikiPageData.find(p => p.id === pageId);
+        if (!page) return;
+        const content = (page.content || '').replace(/\n/g, '<br>');
+        document.getElementById('wikiViewContent').innerHTML = `
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <h2 class="text-2xl font-heading font-bold">${page.title}</h2>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button onclick="editWikiPage('${page.id}')" class="p-2 rounded-lg transition-colors" style="color: var(--text-muted);" title="Редактировать">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="deleteWikiPage('${page.id}')" class="p-2 rounded-lg transition-colors" style="color: #ef4444;" title="Удалить">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="text-xs mb-4" style="color: var(--text-muted);">
+                Создана: ${(page.created_at || '—').slice(0, 10)}${page.created_by ? ' · ' + page.created_by : ''}
+                · Обновлена: ${(page.updated_at || '—').slice(0, 10)}
+            </div>
+            <div class="wiki-content leading-relaxed" style="line-height: 1.7;">${content}</div>
+        `;
+        document.getElementById('wikiViewModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('wikiViewModal').querySelector('.liquid-glass-strong').style.transform = 'scale(1)';
+        }, 10);
+        if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    }
+
+    function openWikiNewPage() {
+        wikiEditIsNew = true;
+        document.getElementById('wikiEditPageId').value = '';
+        document.getElementById('wikiEditTitle').innerText = 'Новая страница Wiki';
+        document.getElementById('wikiPageTitle').value = '';
+        document.getElementById('wikiPageContent').value = '';
+        document.getElementById('wikiEditModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('wikiEditModal').querySelector('.liquid-glass-strong').style.transform = 'scale(1)';
+        }, 10);
+    }
+
+    function editWikiPage(pageId) {
+        const page = wikiPageData.find(p => p.id === pageId);
+        if (!page) return;
+        wikiEditIsNew = false;
+        document.getElementById('wikiEditPageId').value = page.id;
+        document.getElementById('wikiEditTitle').innerText = 'Редактировать страницу';
+        document.getElementById('wikiPageTitle').value = page.title;
+        document.getElementById('wikiPageContent').value = page.content || '';
+        closeWikiModal();
+        document.getElementById('wikiEditModal').classList.add('active');
+        setTimeout(() => {
+            document.getElementById('wikiEditModal').querySelector('.liquid-glass-strong').style.transform = 'scale(1)';
+        }, 10);
+    }
+
+    async function saveWikiPage() {
+        const pageId = document.getElementById('wikiEditPageId').value || null;
+        const title = document.getElementById('wikiPageTitle').value.trim();
+        const content = document.getElementById('wikiPageContent').value;
+        if (!title) { alert('Введите название страницы'); return; }
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/wiki/save`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({exp_id: EXP_ID, page_id: pageId, title, content, username: USER}),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                closeWikiEditModal();
+                loadWikiPages();
+            } else {
+                alert('Ошибка: ' + (data.error || 'неизвестная'));
+            }
+        } catch(e) { alert('Ошибка сети'); }
+    }
+
+    async function deleteWikiPage(pageId) {
+        const page = wikiPageData.find(p => p.id === pageId);
+        if (!page || !confirm('Удалить страницу «' + page.title + '»?')) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/wiki/delete`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({page_id: pageId, exp_id: EXP_ID}),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                closeWikiModal();
+                loadWikiPages();
+            }
+        } catch(e) { alert('Ошибка'); }
+    }
+
+    function closeWikiModal() {
+        const m = document.getElementById('wikiViewModal');
+        const inner = m.querySelector('.liquid-glass-strong');
+        if (inner) inner.style.transform = 'scale(0.95)';
+        setTimeout(() => m.classList.remove('active'), 200);
+    }
+
+    function closeWikiEditModal() {
+        const m = document.getElementById('wikiEditModal');
+        const inner = m.querySelector('.liquid-glass-strong');
+        if (inner) inner.style.transform = 'scale(0.95)';
+        setTimeout(() => m.classList.remove('active'), 200);
+    }
+
+    document.getElementById('wikiViewModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeWikiModal();
+    });
+    document.getElementById('wikiEditModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeWikiEditModal();
+    });
+
+</script>
+{% endblock %}

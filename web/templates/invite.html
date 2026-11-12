@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приглашение в проект | Bio-Notebook</title>
+    <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <style>
+        body {
+            background: #000;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .glass {
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+        }
+        .form-input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            color: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: #64CEFB; }
+    </style>
+</head>
+<body>
+    <div class="glass p-8 md:p-12 max-w-md w-full mx-4 text-center">
+        <div class="w-16 h-16 rounded-full border-2 border-white/20 flex items-center justify-center mx-auto mb-6" style="background: rgba(255,255,255,0.03);">
+            <div class="w-7 h-7 rounded-full bg-[#0099ff]"></div>
+        </div>
+
+        <h1 class="text-2xl md:text-3xl font-heading font-bold mb-3">Приглашение в проект</h1>
+        <p class="text-white/60 mb-2">Вас пригласили присоединиться к проекту</p>
+        <p class="text-2xl font-heading text-[#64CEFB] mb-6">{{ project_name }}</p>
+
+        <p class="text-sm text-white/50 mb-8">Приглашение от: <strong class="text-white/70">{{ created_by }}</strong></p>
+
+        <form id="acceptForm" class="space-y-4 text-left">
+            <input type="hidden" id="inviteCode" value="{{ code }}">
+
+            <div>
+                <label class="block text-sm font-medium text-white/70 mb-1.5">Ваш логин в Bio-Notebook</label>
+                <input id="loginField" class="form-input" placeholder="Введите ваш логин" required autocomplete="off">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-white/70 mb-1.5">Пароль</label>
+                <input id="passwordField" type="password" class="form-input" placeholder="Ваш пароль" required autocomplete="current-password">
+            </div>
+
+            <button type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-white font-bold py-3.5 rounded-full transition-colors mt-4 text-sm">
+                Принять приглашение
+            </button>
+        </form>
+
+        <p class="text-xs text-white/40 mt-6">
+            Нет аккаунта?
+            <a href="{{ base_path }}/" class="text-[#64CEFB] hover:underline">Зарегистрироваться</a>
+        </p>
+
+        <div id="errorMsg" class="hidden mt-4 bg-red-500/20 border border-red-500/50 text-red-200 text-sm rounded-lg p-3"></div>
+    </div>
+
+    <script>
+        document.getElementById('acceptForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('inviteCode').value;
+            const username = document.getElementById('loginField').value.trim();
+            const password = document.getElementById('passwordField').value;
+            const errorEl = document.getElementById('errorMsg');
+
+            if (!username || !password) {
+                errorEl.textContent = 'Заполните все поля';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // First verify credentials via login
+            const loginForm = new FormData();
+            loginForm.append('username', username);
+            loginForm.append('password', password);
+
+            try {
+                const loginRes = await fetch('{{ base_path }}/login', {
+                    method: 'POST',
+                    body: loginForm,
+                    redirect: 'manual'
+                });
+
+                if (loginRes.status === 303 || loginRes.status === 302) {
+                    // Login OK — now accept invite
+                    const acceptRes = await fetch('{{ base_path }}/api/invite/' + code + '/accept', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username })
+                    });
+                    const acceptData = await acceptRes.json();
+                    if (acceptData.ok) {
+                        window.location.href = '{{ base_path }}/projects?user=' + username + '&project=' + acceptData.project_id;
+                    } else {
+                        errorEl.textContent = 'Не удалось принять приглашение';
+                        errorEl.classList.remove('hidden');
+                    }
+                } else {
+                    const text = await loginRes.text();
+                    if (text.includes('UserNotFound')) errorEl.textContent = 'Пользователь не найден';
+                    else if (text.includes('WrongPassword')) errorEl.textContent = 'Неверный пароль';
+                    else errorEl.textContent = 'Ошибка входа';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch(err) {
+                errorEl.textContent = 'Ошибка соединения';
+                errorEl.classList.remove('hidden');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            function tryLucide() {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                else setTimeout(tryLucide, 200);
+            }
+            tryLucide();
+        });
+    </script>
+{% include "yandex_metrika.html" %}
+</body>
+</html>

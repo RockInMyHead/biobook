@@ -1,0 +1,592 @@
+{% extends "base.html" %}
+
+{% block title %}Оборудование{% endblock %}
+{% block nav_subtitle %}Лаборатория{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-image: var(--bg-radial) !important;
+    }
+
+    .equip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+
+    .equip-card {
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    .equip-card:hover {
+        border-color: var(--glass-border-hover);
+        background: var(--glass-hover);
+    }
+
+    .equip-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .booking-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 12px;
+        margin-bottom: 6px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        transition: background 0.2s;
+    }
+    .booking-item:hover {
+        background: var(--glass-hover);
+    }
+
+    .queue-pos {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        color: var(--primary);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        border-radius: 24px;
+        border: 1px dashed var(--glass-border);
+        background: var(--glass-bg);
+    }
+
+    .friend-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 14px 4px 10px;
+        border-radius: 9999px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        color: var(--text-secondary);
+    }
+    .friend-chip.active {
+        background: var(--primary);
+        color: var(--primary-fg);
+        border-color: var(--primary);
+        font-weight: 600;
+    }
+    .friend-chip:hover:not(.active) {
+        border-color: var(--primary);
+    }
+
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: var(--modal-overlay);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal.active { display: flex; opacity: 1; }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%; max-width: 560px;
+    }
+    .modal.active .modal-content { transform: scale(1); }
+
+    @media (max-width: 768px) {
+        .equip-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+    <div>
+        <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Оборудование <span class="shiny-text">лаборатории</span></h1>
+        <p class="text-sm" style="color: var(--text-muted);">Оборудование ваше и ваших друзей. Можно бронировать и выстраивать очередь.</p>
+    </div>
+    <button onclick="openAddEquipModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+        <i data-lucide="plus" class="w-5 h-5"></i>
+        Добавить оборудование
+    </button>
+</div>
+
+<!-- Friend filter -->
+<div class="flex flex-wrap items-center gap-2 mb-8">
+    <span class="friend-chip active" data-filter="all" onclick="filterEquipment('all', this)">
+        <i data-lucide="layers" class="w-3.5 h-3.5"></i> Всё
+    </span>
+    <span class="friend-chip" data-filter="me" onclick="filterEquipment('me', this)">
+        <i data-lucide="user" class="w-3.5 h-3.5"></i> Моё
+    </span>
+    {% for f in friends %}
+    <span class="friend-chip" data-filter="{{ f }}" onclick="filterEquipment('{{ f }}', this)">
+        <i data-lucide="users" class="w-3.5 h-3.5"></i> {{ f }}
+    </span>
+    {% endfor %}
+</div>
+
+<!-- Equipment grid -->
+<div id="equipContainer">
+    {% if equipment_list|length == 0 %}
+    <div class="empty-state">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+            <i data-lucide="flask-conical" class="w-10 h-10" style="color: var(--text-muted);"></i>
+        </div>
+        <h3 class="text-2xl font-heading mb-3">Оборудование не добавлено</h3>
+        <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Добавьте оборудование, чтобы друзья могли бронировать его и выстраивать очередь.</p>
+        <button onclick="openAddEquipModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors" style="color: var(--text-main); border-color: var(--glass-border);">
+            Добавить оборудование
+        </button>
+    </div>
+    {% else %}
+    <div class="equip-grid">
+        {% for equip in equipment_list %}
+        {% set equip_bookings = bookings|selectattr('equipment_id', 'equalto', equip.id)|list %}
+        {% set active_bookings = equip_bookings|selectattr('status', 'in', ['pending', 'approved'])|list %}
+        {% set approved_count = equip_bookings|selectattr('status', 'equalto', 'approved')|list|length %}
+        {% set pending_count = active_bookings|selectattr('status', 'equalto', 'pending')|list|length %}
+        <div class="equip-card" data-owner="{{ equip.owner_id }}">
+            <div class="flex items-start gap-4 mb-4">
+                <div class="equip-icon">
+                    {% if 'спектро' in equip.name.lower() or 'фотометр' in equip.name.lower() %}
+                    🔬
+                    {% elif 'центрифуг' in equip.name.lower() %}
+                    ⚙️
+                    {% elif 'термостат' in equip.name.lower() or 'инкубатор' in equip.name.lower() %}
+                    🌡️
+                    {% elif 'весы' in equip.name.lower() or 'баланс' in equip.name.lower() %}
+                    ⚖️
+                    {% elif 'микроскоп' in equip.name.lower() %}
+                    🔍
+                    {% elif 'пцр' in equip.name.lower() or 'амплифи' in equip.name.lower() %}
+                    🧬
+                    {% else %}
+                    🧪
+                    {% endif %}
+                </div>
+                <div class="flex-grow min-w-0">
+                    <div class="font-heading font-bold text-lg truncate">{{ equip.name }}</div>
+                    <div class="text-xs flex items-center gap-2 mt-0.5" style="color: var(--text-muted);">
+                        <i data-lucide="user" class="w-3 h-3"></i> {{ equip.owner_id }}
+                        {% if equip.owner_id == user %}
+                        <span class="text-[10px] px-2 py-0.5 rounded-full" style="background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary);">Владелец</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    {% if equip.status == 'available' %}
+                    <span class="status-dot" style="background: #22c55e;"></span>
+                    <span style="color: #22c55e;">Свободно</span>
+                    {% elif equip.status == 'in_use' %}
+                    <span class="status-dot" style="background: #f59e0b;"></span>
+                    <span style="color: #f59e0b;">Занято</span>
+                    {% else %}
+                    <span class="status-dot" style="background: #ef4444;"></span>
+                    <span style="color: #ef4444;">Обслуживание</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if equip.description %}
+            <p class="text-xs mb-4 leading-relaxed line-clamp-2" style="color: var(--text-secondary);">{{ equip.description }}</p>
+            {% endif %}
+
+            <!-- Queue summary -->
+            <div class="flex items-center gap-3 mb-4 text-xs" style="color: var(--text-muted);">
+                <span class="flex items-center gap-1">
+                    <i data-lucide="calendar" class="w-3 h-3"></i>
+                    {{ equip_bookings|length }} бронирований
+                </span>
+                {% if pending_count > 0 %}
+                <span class="flex items-center gap-1" style="color: #f59e0b;">
+                    <i data-lucide="clock" class="w-3 h-3"></i>
+                    {{ pending_count }} ожидают
+                </span>
+                {% endif %}
+                {% if approved_count > 0 %}
+                <span class="flex items-center gap-1" style="color: #22c55e;">
+                    <i data-lucide="check-circle" class="w-3 h-3"></i>
+                    {{ approved_count }} подтверждены
+                </span>
+                {% endif %}
+            </div>
+
+            <!-- Queue of active bookings -->
+            {% if active_bookings %}
+            <div class="mb-4">
+                <div class="text-[10px] uppercase tracking-wider font-semibold mb-2" style="color: var(--text-muted);">Очередь:</div>
+                {% for bk in active_bookings[:5] %}
+                {% set idx = loop.index %}
+                <div class="flex items-center gap-3 py-1.5 text-xs">
+                    <span class="queue-pos">{{ idx }}</span>
+                    <span class="font-medium">{{ bk.user_id }}</span>
+                    <span style="color: var(--text-muted);">{{ bk.start_date }} — {{ bk.end_date }}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px]" style="background: {% if bk.status == 'approved' %}rgba(34,197,94,0.1); color: #22c55e;{% else %}rgba(245,158,11,0.1); color: #f59e0b;{% endif %}">
+                        {{ 'Подтверждено' if bk.status == 'approved' else 'Ожидает' }}
+                    </span>
+                </div>
+                {% endfor %}
+                {% if active_bookings|length > 5 %}
+                <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">+ ещё {{ active_bookings|length - 5 }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="flex gap-2 mt-auto">
+                <button onclick="openBookModal('{{ equip.id }}', '{{ equip.name }}')" class="flex-1 text-xs font-bold py-2.5 px-4 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                    <i data-lucide="calendar-plus" class="w-3.5 h-3.5 inline mr-1"></i> Забронировать
+                </button>
+                <button onclick="viewBookings('{{ equip.id }}', '{{ equip.name }}', '{{ equip.owner_id }}')" class="flex-1 text-xs py-2.5 px-4 rounded-full transition-colors" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); cursor: pointer;" onmouseover="this.style.borderColor='var(--text-muted)'" onmouseout="this.style.borderColor='var(--glass-border)'">
+                    <i data-lucide="list" class="w-3.5 h-3.5 inline mr-1"></i> Все брони
+                </button>
+                {% if equip.owner_id == user %}
+                <button onclick="deleteEquip('{{ equip.id }}')" class="text-xs p-2.5 rounded-full transition-colors" style="background: transparent; border: 1px solid transparent; color: var(--text-muted); cursor: pointer;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--text-muted)'" title="Удалить">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Equipment Modal -->
+<div id="addEquipModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button onclick="closeAddEquipModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Новое оборудование</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Добавьте оборудование, чтобы друзья могли его бронировать</p>
+        </div>
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+            <input type="text" id="equipName" class="form-input" placeholder="Например: Спектрофотометр UV-2600">
+        </div>
+        <div class="mb-6">
+            <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Описание</label>
+            <textarea id="equipDesc" rows="3" class="form-input resize-none" placeholder="Характеристики, условия использования..."></textarea>
+        </div>
+        <button onclick="addEquipment()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            Добавить
+        </button>
+    </div>
+</div>
+
+<!-- Book Equipment Modal -->
+<div id="bookEquipModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="max-width: 480px;">
+        <button onclick="closeBookModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Бронирование</h2>
+            <p class="text-sm" style="color: var(--text-muted);" id="bookEquipName">Оборудование</p>
+        </div>
+        <input type="hidden" id="bookEquipId">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата начала</label>
+                <input type="date" id="bookStart" class="form-input">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата окончания</label>
+                <input type="date" id="bookEnd" class="form-input">
+            </div>
+        </div>
+        <button onclick="submitBooking()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            Забронировать
+        </button>
+    </div>
+</div>
+
+<!-- View All Bookings Modal -->
+<div id="viewBookingsModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="max-width: 600px;">
+        <button onclick="closeViewBookings()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2" id="viewBkTitle">Все бронирования</h2>
+            <p class="text-sm" style="color: var(--text-muted);" id="viewBkOwner"></p>
+        </div>
+        <div id="viewBkList" class="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+            <p class="text-sm text-center py-6" style="color: var(--text-muted);">Загрузка...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const BASE_PATH = '{{ base_path }}';
+    const CURRENT_USER = '{{ user }}';
+
+    function openModal(el) {
+        el.style.display = 'flex';
+        setTimeout(() => {
+            el.style.opacity = '1';
+            const mc = el.querySelector('.modal-content');
+            if (mc) mc.style.transform = 'scale(1)';
+        }, 10);
+    }
+    function closeModal(el) {
+        el.style.opacity = '0';
+        const mc = el.querySelector('.modal-content');
+        if (mc) mc.style.transform = 'scale(0.95)';
+        setTimeout(() => { el.style.display = 'none'; }, 300);
+    }
+
+    // ── Add equipment ──
+    function openAddEquipModal() { openModal(document.getElementById('addEquipModal')); }
+    function closeAddEquipModal() { closeModal(document.getElementById('addEquipModal')); }
+    (function() {
+        const m = document.getElementById('addEquipModal');
+        if (m) m.addEventListener('click', function(e) { if (e.target === this) closeAddEquipModal(); });
+    })();
+
+    async function addEquipment() {
+        const name = document.getElementById('equipName').value.trim();
+        const desc = document.getElementById('equipDesc').value.trim();
+        if (!name) { alert('Введите название оборудования'); return; }
+        const resp = await fetch(`${BASE_PATH}/api/equipment/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner_id: CURRENT_USER, name, description: desc }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.error || 'неизвестная'));
+        }
+    }
+
+    // ── Delete equipment ──
+    async function deleteEquip(id) {
+        if (!confirm('Удалить это оборудование? Все бронирования будут удалены.')) return;
+        const resp = await fetch(`${BASE_PATH}/api/equipment/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, user_id: CURRENT_USER }),
+        });
+        const data = await resp.json();
+        if (data.ok) location.reload();
+        else alert('Ошибка: ' + (data.error || 'неизвестная'));
+    }
+
+    // ── Book equipment ──
+    function openBookModal(equipId, equipName) {
+        document.getElementById('bookEquipId').value = equipId;
+        document.getElementById('bookEquipName').textContent = 'Оборудование: ' + equipName;
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('bookStart').value = today;
+        document.getElementById('bookEnd').value = today;
+        openModal(document.getElementById('bookEquipModal'));
+    }
+    function closeBookModal() { closeModal(document.getElementById('bookEquipModal')); }
+    (function() {
+        const m = document.getElementById('bookEquipModal');
+        if (m) m.addEventListener('click', function(e) { if (e.target === this) closeBookModal(); });
+    })();
+
+    async function submitBooking() {
+        const equipment_id = document.getElementById('bookEquipId').value;
+        const start_date = document.getElementById('bookStart').value;
+        const end_date = document.getElementById('bookEnd').value;
+        if (!start_date || !end_date) { alert('Выберите даты'); return; }
+        if (end_date < start_date) { alert('Дата окончания не может быть раньше даты начала'); return; }
+        const resp = await fetch(`${BASE_PATH}/api/equipment/book`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ equipment_id, user_id: CURRENT_USER, start_date, end_date }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            if (data.warning) alert(data.warning);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.error || 'неизвестная'));
+        }
+    }
+
+    // ── View all bookings ──
+    let currentViewEquipId = null;
+
+    async function viewBookings(equipId, equipName, ownerId) {
+        currentViewEquipId = equipId;
+        document.getElementById('viewBkTitle').textContent = equipName + ' — все бронирования';
+        document.getElementById('viewBkOwner').textContent = 'Владелец: ' + ownerId;
+        document.getElementById('viewBkList').innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Загрузка...</p>';
+        openModal(document.getElementById('viewBookingsModal'));
+
+        try {
+            // Fetch bookings from server
+            const resp = await fetch(`${BASE_PATH}/api/equipment/bookings?id=${equipId}`);
+            const data = await resp.json();
+            renderAllBookings(data.bookings || [], ownerId);
+        } catch(e) {
+            document.getElementById('viewBkList').innerHTML = '<p class="text-sm text-center py-6" style="color: #ef4444;">Ошибка загрузки</p>';
+        }
+    }
+
+    function renderAllBookings(bookings, ownerId) {
+        const container = document.getElementById('viewBkList');
+        container.innerHTML = '';
+
+        if (bookings.length === 0) {
+            container.innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Нет бронирований</p>';
+            return;
+        }
+
+        // Sort by start_date ascending
+        bookings.sort((a, b) => a.start_date.localeCompare(b.start_date));
+
+        bookings.forEach((bk, i) => {
+            const div = document.createElement('div');
+            div.className = 'booking-item';
+            div.style.flexWrap = 'wrap';
+            
+            const statusColors = {
+                pending: { bg: 'rgba(245,158,11,0.1)', text: '#f59e0b' },
+                approved: { bg: 'rgba(34,197,94,0.1)', text: '#22c55e' },
+                declined: { bg: 'rgba(239,68,68,0.1)', text: '#ef4444' },
+                completed: { bg: 'rgba(100,206,251,0.1)', text: '#64CEFB' },
+            };
+            const sc = statusColors[bk.status] || statusColors.pending;
+            const statusLabels = { pending: 'Ожидает', approved: 'Подтверждено', declined: 'Отклонено', completed: 'Завершено' };
+
+            let actions = '';
+            // Owner can approve/decline pending bookings
+            if (bk.status === 'pending' && ownerId === CURRENT_USER) {
+                actions = `
+                    <button onclick="approveBooking('${bk.id}')" class="text-xs font-bold py-1.5 px-3 rounded-full" style="background: #22c55e; color: white; border: none; cursor: pointer;">Подтвердить</button>
+                    <button onclick="declineBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: transparent; border: 1px solid rgba(239,68,68,0.3); color: #ef4444; cursor: pointer;">Отклонить</button>
+                `;
+            }
+            // User who booked can cancel
+            if (bk.status === 'pending' && bk.user_id === CURRENT_USER) {
+                actions += `
+                    <button onclick="cancelBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted); cursor: pointer;">Отменить</button>
+                `;
+            }
+            // Mark completed (owner or user)
+            if (bk.status === 'approved' && (ownerId === CURRENT_USER || bk.user_id === CURRENT_USER)) {
+                actions += `
+                    <button onclick="completeBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: rgba(100,206,251,0.1); border: 1px solid rgba(100,206,251,0.3); color: #64CEFB; cursor: pointer;">Завершить</button>
+                `;
+            }
+
+            div.innerHTML = `
+                <span class="queue-pos" style="flex-shrink:0;">${i + 1}</span>
+                <div class="flex-grow min-w-0" style="flex:1;">
+                    <div class="text-sm font-medium">${bk.user_id}</div>
+                    <div class="text-xs" style="color: var(--text-muted);">${bk.start_date} — ${bk.end_date}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-2.5 py-1 rounded-full" style="background: ${sc.bg}; color: ${sc.text}; border: 1px solid ${sc.text}20;">
+                        ${statusLabels[bk.status] || bk.status}
+                    </span>
+                    ${actions}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function closeViewBookings() { closeModal(document.getElementById('viewBookingsModal')); }
+    (function() {
+        const m = document.getElementById('viewBookingsModal');
+        if (m) m.addEventListener('click', function(e) { if (e.target === this) closeViewBookings(); });
+    })();
+
+    // We need inline booking fetching because the template only has initial data
+    // Add the API endpoint inline
+    // (the backend already has all bookings, but we'll fetch from a new mini endpoint)
+
+    // ── Booking actions ──
+    async function approveBooking(id) {
+        await fetch(`${BASE_PATH}/api/equipment/booking/approve`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        location.reload();
+    }
+    async function declineBooking(id) {
+        await fetch(`${BASE_PATH}/api/equipment/booking/decline`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        location.reload();
+    }
+    async function completeBooking(id) {
+        await fetch(`${BASE_PATH}/api/equipment/booking/complete`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        location.reload();
+    }
+    async function cancelBooking(id) {
+        if (!confirm('Отменить бронирование?')) return;
+        await fetch(`${BASE_PATH}/api/equipment/booking/cancel`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, user_id: CURRENT_USER })
+        });
+        location.reload();
+    }
+
+    // ── Filter equipment by owner ──
+    function filterEquipment(filter, el) {
+        document.querySelectorAll('.friend-chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelectorAll('.equip-card').forEach(card => {
+            if (filter === 'all') {
+                card.style.display = '';
+            } else if (filter === 'me') {
+                card.style.display = card.dataset.owner === CURRENT_USER ? '' : 'none';
+            } else {
+                card.style.display = card.dataset.owner === filter ? '' : 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}
