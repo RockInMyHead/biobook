@@ -5,22 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% set page_url = site_origin ~ base_path ~ '/guides/' %}
     {% set hero_src = base_path ~ '/static/guide-vesti-hero.jpg' %}
-    <title>Статьи о лабораторном журнале и отчётах — Bio-Notebook</title>
+    <title>Статьи о лабораторном журнале и отчётах - Lab-Journal</title>
     <meta name="description" content="Практические статьи для студентов и лаборантов: отчёты по лабораторным работам, протоколы, цифровой журнал.">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <link rel="canonical" href="{{ page_url }}">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:site_name" content="Lab-Journal">
     <meta property="og:locale" content="ru_RU">
     <meta property="og:url" content="{{ page_url }}">
-    <meta property="og:title" content="Статьи о лабораторном журнале и отчётах — Bio-Notebook">
+    <meta property="og:title" content="Статьи о лабораторном журнале и отчётах - Lab-Journal">
     <meta property="og:description" content="Практические статьи для студентов и лаборантов: отчёты, протоколы, цифровой журнал.">
     <meta property="og:image" content="{{ site_origin }}{{ hero_src }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Статьи Bio-Notebook о лабораторном журнале">
+    <meta property="og:image:alt" content="Статьи Lab-Journal о лабораторном журнале">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Статьи о лабораторном журнале и отчётах — Bio-Notebook">
+    <meta name="twitter:title" content="Статьи о лабораторном журнале и отчётах - Lab-Journal">
     <meta name="twitter:description" content="Практические статьи для студентов и лаборантов: отчёты, протоколы, цифровой журнал.">
     <meta name="twitter:image" content="{{ site_origin }}{{ hero_src }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
@@ -191,7 +191,7 @@
             padding: 2.25rem 1.5rem 2.75rem;
             background: #05070a;
             border-top: 1px solid rgba(255,255,255,.08);
-            font-size: .8rem;
+            font-size: 0.875rem;
             color: rgba(255,255,255,.45);
             text-align: center;
             line-height: 1.6;
@@ -206,9 +206,12 @@
     <header class="guides-hero">
         <img src="{{ hero_src }}" width="1280" height="720" alt="" decoding="async" fetchpriority="high">
         <div class="guides-hero-inner">
-            <p class="guides-kicker">// Статьи Bio-Notebook</p>
-            <h1>Статьи о лабораторном<br><em>журнале</em></h1>
-            <p class="guides-lead">Отчёты, протоколы и практика ведения записей — материалы для студентов и лаборантов.</p>
+            <p class="guides-kicker">// Статьи Lab-Journal</p>
+            <h1>Статьи о лабораторном <br><em>журнале</em></h1>
+            <p class="guides-lead">Отчёты, протоколы и практика ведения записей - материалы для студентов и лаборантов.</p>
+            {% if hub_updated %}
+            <p class="guides-lead" style="opacity:.75;font-size:.9rem;margin-top:.35rem">Обновлено <time datetime="{{ hub_updated }}">{{ hub_updated | ru_date }}</time></p>
+            {% endif %}
         </div>
     </header>
 
@@ -216,7 +219,7 @@
         <main id="main" class="wrap">
             <nav class="crumbs" aria-label="Хлебные крошки">
                 <ol>
-                    <li><a href="{{ base_path }}/">Bio-Notebook</a></li>
+                    <li><a href="{{ base_path }}/">Lab-Journal</a></li>
                     <li><span aria-current="page">Статьи</span></li>
                 </ol>
             </nav>
@@ -236,13 +239,14 @@
             </div>
 
             <section class="guides-cta" aria-labelledby="guides-cta-heading">
-                <h2 id="guides-cta-heading">Ведите журнал в Bio-Notebook</h2>
-                <p>OCR, ИИ-агент и отчёт DOCX/PDF — Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
+                <h2 id="guides-cta-heading">Ведите журнал в Lab-Journal</h2>
+                <p>OCR, ИИ-агент и отчёт DOCX/PDF - Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
                 <a href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
             </section>
         </main>
         {% include 'public_site_footer.html' %}
     </div>
+{% include "cookie_banner.html" %}
 {% include "yandex_metrika.html" %}
 </body>
 </html>

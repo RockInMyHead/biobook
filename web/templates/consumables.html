@@ -93,9 +93,9 @@
                         {% if c_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
                     </td>
                     <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.min_amount }} {{ c.unit }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '—' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '—' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '—' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '-' }}</td>
                     <td class="py-3 pr-0 text-right whitespace-nowrap">
                         <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editConsumable('{{ c.id }}')">Изм.</button>
                         <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteConsumable('{{ c.id }}')">Уд.</button>

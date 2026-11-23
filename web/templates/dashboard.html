@@ -12,20 +12,88 @@
         left: 0;
         width: 100%;
         height: 100%;
+        max-width: 100vw;
         background: var(--modal-overlay);
         z-index: 100;
         justify-content: center;
         align-items: center;
         opacity: 0;
         transition: opacity 0.3s ease;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 1rem;
+        box-sizing: border-box;
+        -webkit-overflow-scrolling: touch;
     }
     .modal.active { display: flex; opacity: 1; }
     .modal-content {
         transform: scale(0.95);
         transition: transform 0.3s ease;
-        width: 100%; max-width: 500px;
+        width: min(500px, calc(100vw - 2rem));
+        max-width: min(500px, calc(100vw - 2rem));
+        min-width: min(320px, calc(100vw - 2rem));
+        flex: 0 0 auto;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
     .modal.active .modal-content { transform: scale(1); }
+    .tpl-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        color: var(--text-main);
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .tpl-option input[type="radio"] {
+        width: 1rem !important;
+        min-width: 1rem !important;
+        max-width: 1rem !important;
+        height: 1rem;
+        margin: 0.25rem 0 0 !important;
+        padding: 0 !important;
+        flex: 0 0 1rem !important;
+        accent-color: var(--primary);
+    }
+    .tpl-option span {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: normal;
+        line-height: 1.45;
+        color: var(--text-main);
+    }
+    body.modal-open {
+        overflow: hidden !important;
+        touch-action: none;
+    }
+
+    @media (max-width: 768px) {
+        .modal {
+            align-items: flex-end;
+            padding: 0;
+        }
+        .modal-content {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0;
+            border-radius: 1.25rem 1.25rem 0 0 !important;
+            max-height: min(92vh, 720px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 1.25rem !important;
+            padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        #newExpModal .modal-content h2 {
+            font-size: 1.35rem;
+            padding-right: 2rem;
+        }
+    }
 
     {% if lab_planner_enabled %}
     .hw {
@@ -234,9 +302,9 @@
 {% endblock %}
 
 {% block content %}
-{% if lab_planner_enabled %}
+{% if lab_planner_enabled and ai_enabled %}
 <!-- Рабочее пространство чата (как Harness) -->
-<div class="hw">
+<div class="hw" id="ai-chat">
     <aside class="hw-side">
         <div class="hw-side-head">
             <b>Диалоги</b>
@@ -259,7 +327,7 @@
         </div>
         <div class="planner-body" id="plannerBody">
             <div class="msg ai">
-                <div class="bubble">Привет! Опишите эксперимент — я предложу план шагов, и вы создадите его в журнале одной кнопкой.</div>
+                <div class="bubble">Привет! Опишите эксперимент - я предложу план шагов, и вы создадите его в журнале одной кнопкой.</div>
             </div>
             <div class="planner-chips" id="plannerChips">
                 <button type="button" class="chip">Кинетика роста E. coli на LB и M9</button>
@@ -275,16 +343,43 @@
 </div>
 {% endif %}
 
-<div class="flex flex-col md:flex-row justify-between items-start md:items-end {% if lab_planner_enabled %}mt-14{% else %}mt-4{% endif %} mb-8 gap-4">
+{% if show_onboarding %}
+<div class="liquid-glass rounded-2xl p-6 md:p-8 mb-8" style="border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--glass-border));">
+    <h2 class="text-xl md:text-2xl font-heading mb-2">Добро пожаловать в лабораторный журнал</h2>
+    <p class="text-sm mb-4 leading-relaxed" style="color: var(--text-muted); max-width: 40rem;">
+        Создайте первую лабораторную работу по шаблону: цель, материалы, ход работы, результаты и выводы.
+        Тариф <strong style="color:var(--text-main);">Free</strong> — без ИИ-ассистента. Pro подключается в разделе «Тарифы».
+    </p>
+    <ol class="text-sm mb-5 space-y-1.5" style="color: var(--text-secondary); padding-left: 1.1rem;">
+        <li>Нажмите «Новая лабораторная» и выберите шаблон</li>
+        <li>Заполняйте этапы по порядку — как в бумажном журнале</li>
+        <li>Добавляйте фото, при необходимости распознавайте текст (OCR)</li>
+    </ol>
+    <button onclick="openModal()" class="font-bold py-2.5 px-5 rounded-full text-sm" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;">
+        Создать первую лабораторную
+    </button>
+</div>
+{% endif %}
+
+{% if user_plan == 'free' and not show_onboarding %}
+<div id="ai-chat" class="mb-6 text-sm rounded-xl px-4 py-3" style="background: color-mix(in srgb, var(--primary) 8%, transparent); color: var(--text-secondary); border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);">
+    Сейчас тариф <strong style="color:var(--text-main);">Free</strong> — без ИИ. ИИ-помощник и 20 ГБ доступны на Pro.
+    <a href="{{ base_path }}/pricing?user={{ user }}" class="font-medium no-underline" style="color: var(--primary);">Смотреть тарифы</a>
+</div>
+{% elif user_plan == 'free' and show_onboarding %}
+<div id="ai-chat" class="sr-only" aria-hidden="true"></div>
+{% endif %}
+
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end {% if lab_planner_enabled and ai_enabled %}mt-14{% else %}mt-4{% endif %} mb-8 gap-4">
     <div>
-        <h2 class="text-2xl md:text-3xl font-heading tracking-tight mb-1">Ваши <span class="shiny-text">исследования</span></h2>
+        <h2 class="text-2xl md:text-3xl font-heading tracking-tight mb-1">Ваши <span class="shiny-text">лабораторные</span></h2>
         <p class="text-sm max-w-2xl leading-relaxed" style="color: var(--text-muted);">
-            Здесь хранятся все ваши эксперименты — каждый в изолированном контейнере с версиями и AI-помощником.
+            Каждая работа — набор этапов записи: от цели до выводов, с фото, версиями и экспортом.
         </p>
     </div>
     <button onclick="openModal()" class="font-bold py-2.5 px-5 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap text-sm" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
         <i data-lucide="plus" class="w-4 h-4"></i>
-        Новый эксперимент
+        Новая лабораторная
     </button>
 </div>
 
@@ -354,7 +449,7 @@
             <div class="flex items-center justify-between mt-auto border-t pt-3" style="border-color: var(--glass-border);">
                 <div class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
                     <i data-lucide="folder-git-2" class="w-3 h-3"></i>
-                    {{ exp.levels|map('length')|sum }} узлов
+                    {{ exp.levels|map('length')|sum }} этапов
                 </div>
                 {% if not has_fr or fr.status != 'accepted' %}
                 <button onclick="sendFriendRequest('{{ exp.user_id }}', this)" class="text-xs font-bold py-1.5 px-4 rounded-full transition-all" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
@@ -375,27 +470,38 @@
 <!-- New Experiment Modal -->
 <div id="newExpModal" class="modal">
     <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="transform: scale(0.95);">
-        <button onclick="closeMod()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+        <button type="button" onclick="closeMod()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" aria-label="Закрыть">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         
-        <div class="mb-8">
-            <h2 class="text-2xl font-heading font-bold mb-2">Новое исследование</h2>
-            <p class="text-sm" style="color: var(--text-muted);">Опишите задачу, и система создаст изолированное окружение</p>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Новая лабораторная</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Выберите шаблон и начните запись по этапам</p>
         </div>
         
-        <form action="{{ base_path }}/create_experiment" method="POST">
+        <form action="{{ base_path }}/create_experiment" method="POST" style="min-width:0;max-width:100%;">
             <input type="hidden" name="user" value="{{ user }}">
             <div class="mb-4">
-                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название эксперимента</label>
-                <input type="text" name="name" class="form-input" required placeholder="Например: Анализ RNA-seq образца A">
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Название</label>
+                <input type="text" name="name" class="form-input" required placeholder="Например: Определение концентрации белка" autocomplete="off">
             </div>
-            <div class="mb-8">
-                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Описание задач</label>
-                <textarea name="description" rows="4" class="form-input resize-none" required placeholder="Краткое описание того, что будет изучаться..."></textarea>
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Краткое описание</label>
+                <textarea name="description" rows="3" class="form-input resize-none" required placeholder="Тема, группа, что измеряете..."></textarea>
             </div>
-            <button type="submit" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
-                Создать эксперимент
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary);">Шаблон</label>
+                <label class="tpl-option">
+                    <input type="radio" name="template" value="lab" checked>
+                    <span><strong>Лабораторная работа</strong> — цель, материалы, ход, результаты, выводы</span>
+                </label>
+                <label class="tpl-option" style="margin-bottom:0;">
+                    <input type="radio" name="template" value="blank">
+                    <span><strong>Пустая запись</strong> — один этап без структуры</span>
+                </label>
+            </div>
+            <button type="submit" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg); max-width:100%; box-sizing:border-box;" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+                Создать
             </button>
         </form>
     </div>
@@ -408,7 +514,13 @@
     const modalContent = modal ? modal.querySelector('.modal-content') : null;
 
     function openModal() {
+        if (typeof openModalFn === 'function') {
+            openModalFn(modal);
+            return;
+        }
         if (!modal) return;
+        document.body.classList.add('modal-open');
+        modal.classList.add('active');
         modal.style.display = 'flex';
         setTimeout(() => {
             modal.style.opacity = '1';
@@ -417,11 +529,17 @@
     }
 
     function closeMod() {
+        if (typeof closeModalFn === 'function') {
+            closeModalFn(modal);
+            return;
+        }
         if (!modal) return;
         modal.style.opacity = '0';
+        modal.classList.remove('active');
         if (modalContent) modalContent.style.transform = 'scale(0.95)';
         setTimeout(() => {
             modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
         }, 300);
     }
 
@@ -433,8 +551,20 @@
 
     const BASE_PATH = '{{ base_path }}';
     const CURRENT_USER = '{{ user }}';
+    (function fireSignupGoal() {
+        try {
+            const p = new URLSearchParams(window.location.search);
+            if (p.get('bn_signup') !== '1') return;
+            const method = p.get('bn_method') || 'email';
+            const plan = p.get('bn_plan') || 'free';
+            if (window.bnGoal) window.bnGoal('bn_signup', { method: method, plan: plan });
+            p.delete('bn_signup'); p.delete('bn_method'); p.delete('bn_plan');
+            const q = p.toString();
+            history.replaceState({}, '', window.location.pathname + (q ? '?' + q : ''));
+        } catch (e) {}
+    })();
 
-    {% if lab_planner_enabled %}
+    {% if lab_planner_enabled and ai_enabled %}
     // ── ИИ-планировщик ──
     (function () {
         const body = document.getElementById('plannerBody');
@@ -539,7 +669,7 @@
             .catch(function (err) {
                 const msg = (err && err.name === 'AbortError')
                     ? 'Ответ занял слишком много времени. Попробуйте ещё раз или уточните запрос.'
-                    : ((err && err.message) ? err.message : 'Сеть недоступна — попробуйте ещё раз.');
+                    : ((err && err.message) ? err.message : 'Сеть недоступна - попробуйте ещё раз.');
                 addMsg('ai', format(msg));
             })
             .finally(function () {
@@ -566,7 +696,7 @@
             if (body && chipsWrap) {
                 const greet = document.createElement('div');
                 greet.className = 'msg ai';
-                greet.innerHTML = '<div class="bubble">Привет! Опишите эксперимент — я предложу план шагов, и вы создадите его в журнале одной кнопкой.</div>';
+                greet.innerHTML = '<div class="bubble">Привет! Опишите эксперимент - я предложу план шагов, и вы создадите его в журнале одной кнопкой.</div>';
                 body.appendChild(greet);
                 chipsWrap.style.display = 'flex';
                 body.appendChild(chipsWrap);
@@ -596,12 +726,12 @@
                     window.location.href = BASE_PATH + '/experiment/' + CURRENT_USER + '/' + data.exp_id;
                 } else {
                     btn.disabled = false;
-                    btn.textContent = 'Ошибка — попробуйте ещё раз';
+                    btn.textContent = 'Ошибка - попробуйте ещё раз';
                 }
             })
             .catch(function () {
                 btn.disabled = false;
-                btn.textContent = 'Ошибка сети — попробуйте ещё раз';
+                btn.textContent = 'Ошибка сети - попробуйте ещё раз';
             });
         });
     })();
@@ -629,6 +759,17 @@
         } catch (e) {
             btn.textContent = 'Ошибка';
             btn.disabled = false;
+        }
+    }
+
+    if (location.hash === '#ai-chat') {
+        const target = document.getElementById('ai-chat');
+        if (target) {
+            requestAnimationFrame(function () {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const input = document.getElementById('plannerInput');
+                if (input) setTimeout(function () { input.focus(); }, 350);
+            });
         }
     }
 </script>

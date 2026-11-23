@@ -19,18 +19,76 @@
         background: var(--glass-bg);
     }
     .profile-avatar {
-        width: 72px;
-        height: 72px;
+        position: relative;
+        width: 88px;
+        height: 88px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 700;
-        font-size: 28px;
+        font-size: 32px;
         flex-shrink: 0;
         background: color-mix(in srgb, var(--primary) 15%, transparent);
         color: var(--primary);
         border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
+        overflow: hidden;
+    }
+    .profile-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .profile-avatar-wrap {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .avatar-edit-btn {
+        position: absolute;
+        right: -2px;
+        bottom: -2px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid var(--glass-strong-bg, #0a0e14);
+        background: var(--primary);
+        color: var(--primary-fg);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,.25);
+        padding: 0;
+    }
+    .avatar-edit-btn:hover { filter: brightness(1.08); }
+    .avatar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .avatar-actions button {
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--glass-border);
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+    }
+    .avatar-actions button:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    .avatar-actions button.danger:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+    }
+    .avatar-hint {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 6px;
     }
     .profile-actions {
         display: flex;
@@ -80,7 +138,21 @@
 </a>
 
 <div class="profile-hero mb-8">
-    <div class="profile-avatar">{{ profile.username[:1].upper() }}</div>
+    <div class="profile-avatar-wrap">
+        <div class="profile-avatar" id="profileAvatar" aria-label="Аватар">
+            {% if profile.avatar_url %}
+            <img id="profileAvatarImg" src="{{ profile.avatar_url|avatar_src }}" alt="Аватар {{ profile.display_name or profile.username }}">
+            {% else %}
+            <span id="profileAvatarLetter">{{ profile.username[:1].upper() }}</span>
+            {% endif %}
+        </div>
+        {% if is_own %}
+        <button type="button" class="avatar-edit-btn" id="avatarPickBtn" title="Сменить фото" aria-label="Сменить фото">
+            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+        </button>
+        <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" hidden>
+        {% endif %}
+    </div>
     <div class="min-w-0 flex-grow">
         <h1 class="text-3xl md:text-4xl font-heading tracking-tight mb-1 truncate">{{ profile.display_name or profile.username }}</h1>
         {% if profile.display_name and profile.display_name != profile.username %}
@@ -96,6 +168,11 @@
         <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);">
             Это ваш профиль
         </div>
+        <div class="avatar-actions">
+            <button type="button" id="avatarUploadBtn">Загрузить фото</button>
+            <button type="button" class="danger" id="avatarRemoveBtn" {% if not profile.avatar_url %}hidden{% endif %}>Убрать фото</button>
+        </div>
+        <p class="avatar-hint">JPG, PNG, WebP или GIF · до 5 МБ</p>
         {% elif fr_status == 'accepted' %}
         <div class="text-xs mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full" style="background: rgba(34,197,94,0.12); color: #22c55e;">
             <i data-lucide="user-check" class="w-3 h-3"></i> В друзьях
@@ -180,7 +257,7 @@
         <h3 class="text-lg font-heading mb-2 group-hover:brightness-110 transition-colors">{{ exp.name }}</h3>
         <p class="text-sm flex-grow line-clamp-3 leading-relaxed" style="color: var(--text-muted);">{{ exp.description }}</p>
         <div class="mt-4 pt-3 border-t flex items-center justify-between" style="border-color: var(--glass-border);">
-            <span class="text-xs" style="color: var(--text-muted);">{{ exp.levels|map('length')|sum }} узлов</span>
+            <span class="text-xs" style="color: var(--text-muted);">{{ exp.levels|map('length')|sum }} этапов</span>
             <span class="text-sm font-medium flex items-center gap-1" style="color: var(--primary);">
                 Открыть <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </span>
@@ -195,6 +272,77 @@
 <script>
     const BASE_PATH = '{{ base_path }}';
     const CURRENT_USER = '{{ user }}';
+    const IS_OWN_PROFILE = {{ 'true' if is_own else 'false' }};
+
+    function setProfileAvatar(url) {
+        const box = document.getElementById('profileAvatar');
+        if (!box) return;
+        const letter = '{{ profile.username[:1].upper() }}';
+        if (url) {
+            box.innerHTML = `<img id="profileAvatarImg" src="${url}" alt="Аватар">`;
+            const rm = document.getElementById('avatarRemoveBtn');
+            if (rm) rm.hidden = false;
+        } else {
+            box.innerHTML = `<span id="profileAvatarLetter">${letter}</span>`;
+            const rm = document.getElementById('avatarRemoveBtn');
+            if (rm) rm.hidden = true;
+        }
+        const nav = document.querySelector('.user-menu-avatar');
+        if (nav) {
+            if (url) {
+                nav.innerHTML = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">`;
+                nav.classList.add('has-photo');
+            } else {
+                nav.textContent = letter;
+                nav.classList.remove('has-photo');
+            }
+        }
+    }
+
+    async function uploadAvatarFile(file) {
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/profile/avatar`, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) {
+                alert(data.error || 'Не удалось загрузить фото');
+                return;
+            }
+            setProfileAvatar(data.url);
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    async function removeAvatar() {
+        if (!confirm('Убрать фото профиля?')) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/profile/avatar`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) {
+                alert(data.error || 'Не удалось удалить фото');
+                return;
+            }
+            setProfileAvatar('');
+        } catch (e) {
+            alert('Ошибка сети');
+        }
+    }
+
+    if (IS_OWN_PROFILE) {
+        const input = document.getElementById('avatarFileInput');
+        const pick = () => input && input.click();
+        document.getElementById('avatarPickBtn')?.addEventListener('click', pick);
+        document.getElementById('avatarUploadBtn')?.addEventListener('click', pick);
+        document.getElementById('avatarRemoveBtn')?.addEventListener('click', removeAvatar);
+        input?.addEventListener('change', () => {
+            const f = input.files && input.files[0];
+            input.value = '';
+            if (f) uploadAvatarFile(f);
+        });
+    }
 
     async function sendRequest(friendId) {
         try {

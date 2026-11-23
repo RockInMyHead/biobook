@@ -272,7 +272,7 @@
             <div class="legend-row"><span class="legend-dot" style="background:#a78bfa;"></span> Друг</div>
             <div class="legend-row"><span class="legend-dot" style="background:#34d399;"></span> Публичный</div>
             <div class="legend-row"><span class="legend-line"></span> Смысловая связь</div>
-            <div style="font-size:10px; opacity:0.55; margin-top:6px;">Клик по узлу — детали · двойной клик — открыть</div>
+            <div style="font-size:10px; opacity:0.55; margin-top:6px;">Клик по этапу - детали · двойной клик - открыть</div>
         </div>
 
         <div id="edgeTooltip"></div>
@@ -464,7 +464,7 @@
             line.setAttribute('stroke-linecap', 'round');
             line.style.cursor = 'help';
             line.addEventListener('mouseenter', () => {
-                const topics = (lr.topics || lr.common || []).slice(0, 4).join(', ') || '—';
+                const topics = (lr.topics || lr.common || []).slice(0, 4).join(', ') || '-';
                 const summary = lr.summary || '';
                 showEdgeTooltip(
                     `${summary ? `<div style="margin-bottom:4px">${summary}</div>` : ''}` +
@@ -522,7 +522,7 @@
             badge.setAttribute('font-size', '9');
             badge.setAttribute('y', String(n.r + 28));
             badge.classList.add('graph-node-label', 'graph-label-dim');
-            badge.textContent = `${n.node_count || 0} узлов · ${n.degree || 0} св.`;
+            badge.textContent = `${n.node_count || 0} этапов · ${n.degree || 0} св.`;
             g.appendChild(badge);
 
             let clickTimer = null;
@@ -802,7 +802,7 @@
             <div class="grid grid-cols-3 gap-2 text-center">
                 <div class="rounded-xl p-3" style="background:var(--glass-bg);border:1px solid var(--glass-border);">
                     <div class="text-lg font-bold" style="color:var(--primary);">${node.node_count || 0}</div>
-                    <div class="text-[10px]" style="color:var(--text-muted);">узлов</div>
+                    <div class="text-[10px]" style="color:var(--text-muted);">этапов</div>
                 </div>
                 <div class="rounded-xl p-3" style="background:var(--glass-bg);border:1px solid var(--glass-border);">
                     <div class="text-lg font-bold" style="color:var(--primary);">${links.length}</div>

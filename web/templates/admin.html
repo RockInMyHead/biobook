@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Панель администратора | Bio-Notebook</title>
+    <title>Панель администратора | Lab-Journal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -12,7 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-    <link rel="stylesheet" href="{{ base_path }}/static/styles.css">
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css?v=20261121-modal">
     <style>
         * { box-sizing: border-box; }
         .stat-card { padding: 1.5rem; border-radius: 1rem; }
@@ -175,7 +175,7 @@
 <nav class="admin-topbar w-full px-6 lg:px-16 py-6 z-50 flex items-center justify-between gap-4 border-b sticky top-0" style="background:var(--nav-bg);backdrop-filter:blur(12px);border-color:var(--nav-border);">
     <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center" style="border-color:rgba(255,255,255,0.5);"><div class="w-4 h-4 rounded-full" style="background:var(--primary);"></div></div>
-        <span class="admin-brand-title font-bold text-xl tracking-tight font-heading" style="color:var(--text-main);">Bio-Notebook <span class="admin-brand-sub font-sans text-sm ml-2" style="color:var(--text-muted);">Lab Admin</span></span>
+        <span class="admin-brand-title font-bold text-xl tracking-tight font-heading" style="color:var(--text-main);">Lab-Journal <span class="admin-brand-sub font-sans text-sm ml-2" style="color:var(--text-muted);">Lab Admin</span></span>
     </div>
     <div class="flex items-center gap-3">
         <button id="themeToggle" class="theme-toggle-btn"><i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i></button>
@@ -307,7 +307,7 @@
                             <button type="button" onclick="bulkAction('ban')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full" style="border:1px solid var(--glass-border);color:#f59e0b;background:transparent;cursor:pointer;"><i data-lucide="lock" class="w-3.5 h-3.5"></i>Заблокировать выбранных</button>
                         </div>
 
-                        {% if users %}
+                {% if users %}
                         <div class="u-list" id="usersList">
                             {% for u in users %}
                             <div class="u-row{% if u.is_banned == 'true' %} is-banned{% endif %}" data-username="{{ u.username }}"
@@ -353,7 +353,7 @@
                                 </div>
                             </div>
                             {% endfor %}
-                        </div>
+                </div>
                         <div id="usersEmpty" class="chart-card text-center text-sm" style="display:none;color:var(--text-muted);">Никого не нашлось по фильтру</div>
                         {% else %}
                         <div class="chart-card text-center text-sm" style="color:var(--text-muted);">Пользователей пока нет</div>
@@ -384,7 +384,7 @@
             <!-- ════ SUPPORT ════ -->
             <div id="section-support" class="section-toggle">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-2xl font-heading font-bold">Поддержка — тикеты</h2>
+                    <h2 class="text-2xl font-heading font-bold">Поддержка - тикеты</h2>
                     <div class="flex gap-2" id="ticketFilters">
                         <select id="ticketStatusFilter" class="form-input !py-1.5 !px-3 !text-xs" style="max-width:140px;" onchange="loadTickets()">
                             <option value="all">Все статусы</option>
@@ -760,6 +760,8 @@ async function loadLogs(){
 let analyticsChart = null;
 let analyticsInvChart = null;
 let visitChartInstances = [];
+let analyticsCache = null;
+let visitFilterMode = 'human';
 function destroyVisitCharts() {
     visitChartInstances.forEach(ch => { try { ch.destroy(); } catch (_) {} });
     visitChartInstances = [];
@@ -771,6 +773,11 @@ function chartTickColor() {
 function chartGridColor() {
     const dark = document.documentElement.getAttribute('data-theme') !== 'light';
     return dark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.08)';
+}
+function analyticsVisitSlice(base, mode) {
+    const modes = base.visit_modes || {};
+    const slice = modes[mode] || modes.human || base;
+    return Object.assign({}, base, slice, { visit_filter: mode });
 }
 function initVisitCharts(d) {
     if (typeof Chart === 'undefined') { setTimeout(() => initVisitCharts(d), 300); return; }
@@ -867,93 +874,111 @@ function initVisitCharts(d) {
         }));
     }
 }
-async function loadAnalytics(){
-    const c=document.getElementById('analyticsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
-    try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/analytics?key='+ADMIN_KEY);const d=await r.json();
-        c.innerHTML=`
-            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Посещаемость сервиса</h3>
-            <p class="text-xs mb-3" style="color:var(--text-muted);">Уникальные посетители по cookie <code style="opacity:.8">bio_vid</code> (лендинг, вход, кабинет). Без API и lab-admin.</p>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за всё время</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_total ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 24 ч</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_24h ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 7 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_7d ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уникальных за 30 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_30d ?? 0}</div></div>
+function setVisitFilter(mode) {
+    visitFilterMode = mode || 'human';
+    if (!analyticsCache) return;
+    renderAnalytics(analyticsCache, visitFilterMode);
+}
+function renderAnalytics(base, mode) {
+    const c = document.getElementById('analyticsContent');
+    if (!c) return;
+    const d = analyticsVisitSlice(base, mode || 'human');
+    const q = d.visit_quality || {};
+    const raw = d.visit_raw || {};
+    const filterBtn = (id, label) => {
+        const on = (mode || 'human') === id;
+        return `<button type="button" onclick="setVisitFilter('${id}')" class="text-xs font-semibold py-1.5 px-3 rounded-full transition-colors" style="${on ? 'background:var(--primary);color:var(--primary-fg);' : 'background:var(--surface-2,rgba(127,127,127,.12));color:var(--text-secondary);'}">${label}</button>`;
+    };
+    const miniTable = (rows, empty) => rows && rows.length
+        ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Значение</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
+            ${rows.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
+            </tbody></table></div>`
+        : `<p class="text-sm" style="color:var(--text-muted);">${empty}</p>`;
+    c.innerHTML = `
+        <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Посещаемость сервиса</h3>
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            ${filterBtn('human', 'Люди')}
+            ${filterBtn('engaged', 'Вовлечённые')}
+            ${filterBtn('raw', 'Сырые')}
+        </div>
+        <p class="text-xs mb-4" style="color:var(--text-muted);">${esc(d.visit_filter_note || 'Фильтр отсекает ботов и шум. Cookie bio_vid · без API и lab-admin.')}</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уник. (фильтр)</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_total ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уник. 24 ч</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_24h ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уник. 7 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_7d ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Уник. 30 дн.</div><div class="stat-value" style="color:#22c55e;">${d.visitors_unique_30d ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Регистрации</div><div class="stat-value" style="color:var(--primary);">${d.registrations_total ?? d.total_users ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Конверсия</div><div class="stat-value" style="color:#a78bfa;">${d.conversion_pct ?? 0}%</div></div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_total ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просм. 24 ч</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_24h ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просм. 7 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_7d ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просм. 30 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_30d ?? 0}</div></div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Сырые уник.</div><div class="stat-value" style="color:var(--text-muted);font-size:1.25rem;">${raw.visitors_unique_total ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Вовлечённые</div><div class="stat-value" style="color:#64CEFB;font-size:1.25rem;">${q.engaged ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Люди (1 экран)</div><div class="stat-value" style="color:#22c55e;font-size:1.25rem;">${q.human ?? 0}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Отказы / шум</div><div class="stat-value" style="color:#f59e0b;font-size:1.25rem;">${(q.bounce||0)+(q.noise||0)}</div></div>
+            <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Боты (UA)</div><div class="stat-value" style="color:#ef4444;font-size:1.25rem;">${q.bot ?? 0}</div></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Уникальные по дням</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">30 дней · текущий фильтр</p>
+                <div class="chart-container" style="height:220px;"><canvas id="visitUniquesChart"></canvas></div>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров (всего)</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_total ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 24 ч</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_24h ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 7 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_7d ?? 0}</div></div>
-                <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Просмотров 30 дн.</div><div class="stat-value" style="color:var(--text-secondary);">${d.visits_30d ?? 0}</div></div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Просмотры по дням</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">GET HTML · текущий фильтр</p>
+                <div class="chart-container" style="height:220px;"><canvas id="visitViewsChart"></canvas></div>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Уникальные посетители по дням</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">Последние 30 дней (Europe/Moscow, по дате визита)</p>
-                    <div class="chart-container" style="height:220px;"><canvas id="visitUniquesChart"></canvas></div>
-                </div>
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Просмотры по дням</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">Каждый GET HTML-страницы = 1 просмотр</p>
-                    <div class="chart-container" style="height:220px;"><canvas id="visitViewsChart"></canvas></div>
-                </div>
+        </div>
+        <div class="liquid-glass rounded-2xl p-6 mb-10">
+            <h3 class="text-base font-heading font-semibold mb-1">Сводка по периодам</h3>
+            <p class="text-xs mb-4" style="color:var(--text-muted);">Уникальные и просмотры</p>
+            <div class="chart-container" style="height:200px;"><canvas id="visitPeriodChart"></canvas></div>
+        </div>
+        <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Откуда приходят и по каким запросам</h3>
+        <p class="text-xs mb-4" style="color:var(--text-muted);">Источник: Referer + UTM. Таблицы следуют выбранному фильтру.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Источники трафика</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">За всё время</p>
+                ${miniTable(d.visit_sources, 'Пока нет данных по источникам')}
             </div>
-            <div class="liquid-glass rounded-2xl p-6 mb-10">
-                <h3 class="text-base font-heading font-semibold mb-1">Сводка по периодам</h3>
-                <p class="text-xs mb-4" style="color:var(--text-muted);">Сравнение уникальных посетителей и просмотров</p>
-                <div class="chart-container" style="height:200px;"><canvas id="visitPeriodChart"></canvas></div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Источники за 30 дней</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">Свежие визиты</p>
+                ${miniTable(d.visit_sources_30d, 'Пока нет данных за 30 дней')}
             </div>
-            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Откуда приходят и по каким запросам</h3>
-            <p class="text-xs mb-4" style="color:var(--text-muted);">Источник: Referer + UTM. Запрос: параметры поисковиков (Яндекс <code>text</code>, Google <code>q</code>) или <code>utm_term</code>. Старые визиты без этих полей не учитываются.</p>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Источники трафика</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">За всё время · просмотры / уникальные</p>
-                    ${(d.visit_sources||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Источник</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_sources.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Пока нет данных по источникам</p>'}
-                </div>
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Источники за 30 дней</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">Только свежие визиты с атрибуцией</p>
-                    ${(d.visit_sources_30d||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Источник</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_sources_30d.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Пока нет данных за 30 дней</p>'}
-                </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Поисковые запросы</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">Поиск / UTM</p>
+                ${miniTable(d.visit_queries, 'Запросов пока нет')}
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Поисковые запросы</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">По каким словам пришли из поиска / UTM</p>
-                    ${(d.visit_queries||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Запрос</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_queries.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Запросов пока нет (часто поисковики их не передают)</p>'}
-                </div>
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Запросы за 30 дней</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">Свежие поисковые / UTM-термины</p>
-                    ${(d.visit_queries_30d||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Запрос</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_queries_30d.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">За 30 дней запросов пока нет</p>'}
-                </div>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Запросы за 30 дней</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">Свежие термины</p>
+                ${miniTable(d.visit_queries_30d, 'За 30 дней запросов пока нет')}
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">Домены-рефереры</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">С каких сайтов перешли</p>
-                    ${(d.visit_referrers||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Домен</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_referrers.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">Рефереров пока нет</p>'}
-                </div>
-                <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-base font-heading font-semibold mb-1">UTM-кампании</h3>
-                    <p class="text-xs mb-4" style="color:var(--text-muted);">По параметру <code>utm_campaign</code></p>
-                    ${(d.visit_campaigns||[]).length ? `<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Кампания</th><th>Просмотры</th><th>Уник.</th></tr></thead><tbody>
-                    ${d.visit_campaigns.map((s,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(s.label)}</td><td>${s.visits||0}</td><td>${s.visitors||0}</td></tr>`).join('')}
-                    </tbody></table></div>` : '<p class="text-sm" style="color:var(--text-muted);">UTM-кампаний пока нет</p>'}
-                </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">Домены-рефереры</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">С каких сайтов перешли</p>
+                ${miniTable(d.visit_referrers, 'Рефереров пока нет')}
             </div>
-            <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Продукт</h3>
+            <div class="liquid-glass rounded-2xl p-6">
+                <h3 class="text-base font-heading font-semibold mb-1">UTM-кампании</h3>
+                <p class="text-xs mb-4" style="color:var(--text-muted);">utm_campaign</p>
+                ${miniTable(d.visit_campaigns, 'UTM-кампаний пока нет')}
+            </div>
+        </div>
+        <h3 class="text-sm font-semibold mb-3 uppercase tracking-wide" style="color:var(--text-muted);">Продукт</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
                 <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Пользователей</div><div class="stat-value" style="color:var(--primary);">${d.total_users}</div></div>
                 <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Экспериментов</div><div class="stat-value" style="color:var(--primary);">${d.total_experiments}</div></div>
@@ -963,30 +988,39 @@ async function loadAnalytics(){
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-lg font-heading font-semibold mb-4">📊 Статус экспериментов</h3>
+                <h3 class="text-lg font-heading font-semibold mb-4">Статус экспериментов</h3>
                     <div class="chart-container" style="height:180px;"><canvas id="expPieChart"></canvas></div>
                 </div>
                 <div class="liquid-glass rounded-2xl p-6">
-                    <h3 class="text-lg font-heading font-semibold mb-4">📦 Инвентарь</h3>
+                <h3 class="text-lg font-heading font-semibold mb-4">Инвентарь</h3>
                     <div class="chart-container" style="height:180px;"><canvas id="invBarChart"></canvas></div>
                 </div>
             </div>
             <div class="liquid-glass rounded-2xl p-6">
-                <h3 class="text-lg font-heading font-semibold mb-4">🏆 Топ пользователей</h3>
+            <h3 class="text-lg font-heading font-semibold mb-4">Топ пользователей</h3>
                 ${d.user_breakdown?.length?`<div class="scroll-x"><table class="minitable"><thead><tr><th>#</th><th>Пользователь</th><th>Экспериментов</th><th>Узлов</th></tr></thead><tbody>
-                ${d.user_breakdown.map((u,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${u.username}</td><td>${u.experiments}</td><td>${u.nodes}</td></tr>`).join('')}
+            ${d.user_breakdown.map((u,i)=>`<tr><td>${i+1}</td><td class="font-medium" style="color:var(--text-main);">${esc(u.username)}</td><td>${u.experiments}</td><td>${u.nodes}</td></tr>`).join('')}
                 </tbody></table></div>`:'<p class="text-sm" style="color:var(--text-muted);">Нет данных</p>'}
             </div>`;
-        setTimeout(()=>{
-            initVisitCharts(d);
-            if(typeof Chart!=='undefined'){
+    setTimeout(()=>{
+        initVisitCharts(d);
+        if(typeof Chart!=='undefined'){
             const tick = chartTickColor();
             const grid = chartGridColor();
             if(analyticsChart)analyticsChart.destroy();
             const ec=document.getElementById('expPieChart');if(ec)analyticsChart=new Chart(ec,{type:'doughnut',data:{labels:['Публичные','Приватные'],datasets:[{data:[d.public_experiments,d.private_experiments],backgroundColor:['#22c55e','#f59e0b'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:10}}}}}});
             if(analyticsInvChart)analyticsInvChart.destroy();
             const ib=document.getElementById('invBarChart');if(ib)analyticsInvChart=new Chart(ib,{type:'bar',data:{labels:['Реагенты','Расходники','Оборудование','Брони'],datasets:[{data:[d.total_reagents,d.total_consumables,d.total_equipment,d.total_bookings],backgroundColor:['#64CEFB','#a78bfa','#f59e0b','#22c55e'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:10}}}},scales:{x:{ticks:{color:tick,font:{size:9}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:tick,font:{size:9}},grid:{color:grid}}}}});
-        }},300);
+        }
+        if(window.lucide) try{ lucide.createIcons(); }catch(_){}
+    }, 300);
+}
+async function loadAnalytics(){
+    const c=document.getElementById('analyticsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
+    try{
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/analytics?key='+ADMIN_KEY);const d=await r.json();
+        analyticsCache = d;
+        renderAnalytics(d, visitFilterMode || 'human');
     }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
 }
 

@@ -6,7 +6,7 @@
 {% block extra_head %}
 <style>
     /* ═══════════════════════════════════════════════
-       CHAT — Full Page Override (no page scroll)
+       CHAT - Full Page Override (no page scroll)
        ═══════════════════════════════════════════════ */
 
     /* Lock body scroll */
@@ -159,6 +159,7 @@
         display: flex;
         flex-direction: column;
         min-width: 0;
+        position: relative;
         background: color-mix(in srgb, var(--glass-bg) 70%, transparent);
     }
     .chat-main-head {
@@ -688,8 +689,11 @@
 
     /* ───── Responsive ───── */
     @media (max-width: 700px) {
-        .chat-sidebar { width: 100%; border-right: none; }
+        .chat-wrapper { width: 100%; max-width: 100vw; overflow: hidden; }
+        .chat-sidebar { width: 100%; max-width: 100%; border-right: none; }
         .chat-sidebar.hidden-on-mobile { display: none; }
+        /* Hide conversation pane in list mode — otherwise a blue sliver peeks on the right */
+        .chat-main { display: none; width: 100%; max-width: 100%; }
         .chat-main.shown-on-mobile { display: flex !important; }
         .chat-main-head .mobile-back { display: flex; }
         .chat-msgs { padding: 10px 12px; }
@@ -701,6 +705,36 @@
         .chat-list-item { padding: 8px 10px; }
         .chat-list-avatar { width: 32px; height: 32px; font-size: 13px; }
     }
+    .chat-new-btn {
+        width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--glass-border);
+        background: var(--glass-bg); color: var(--text-main); cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .chat-new-btn:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--glass-border)); }
+    .new-chat-picker {
+        position: absolute; inset: 0; z-index: 30;
+        background: color-mix(in srgb, var(--bg-main, #0b0f14) 55%, transparent);
+        display: flex; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .new-chat-picker[hidden] { display: none !important; }
+    .new-chat-picker-card {
+        width: min(360px, 100%); max-height: 70vh; overflow: hidden;
+        border-radius: 1rem; border: 1px solid var(--glass-border); background: var(--glass-bg);
+        display: flex; flex-direction: column;
+    }
+    .new-chat-picker-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0.85rem 1rem; border-bottom: 1px solid var(--glass-border);
+    }
+    .new-chat-picker-head button {
+        border: none; background: transparent; font-size: 1.25rem; cursor: pointer; color: var(--text-muted);
+    }
+    .new-chat-friend-list { overflow-y: auto; padding: 0.5rem; }
+    .new-chat-friend-item {
+        width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
+        padding: 0.7rem 0.75rem; border-radius: 0.65rem; color: var(--text-main); font-size: 0.9rem;
+    }
+    .new-chat-friend-item:hover { background: var(--glass-hover, rgba(255,255,255,0.05)); }
 </style>
 {% endblock %}
 
@@ -708,8 +742,14 @@
 <div class="chat-wrapper">
     <!-- Sidebar -->
     <div class="chat-sidebar" id="chatSidebar">
-        <div class="chat-sidebar-head">
-            <h2>Чаты</h2>
+        <div class="chat-sidebar-head" style="display:flex;flex-direction:column;align-items:stretch;gap:10px;">
+            {% with compact=true %}{% include "social_tabs.html" %}{% endwith %}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <h2>Чаты</h2>
+                <button type="button" class="chat-new-btn" onclick="openNewChatPicker()" title="Новый чат" aria-label="Новый чат">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </button>
+            </div>
         </div>
         <div class="chat-list" id="chatList">
             <div class="text-center py-10 text-sm" style="color: var(--text-muted);">
@@ -726,7 +766,20 @@
             <div class="chat-empty-icon">
                 <i data-lucide="message-circle" class="w-6 h-6"></i>
             </div>
-            <p class="text-sm">Выберите чат или создайте новый</p>
+            <p class="text-sm mb-3">Выберите чат или создайте новый</p>
+            <button type="button" class="font-bold text-sm py-2 px-4 rounded-full" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onclick="openNewChatPicker()">
+                Новый чат
+            </button>
+        </div>
+
+        <div id="newChatPicker" class="new-chat-picker" hidden>
+            <div class="new-chat-picker-card">
+                <div class="new-chat-picker-head">
+                    <strong>Новый чат</strong>
+                    <button type="button" onclick="closeNewChatPicker()" aria-label="Закрыть">×</button>
+                </div>
+                <div id="newChatFriendList" class="new-chat-friend-list"></div>
+            </div>
         </div>
 
         <!-- Active chat -->
@@ -735,9 +788,9 @@
                 <button class="mobile-back" id="mobileBackBtn" onclick="closeMobileChat()" title="Назад">
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                 </button>
-                <div class="chat-main-avatar" id="chatHeadAvatar">—</div>
+                <div class="chat-main-avatar" id="chatHeadAvatar">-</div>
                 <div>
-                    <div class="chat-main-name" id="chatHeadName">—</div>
+                    <div class="chat-main-name" id="chatHeadName">-</div>
                 </div>
             </div>
             <div class="chat-msgs-container">
@@ -785,6 +838,7 @@
 <script>
 const BASE = '{{ base_path }}';
 const ME = '{{ user }}';
+const FRIEND_USERNAMES = {{ friend_usernames|default([])|tojson }};
 
 // ── State ──
 let curChatId = null;
@@ -819,6 +873,7 @@ function onMsgScroll() {
 function closeMobileChat() {
     if (window.innerWidth <= 700) {
         document.getElementById('chatSidebar').classList.remove('hidden-on-mobile');
+        document.getElementById('chatMain').classList.remove('shown-on-mobile');
         document.getElementById('chatMain').querySelector('#chatActive').style.display = 'none';
         document.getElementById('chatEmpty').style.display = 'flex';
         stopPoll();
@@ -860,7 +915,8 @@ async function loadChats() {
         if (!list.length) {
             el.innerHTML = `<div class="text-center py-10" style="color:var(--text-muted);">
                 <i data-lucide="message-circle" class="w-6 h-6 mx-auto mb-2 opacity-40"></i>
-                <p class="text-sm">Нет чатов</p>
+                <p class="text-sm mb-3">Нет чатов</p>
+                <button type="button" class="text-sm font-bold py-2 px-3 rounded-full" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onclick="openNewChatPicker()">Новый чат</button>
             </div>`;
             if (typeof lucide!=='undefined') lucide.createIcons();
             return;
@@ -920,9 +976,10 @@ async function switchChat(chatId, friend) {
     headAvatar.dataset.gradient = '1';
     document.getElementById('chatHeadName').textContent = friend;
 
-    // Mobile: show main, hide sidebar
+    // Mobile: show conversation pane, hide chat list
     if (window.innerWidth <= 700) {
         document.getElementById('chatSidebar').classList.add('hidden-on-mobile');
+        document.getElementById('chatMain').classList.add('shown-on-mobile');
     }
 
     const msgs = document.getElementById('chatMessages');
@@ -961,6 +1018,32 @@ async function openChat(friend) {
             await switchChat(d.chat_id, friend);
         }
     } catch(e) {}
+}
+
+function openNewChatPicker() {
+    const picker = document.getElementById('newChatPicker');
+    const list = document.getElementById('newChatFriendList');
+    if (!picker || !list) return;
+    if (!FRIEND_USERNAMES.length) {
+        list.innerHTML = `<div class="text-sm p-3" style="color:var(--text-muted);">Сначала добавьте друзей на странице
+            <a href="${BASE}/friends?user=${encodeURIComponent(ME)}" style="color:var(--primary);">Друзья</a>.</div>`;
+    } else {
+        list.innerHTML = FRIEND_USERNAMES.map(name =>
+            `<button type="button" class="new-chat-friend-item" onclick="startChatWithFriend('${String(name).replace(/'/g, "\\'")}')">${esc(name)}</button>`
+        ).join('');
+    }
+    picker.hidden = false;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeNewChatPicker() {
+    const picker = document.getElementById('newChatPicker');
+    if (picker) picker.hidden = true;
+}
+
+async function startChatWithFriend(name) {
+    closeNewChatPicker();
+    await openChat(name);
 }
 
 function bumpChatWatermark(iso) {
@@ -1448,7 +1531,7 @@ async function sendFile(input) {
 
     // Max 50MB
     if (file.size > 50 * 1024 * 1024) {
-        alert('Файл слишком большой. Максимальный размер — 50 MB.');
+        alert('Файл слишком большой. Максимальный размер - 50 MB.');
         input.value = '';
         return;
     }

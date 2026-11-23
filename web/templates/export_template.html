@@ -1,0 +1,859 @@
+{% extends "base.html" %}
+
+{% block title %}Шаблон отчёта{% endblock %}
+{% block nav_subtitle %}Конструктор{% endblock %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --tpl-desk: #e8edf3;
+        --tpl-panel: #ffffff;
+        --tpl-border: rgba(29, 35, 46, 0.1);
+        --tpl-text: #1d232e;
+        --tpl-muted: #6b7380;
+        --tpl-accent: #0e7490;
+        --tpl-accent-soft: rgba(14, 116, 144, 0.08);
+        --tpl-page: #fffefb;
+        --tpl-ink: #1a1a1a;
+    }
+    [data-theme="dark"] {
+        --tpl-desk: #1a2030;
+        --tpl-panel: #121820;
+        --tpl-border: rgba(255,255,255,0.1);
+        --tpl-text: rgba(255,255,255,0.92);
+        --tpl-muted: rgba(255,255,255,0.5);
+        --tpl-accent: #64CEFB;
+        --tpl-accent-soft: rgba(100, 206, 251, 0.12);
+        --tpl-page: #f7f5f0;
+    }
+
+    body > main.flex-grow {
+        max-width: none !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .tpl-app {
+        min-height: calc(100vh - 64px);
+        background:
+            radial-gradient(ellipse 80% 50% at 80% 0%, rgba(14,116,144,0.07), transparent 55%),
+            radial-gradient(ellipse 50% 40% at 0% 100%, rgba(100,206,251,0.08), transparent 50%),
+            var(--tpl-desk);
+        color: var(--tpl-text);
+        position: relative;
+    }
+
+    .tpl-top {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        padding: 0.75rem 1.1rem;
+        background: color-mix(in srgb, var(--tpl-panel) 92%, transparent);
+        border-bottom: 1px solid var(--tpl-border);
+        backdrop-filter: blur(12px);
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+    .tpl-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        height: 2.25rem;
+        padding: 0 0.8rem;
+        border-radius: 999px;
+        border: 1px solid var(--tpl-border);
+        background: var(--tpl-panel);
+        color: var(--tpl-muted);
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 500;
+        flex-shrink: 0;
+    }
+    .tpl-back:hover { color: var(--tpl-text); border-color: color-mix(in srgb, var(--tpl-accent) 35%, var(--tpl-border)); }
+
+    .tpl-brand-block { min-width: 0; flex: 1; }
+    .tpl-kicker {
+        margin: 0;
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--tpl-accent);
+        font-weight: 700;
+        font-family: 'Space Grotesk', sans-serif;
+    }
+    .tpl-name-input {
+        width: min(420px, 100%);
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid transparent;
+        color: var(--tpl-text);
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: clamp(1.05rem, 2vw, 1.3rem);
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        padding: 0.1rem 0;
+        outline: none;
+    }
+    .tpl-name-input:focus { border-bottom-color: color-mix(in srgb, var(--tpl-accent) 45%, transparent); }
+    .tpl-name-input::placeholder { color: var(--tpl-muted); opacity: 0.7; }
+
+    .tpl-kind-row {
+        display: inline-flex;
+        gap: 0.25rem;
+        padding: 0.2rem;
+        border-radius: 999px;
+        border: 1px solid var(--tpl-border);
+        background: var(--tpl-panel);
+    }
+    .tpl-kind {
+        border: none;
+        background: transparent;
+        color: var(--tpl-muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 0.36rem 0.7rem;
+        border-radius: 999px;
+        cursor: pointer;
+    }
+    .tpl-kind.active {
+        background: var(--tpl-accent);
+        color: #fff;
+    }
+    [data-theme="dark"] .tpl-kind.active { color: #061018; }
+
+    .tpl-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-left: auto;
+        flex-wrap: wrap;
+    }
+    .tpl-status {
+        font-size: 0.75rem;
+        color: var(--tpl-muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .tpl-status.is-dirty::before,
+    .tpl-status.is-ok::before,
+    .tpl-status.is-busy::before {
+        content: "";
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: #f59e0b;
+    }
+    .tpl-status.is-ok::before { background: #22c55e; }
+    .tpl-status.is-busy::before {
+        background: var(--tpl-accent);
+        animation: tplPulse 1s ease infinite;
+    }
+    @keyframes tplPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .tpl-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        height: 2.25rem;
+        padding: 0 0.9rem;
+        border-radius: 999px;
+        border: 1px solid var(--tpl-border);
+        background: var(--tpl-panel);
+        color: var(--tpl-text);
+        font-size: 0.82rem;
+        font-weight: 600;
+        font-family: 'Space Grotesk', sans-serif;
+        cursor: pointer;
+        transition: background .12s, border-color .12s, transform .1s;
+    }
+    .tpl-btn:hover { border-color: color-mix(in srgb, var(--tpl-accent) 40%, var(--tpl-border)); }
+    .tpl-btn:active { transform: scale(0.98); }
+    .tpl-btn.primary {
+        background: var(--tpl-accent);
+        border-color: var(--tpl-accent);
+        color: #fff;
+        box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--tpl-accent) 80%, transparent);
+    }
+    [data-theme="dark"] .tpl-btn.primary { color: #061018; }
+    .tpl-btn.ghost-danger { color: #b91c1c; }
+    .tpl-btn.ghost-danger:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.28); }
+    .tpl-btn-icon { width: 2.25rem; padding: 0; }
+
+    .tpl-body {
+        display: grid;
+        grid-template-columns: minmax(250px, 280px) minmax(0, 1fr);
+        min-height: calc(100vh - 64px - 62px);
+    }
+    @media (max-width: 980px) {
+        .tpl-body { grid-template-columns: 1fr; }
+        .tpl-rail {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: min(320px, 90vw);
+            z-index: 60;
+            transform: translateX(-105%);
+            transition: transform .28s cubic-bezier(.22,1,.36,1);
+            box-shadow: 20px 0 50px -28px rgba(15,23,42,0.45);
+        }
+        .tpl-app.rail-open .tpl-rail { transform: translateX(0); }
+        .tpl-scrim {
+            display: none;
+            position: fixed; inset: 0; z-index: 55;
+            background: rgba(15,23,42,0.35);
+        }
+        .tpl-app.rail-open .tpl-scrim { display: block; }
+        .tpl-mobile-tools { display: inline-flex !important; }
+    }
+    .tpl-mobile-tools { display: none; }
+
+    .tpl-rail {
+        background: var(--tpl-panel);
+        border-right: 1px solid var(--tpl-border);
+        padding: 1.1rem 1rem 1.35rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        overflow: auto;
+    }
+    .tpl-sec-label {
+        margin: 0 0 0.5rem;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--tpl-muted);
+        font-family: 'Space Grotesk', sans-serif;
+    }
+    .tpl-hint {
+        margin: 0 0 0.6rem;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        color: var(--tpl-muted);
+    }
+
+    .tpl-list { display: flex; flex-direction: column; gap: 0.35rem; }
+    .tpl-list a {
+        display: block;
+        padding: 0.65rem 0.75rem;
+        border-radius: 0.85rem;
+        text-decoration: none;
+        color: var(--tpl-text);
+        border: 1px solid transparent;
+        background: color-mix(in srgb, var(--tpl-desk) 55%, var(--tpl-panel));
+        transition: border-color .15s, background .15s;
+    }
+    .tpl-list a:hover { border-color: var(--tpl-border); }
+    .tpl-list a.active {
+        border-color: color-mix(in srgb, var(--tpl-accent) 35%, var(--tpl-border));
+        background: var(--tpl-accent-soft);
+    }
+    .tpl-list .name {
+        display: block;
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .tpl-list .meta {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 0.7rem;
+        color: var(--tpl-muted);
+    }
+
+    .tpl-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .tpl-chip {
+        border: 1px solid color-mix(in srgb, var(--tpl-accent) 28%, var(--tpl-border));
+        background: var(--tpl-accent-soft);
+        color: var(--tpl-accent);
+        border-radius: 999px;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform .1s, background .12s, border-color .12s;
+    }
+    .tpl-chip:hover {
+        transform: translateY(-1px);
+        border-color: color-mix(in srgb, var(--tpl-accent) 55%, var(--tpl-border));
+        background: color-mix(in srgb, var(--tpl-accent) 16%, transparent);
+    }
+
+    .tpl-stage-wrap {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .tpl-stage {
+        flex: 1;
+        overflow: auto;
+        padding: 0.85rem 1rem 3.5rem;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        scrollbar-gutter: stable;
+    }
+    .tpl-canvas-col {
+        width: min(210mm, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .tpl-ribbon {
+        position: sticky;
+        top: 0.65rem;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.15rem;
+        width: fit-content;
+        max-width: 100%;
+        padding: 0.35rem 0.5rem;
+        border-radius: 999px;
+        border: 1px solid var(--tpl-border);
+        background: color-mix(in srgb, var(--tpl-panel) 94%, transparent);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 14px 36px -22px rgba(15,23,42,0.35);
+    }
+    .tpl-ribbon button, .tpl-ribbon select {
+        height: 2rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--tpl-text);
+        padding: 0 0.55rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .tpl-ribbon button:hover, .tpl-ribbon select:hover {
+        background: var(--tpl-accent-soft);
+        color: var(--tpl-accent);
+    }
+    .tpl-ribbon select {
+        border-color: var(--tpl-border);
+        max-width: 8.5rem;
+        background: var(--tpl-panel);
+    }
+    .tpl-ribbon .sep {
+        width: 1px; height: 1.1rem;
+        background: var(--tpl-border);
+        margin: 0 0.15rem;
+    }
+    .tpl-zoom {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.1rem;
+        margin-left: 0.2rem;
+        color: var(--tpl-muted);
+        font-size: 0.72rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .tpl-page-frame {
+        position: relative;
+        width: 100%;
+    }
+    .tpl-page-scale {
+        width: 100%;
+        transform-origin: top center;
+    }
+    .tpl-page {
+        position: relative;
+        width: 100%;
+        min-height: 297mm;
+        box-sizing: border-box;
+        background: var(--tpl-page);
+        color: var(--tpl-ink);
+        border-radius: 2px;
+        border: 1px solid #e4dfd4;
+        padding: 22mm 20mm 24mm;
+        font-family: Literata, "Times New Roman", Times, serif;
+        font-size: 12pt;
+        line-height: 1.55;
+        outline: none;
+        box-shadow:
+            0 1px 0 rgba(255,255,255,0.8) inset,
+            0 24px 60px -36px rgba(15,23,42,0.35),
+            0 8px 20px -12px rgba(15,23,42,0.18);
+    }
+    .tpl-page:focus {
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--tpl-accent) 40%, transparent),
+            0 24px 60px -36px rgba(15,23,42,0.35);
+    }
+    .tpl-page h1, .tpl-page h2, .tpl-page h3 {
+        font-family: Literata, "Times New Roman", Times, serif;
+        font-weight: 700;
+        margin: 1.1em 0 0.45em;
+        line-height: 1.25;
+        color: #111827;
+    }
+    .tpl-page h1 { font-size: 18pt; }
+    .tpl-page h2 { font-size: 14pt; }
+    .tpl-page h3 { font-size: 12.5pt; }
+    .tpl-page p { margin: 0 0 0.65em; }
+    .tpl-page table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.8em 0;
+        font-size: 11pt;
+    }
+    .tpl-page th, .tpl-page td {
+        border: 1px solid #333;
+        padding: 0.35em 0.5em;
+        vertical-align: top;
+    }
+
+    /* Field chips: stay in text flow so text-align:center keeps working */
+    .tpl-page .tpl-field,
+    .tpl-page .ph {
+        display: inline !important;
+        float: none !important;
+        position: static !important;
+        width: auto !important;
+        max-width: none !important;
+        margin: 0 !important;
+        vertical-align: baseline;
+        background: rgba(14, 116, 144, 0.1);
+        border: 1px solid rgba(14, 116, 144, 0.22);
+        border-radius: 0.3em;
+        padding: 0 0.28em;
+        color: #0b5a73;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.95em;
+        font-weight: 600;
+        line-height: inherit;
+        white-space: nowrap;
+        cursor: default;
+        user-select: none;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+    }
+
+    .tpl-guide {
+        margin-top: 0.8rem;
+        text-align: center;
+        font-size: 0.72rem;
+        color: var(--tpl-muted);
+    }
+    .tpl-guide kbd {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.3rem;
+        border: 1px solid var(--tpl-border);
+        background: var(--tpl-panel);
+    }
+
+    .tpl-modal[hidden] { display: none !important; }
+    .tpl-modal {
+        position: fixed; inset: 0; z-index: 80;
+        display: flex; align-items: center; justify-content: center;
+        padding: 1rem;
+        background: rgba(15,23,42,0.4);
+        backdrop-filter: blur(4px);
+    }
+    .tpl-modal-card {
+        width: min(420px, 100%);
+        border-radius: 1.15rem;
+        border: 1px solid var(--tpl-border);
+        background: var(--tpl-panel);
+        padding: 1.3rem 1.35rem 1.2rem;
+        box-shadow: 0 28px 70px -28px rgba(15,23,42,0.45);
+        color: var(--tpl-text);
+    }
+    .tpl-modal-card h3 {
+        margin: 0 0 0.3rem;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.15rem;
+    }
+    .tpl-modal-card p { margin: 0 0 0.95rem; color: var(--tpl-muted); font-size: 0.85rem; }
+    .tpl-modal-card input {
+        width: 100%;
+        border-radius: 0.8rem;
+        border: 1px solid var(--tpl-border);
+        background: transparent;
+        color: var(--tpl-text);
+        padding: 0.65rem 0.8rem;
+        font-size: 0.95rem;
+        margin-bottom: 0.95rem;
+        outline: none;
+    }
+    .tpl-modal-card input:focus { border-color: color-mix(in srgb, var(--tpl-accent) 50%, var(--tpl-border)); }
+    .tpl-modal-actions { display: flex; justify-content: flex-end; gap: 0.4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tpl-app" id="tplApp">
+    <div class="tpl-scrim" id="tplScrim" aria-hidden="true"></div>
+
+    <header class="tpl-top">
+        {% if back_url %}
+        <a class="tpl-back" href="{{ back_url }}"><i data-lucide="arrow-left" class="w-4 h-4"></i> К записи</a>
+        {% else %}
+        <a class="tpl-back" href="{{ base_path }}/dashboard?user={{ user }}"><i data-lucide="arrow-left" class="w-4 h-4"></i> Журнал</a>
+        {% endif %}
+
+        <div class="tpl-brand-block">
+            <p class="tpl-kicker">Конструктор бланка</p>
+            <input id="tplName" class="tpl-name-input" type="text" value="{{ tpl.name }}" maxlength="120" autocomplete="off" placeholder="Название шаблона">
+        </div>
+
+        <div class="tpl-kind-row" id="tplKindRow" role="group" aria-label="Формат экспорта">
+            <button type="button" class="tpl-kind {% if tpl.kind == 'docx' %}active{% endif %}" data-kind="docx">DOCX</button>
+            <button type="button" class="tpl-kind {% if tpl.kind == 'pdf' %}active{% endif %}" data-kind="pdf">PDF</button>
+            <button type="button" class="tpl-kind {% if tpl.kind == 'pptx' %}active{% endif %}" data-kind="pptx">PPTX</button>
+        </div>
+
+        <div class="tpl-top-actions">
+            <span class="tpl-status is-ok" id="tplStatus">Сохранено</span>
+            <button type="button" class="tpl-btn tpl-btn-icon tpl-mobile-tools" id="tplRailBtn" title="Поля и шаблоны" aria-label="Открыть панель">
+                <i data-lucide="panel-left" class="w-4 h-4"></i>
+            </button>
+            <button type="button" class="tpl-btn" id="tplNewBtn"><i data-lucide="plus" class="w-4 h-4"></i> Новый</button>
+            <button type="button" class="tpl-btn primary" id="tplSaveBtn"><i data-lucide="check" class="w-4 h-4"></i> Сохранить</button>
+        </div>
+    </header>
+
+    <div class="tpl-body">
+        <aside class="tpl-rail" id="tplRail">
+            <div>
+                <p class="tpl-sec-label">Мои шаблоны</p>
+                <div class="tpl-list" id="tplList">
+                    {% for t in templates_list %}
+                    <a href="{{ base_path }}/export-template?user={{ user }}&tpl_id={{ t.id }}{% if exp_id %}&exp_id={{ exp_id }}{% endif %}{% if node_id %}&node_id={{ node_id }}{% endif %}"
+                       class="{% if t.id == tpl.id %}active{% endif %}">
+                        <span class="name">{{ t.name }}</span>
+                        <span class="meta">{{ t.kind|upper }} · {{ t.updated_at[:16].replace('T',' ') }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <p class="tpl-sec-label">Вставить поле</p>
+                <p class="tpl-hint">Нажмите на поле — оно появится в бланке. При экспорте подставим данные из журнала.</p>
+                <div class="tpl-chips" id="tplChips">
+                    <button type="button" class="tpl-chip" data-field="title" data-label="Тема работы">Тема работы</button>
+                    <button type="button" class="tpl-chip" data-field="student" data-label="Студент">Студент</button>
+                    <button type="button" class="tpl-chip" data-field="group" data-label="Группа">Группа</button>
+                    <button type="button" class="tpl-chip" data-field="teacher" data-label="Преподаватель">Преподаватель</button>
+                    <button type="button" class="tpl-chip" data-field="university" data-label="Вуз">Вуз</button>
+                    <button type="button" class="tpl-chip" data-field="faculty" data-label="Кафедра">Кафедра</button>
+                    <button type="button" class="tpl-chip" data-field="discipline" data-label="Дисциплина">Дисциплина</button>
+                    <button type="button" class="tpl-chip" data-field="goal" data-label="Цель">Цель</button>
+                    <button type="button" class="tpl-chip" data-field="materials" data-label="Материалы">Материалы</button>
+                    <button type="button" class="tpl-chip" data-field="procedure" data-label="Ход работы">Ход работы</button>
+                    <button type="button" class="tpl-chip" data-field="results" data-label="Результаты">Результаты</button>
+                    <button type="button" class="tpl-chip" data-field="conclusion" data-label="Выводы">Выводы</button>
+                    <button type="button" class="tpl-chip" data-field="city" data-label="Город">Город</button>
+                    <button type="button" class="tpl-chip" data-field="year" data-label="Год">Год</button>
+                    <button type="button" class="tpl-chip" data-field="body" data-label="Текст записи">Текст записи</button>
+                </div>
+            </div>
+
+            <div style="margin-top:auto;">
+                <button type="button" class="tpl-btn ghost-danger" id="tplDeleteBtn"><i data-lucide="trash-2" class="w-4 h-4"></i> Удалить шаблон</button>
+            </div>
+        </aside>
+
+        <section class="tpl-stage-wrap">
+            <div class="tpl-stage">
+                <div class="tpl-canvas-col">
+                    <div class="tpl-ribbon" role="toolbar" aria-label="Форматирование">
+                        <button type="button" data-cmd="undo" title="Отменить"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+                        <button type="button" data-cmd="redo" title="Повторить"><i data-lucide="redo-2" class="w-4 h-4"></i></button>
+                        <span class="sep"></span>
+                        <select id="tplBlock" title="Стиль">
+                            <option value="p">Обычный</option>
+                            <option value="h1">Заголовок 1</option>
+                            <option value="h2">Заголовок 2</option>
+                            <option value="h3">Заголовок 3</option>
+                        </select>
+                        <span class="sep"></span>
+                        <button type="button" data-cmd="bold" title="Жирный"><b>B</b></button>
+                        <button type="button" data-cmd="italic" title="Курсив"><i>I</i></button>
+                        <button type="button" data-cmd="underline" title="Подчёркнутый"><u>U</u></button>
+                        <span class="sep"></span>
+                        <button type="button" data-cmd="justifyLeft" title="Слева"><i data-lucide="align-left" class="w-4 h-4"></i></button>
+                        <button type="button" data-cmd="justifyCenter" title="По центру"><i data-lucide="align-center" class="w-4 h-4"></i></button>
+                        <button type="button" data-cmd="justifyRight" title="Справа"><i data-lucide="align-right" class="w-4 h-4"></i></button>
+                        <button type="button" data-cmd="justifyFull" title="По ширине"><i data-lucide="align-justify" class="w-4 h-4"></i></button>
+                        <span class="sep"></span>
+                        <button type="button" id="tplInsertTable" title="Таблица"><i data-lucide="table" class="w-4 h-4"></i></button>
+                        <button type="button" data-cmd="insertHorizontalRule" title="Линия">―</button>
+                        <button type="button" id="tplInsertPageBreak" title="Новая страница">¶</button>
+                        <div class="tpl-zoom">
+                            <button type="button" id="tplZoomOut" aria-label="Уменьшить">−</button>
+                            <span id="tplZoomLabel">100%</span>
+                            <button type="button" id="tplZoomIn" aria-label="Увеличить">+</button>
+                        </div>
+                    </div>
+
+                    <div class="tpl-page-frame">
+                        <div class="tpl-page-scale" id="tplPageScale">
+                            <div id="tplPage" class="tpl-page" contenteditable="true" spellcheck="true" role="textbox" aria-label="Страница шаблона"></div>
+                        </div>
+                        <p class="tpl-guide">Лист A4 · автосохранение · <kbd>⌘/Ctrl</kbd>+<kbd>S</kbd></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="tpl-modal" id="tplNewModal" hidden>
+    <div class="tpl-modal-card" role="dialog" aria-modal="true" aria-labelledby="tplNewTitle">
+        <h3 id="tplNewTitle">Новый шаблон</h3>
+        <p>Соберём бланк кафедры: титул, разделы и поля из журнала.</p>
+        <input id="tplNewName" type="text" maxlength="120" placeholder="Например: Бланк кафедры биохимии" value="Новый шаблон кафедры">
+        <div class="tpl-modal-actions">
+            <button type="button" class="tpl-btn" id="tplNewCancel">Отмена</button>
+            <button type="button" class="tpl-btn primary" id="tplNewConfirm">Создать</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    const BASE = {{ base_path|tojson }};
+    const USER = {{ user|tojson }};
+    let tplId = {{ tpl.id|tojson }};
+    let kind = {{ tpl.kind|tojson }};
+    const initialHtml = {{ tpl.html|tojson }};
+    const expId = {{ exp_id|tojson }};
+    const nodeId = {{ node_id|tojson }};
+
+    const FIELD_LABELS = {
+        title: 'Тема работы',
+        student: 'Студент',
+        group: 'Группа',
+        teacher: 'Преподаватель',
+        university: 'Вуз',
+        faculty: 'Кафедра',
+        discipline: 'Дисциплина',
+        goal: 'Цель',
+        materials: 'Материалы',
+        procedure: 'Ход работы',
+        results: 'Результаты',
+        conclusion: 'Выводы',
+        city: 'Город',
+        year: 'Год',
+        body: 'Текст записи',
+    };
+
+    const app = document.getElementById('tplApp');
+    const page = document.getElementById('tplPage');
+    const statusEl = document.getElementById('tplStatus');
+    const nameEl = document.getElementById('tplName');
+    const modal = document.getElementById('tplNewModal');
+    const newNameEl = document.getElementById('tplNewName');
+    let zoom = 1;
+    let dirty = false;
+    let saveTimer = null;
+
+    function fieldHtml(key, label) {
+        const safeKey = String(key).replace(/"/g, '');
+        const safeLabel = String(label || FIELD_LABELS[key] || key)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return '<span class="tpl-field" data-field="' + safeKey + '" contenteditable="false">' + safeLabel + '</span>';
+    }
+
+    function humanizeHtml(html) {
+        if (!html) return '<p></p>';
+        return String(html).replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, function (_, key) {
+            return fieldHtml(key, FIELD_LABELS[key] || key);
+        });
+    }
+
+    page.innerHTML = humanizeHtml(initialHtml);
+
+    function setStatus(msg, mode) {
+        statusEl.textContent = msg;
+        statusEl.classList.remove('is-dirty', 'is-ok', 'is-busy');
+        if (mode) statusEl.classList.add(mode);
+    }
+    function markDirty() {
+        dirty = true;
+        setStatus('Несохранено', 'is-dirty');
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveTemplate, 1400);
+    }
+
+    page.addEventListener('input', markDirty);
+    nameEl.addEventListener('input', markDirty);
+
+    document.querySelectorAll('#tplKindRow .tpl-kind').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#tplKindRow .tpl-kind').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            kind = btn.dataset.kind;
+            markDirty();
+        });
+    });
+
+    document.querySelectorAll('.tpl-ribbon [data-cmd]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            page.focus();
+            document.execCommand(btn.dataset.cmd, false, null);
+            markDirty();
+        });
+    });
+
+    document.getElementById('tplBlock').addEventListener('change', (e) => {
+        page.focus();
+        const tag = e.target.value;
+        document.execCommand('formatBlock', false, tag === 'p' ? 'p' : tag);
+        markDirty();
+    });
+
+    document.getElementById('tplInsertTable').addEventListener('click', () => {
+        page.focus();
+        document.execCommand('insertHTML', false, '<table><tr><th>№</th><th>Параметр</th><th>Значение</th></tr><tr><td>1</td><td></td><td></td></tr><tr><td>2</td><td></td><td></td></tr></table><p><br></p>');
+        markDirty();
+    });
+
+    document.getElementById('tplInsertPageBreak').addEventListener('click', () => {
+        page.focus();
+        document.execCommand('insertHTML', false, '<hr style="page-break-before:always;margin:2em 0;border:none;border-top:1px dashed #999;"><p style="text-align:center;color:#999;font-size:10pt;">— новая страница —</p><p><br></p>');
+        markDirty();
+    });
+
+    const pageScale = document.getElementById('tplPageScale');
+    function applyZoom() {
+        pageScale.style.transform = 'scale(' + zoom + ')';
+        // Keep layout height so the page doesn't visually jump when scaling
+        const h = page.offsetHeight;
+        pageScale.style.height = (h * zoom) + 'px';
+        document.getElementById('tplZoomLabel').textContent = Math.round(zoom * 100) + '%';
+    }
+    document.getElementById('tplZoomIn').addEventListener('click', () => { zoom = Math.min(1.35, +(zoom + 0.1).toFixed(2)); applyZoom(); });
+    document.getElementById('tplZoomOut').addEventListener('click', () => { zoom = Math.max(0.7, +(zoom - 0.1).toFixed(2)); applyZoom(); });
+
+    function insertField(key, label) {
+        page.focus();
+        document.execCommand('insertHTML', false, fieldHtml(key, label) + '&nbsp;');
+        markDirty();
+    }
+    document.querySelectorAll('#tplChips .tpl-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            insertField(chip.dataset.field, chip.dataset.label || chip.textContent.trim());
+            app.classList.remove('rail-open');
+        });
+    });
+
+    document.getElementById('tplRailBtn')?.addEventListener('click', () => app.classList.toggle('rail-open'));
+    document.getElementById('tplScrim')?.addEventListener('click', () => app.classList.remove('rail-open'));
+
+    async function saveTemplate() {
+        setStatus('Сохраняю…', 'is-busy');
+        try {
+            const resp = await fetch(BASE + '/api/export-template/save', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: tplId,
+                    name: nameEl.value.trim() || 'Шаблон кафедры',
+                    kind,
+                    html: page.innerHTML,
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'fail');
+            tplId = data.id;
+            dirty = false;
+            setStatus('Сохранено', 'is-ok');
+            const url = new URL(location.href);
+            url.searchParams.set('tpl_id', tplId);
+            url.searchParams.set('user', USER);
+            if (expId) url.searchParams.set('exp_id', expId);
+            if (nodeId) url.searchParams.set('node_id', nodeId);
+            history.replaceState(null, '', url.toString());
+        } catch (e) {
+            setStatus('Ошибка сохранения', 'is-dirty');
+        }
+    }
+
+    document.getElementById('tplSaveBtn').addEventListener('click', saveTemplate);
+
+    function openNewModal() {
+        if (dirty && !confirm('Есть несохранённые изменения. Создать новый шаблон?')) return;
+        newNameEl.value = 'Новый шаблон кафедры';
+        modal.hidden = false;
+        setTimeout(() => { newNameEl.focus(); newNameEl.select(); }, 30);
+    }
+    function closeNewModal() { modal.hidden = true; }
+
+    document.getElementById('tplNewBtn').addEventListener('click', openNewModal);
+    document.getElementById('tplNewCancel').addEventListener('click', closeNewModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeNewModal(); });
+
+    document.getElementById('tplNewConfirm').addEventListener('click', async () => {
+        const name = (newNameEl.value || '').trim() || 'Новый шаблон';
+        const resp = await fetch(BASE + '/api/export-template/create', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, kind }),
+        });
+        const data = await resp.json();
+        if (!data.ok) return alert('Не удалось создать');
+        const q = new URLSearchParams({ user: USER, tpl_id: data.id });
+        if (expId) q.set('exp_id', expId);
+        if (nodeId) q.set('node_id', nodeId);
+        location.href = BASE + '/export-template?' + q.toString();
+    });
+
+    document.getElementById('tplDeleteBtn').addEventListener('click', async () => {
+        if (!confirm('Удалить этот шаблон?')) return;
+        const resp = await fetch(BASE + '/api/export-template/delete', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: tplId }),
+        });
+        const data = await resp.json();
+        if (!data.ok) return alert('Не удалось удалить');
+        const q = new URLSearchParams({ user: USER });
+        if (expId) q.set('exp_id', expId);
+        if (nodeId) q.set('node_id', nodeId);
+        location.href = BASE + '/export-template?' + q.toString();
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            saveTemplate();
+        }
+        if (e.key === 'Escape') {
+            closeNewModal();
+            app.classList.remove('rail-open');
+        }
+    });
+
+    if (window.lucide) lucide.createIcons();
+})();
+</script>
+{% endblock %}

@@ -52,16 +52,44 @@
 
     .booking-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
+        gap: 10px;
         padding: 10px 14px;
         border-radius: 12px;
         margin-bottom: 6px;
         border: 1px solid var(--glass-border);
         background: var(--glass-bg);
         transition: background 0.2s;
+        flex-wrap: wrap;
+        min-width: 0;
     }
     .booking-item:hover {
         background: var(--glass-hover);
+    }
+    .booking-item-main {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+    .booking-item-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+    .booking-item-actions .bk-status {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    .booking-item-actions .bk-btn {
+        flex: 0 1 auto;
+        white-space: nowrap;
+        font-size: 12px;
+        line-height: 1.2;
+        padding: 7px 12px;
+        border-radius: 999px;
+        cursor: pointer;
     }
 
     .queue-pos {
@@ -129,8 +157,75 @@
     }
     .modal.active .modal-content { transform: scale(1); }
 
+    .book-date-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    .book-date-field {
+        min-width: 0;
+    }
+    .book-date-input {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        display: block;
+    }
+    /* iOS/Safari date fields are wide in ru locale — keep icon inside the box */
+    .book-date-input::-webkit-date-and-time-value {
+        text-align: left;
+        min-width: 0;
+    }
+    .book-date-input::-webkit-calendar-picker-indicator {
+        flex-shrink: 0;
+        margin-left: 4px;
+    }
+
     @media (max-width: 768px) {
         .equip-grid { grid-template-columns: 1fr; }
+        .book-date-grid {
+            grid-template-columns: 1fr;
+            gap: 0.85rem;
+        }
+        .modal {
+            align-items: flex-end;
+            padding: 0;
+        }
+        .modal-content {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0;
+            border-radius: 1.25rem 1.25rem 0 0 !important;
+            max-height: min(92vh, 720px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 1.25rem !important;
+            padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+            box-sizing: border-box;
+        }
+        #bookEquipModal .modal-content {
+            /* leave room above for the native iOS date sheet */
+            padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        #viewBkList {
+            max-height: min(58vh, 420px) !important;
+            overflow-x: hidden;
+            padding-right: 0 !important;
+        }
+        .booking-item {
+            padding: 12px;
+            gap: 8px;
+        }
+        .booking-item-actions {
+            width: 100%;
+            flex: 1 1 100%;
+        }
+        .booking-item-actions .bk-btn {
+            flex: 1 1 calc(50% - 6px);
+            text-align: center;
+            justify-content: center;
+        }
     }
 </style>
 {% endblock %}
@@ -257,7 +352,7 @@
                 <div class="flex items-center gap-3 py-1.5 text-xs">
                     <span class="queue-pos">{{ idx }}</span>
                     <span class="font-medium">{{ bk.user_id }}</span>
-                    <span style="color: var(--text-muted);">{{ bk.start_date }} — {{ bk.end_date }}</span>
+                    <span style="color: var(--text-muted);">{{ bk.start_date }} - {{ bk.end_date }}</span>
                     <span class="px-2 py-0.5 rounded-full text-[10px]" style="background: {% if bk.status == 'approved' %}rgba(34,197,94,0.1); color: #22c55e;{% else %}rgba(245,158,11,0.1); color: #f59e0b;{% endif %}">
                         {{ 'Подтверждено' if bk.status == 'approved' else 'Ожидает' }}
                     </span>
@@ -323,14 +418,14 @@
             <p class="text-sm" style="color: var(--text-muted);" id="bookEquipName">Оборудование</p>
         </div>
         <input type="hidden" id="bookEquipId">
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div>
+        <div class="book-date-grid mb-4">
+            <div class="book-date-field">
                 <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата начала</label>
-                <input type="date" id="bookStart" class="form-input">
+                <input type="date" id="bookStart" class="form-input book-date-input">
             </div>
-            <div>
+            <div class="book-date-field">
                 <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата окончания</label>
-                <input type="date" id="bookEnd" class="form-input">
+                <input type="date" id="bookEnd" class="form-input book-date-input">
             </div>
         </div>
         <button onclick="submitBooking()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
@@ -349,7 +444,7 @@
             <h2 class="text-2xl font-heading font-bold mb-2" id="viewBkTitle">Все бронирования</h2>
             <p class="text-sm" style="color: var(--text-muted);" id="viewBkOwner"></p>
         </div>
-        <div id="viewBkList" class="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+        <div id="viewBkList" class="space-y-2 max-h-[50vh] overflow-y-auto overflow-x-hidden pr-1">
             <p class="text-sm text-center py-6" style="color: var(--text-muted);">Загрузка...</p>
         </div>
     </div>
@@ -362,7 +457,10 @@
     const CURRENT_USER = '{{ user }}';
 
     function openModal(el) {
+        if (typeof openModalFn === 'function') return openModalFn(el);
         el.style.display = 'flex';
+        el.classList.add('active');
+        document.body.classList.add('modal-open');
         setTimeout(() => {
             el.style.opacity = '1';
             const mc = el.querySelector('.modal-content');
@@ -370,10 +468,15 @@
         }, 10);
     }
     function closeModal(el) {
+        if (typeof closeModalFn === 'function') return closeModalFn(el);
         el.style.opacity = '0';
+        el.classList.remove('active');
         const mc = el.querySelector('.modal-content');
         if (mc) mc.style.transform = 'scale(0.95)';
-        setTimeout(() => { el.style.display = 'none'; }, 300);
+        setTimeout(() => {
+            el.style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }, 300);
     }
 
     // ── Add equipment ──
@@ -454,7 +557,7 @@
 
     async function viewBookings(equipId, equipName, ownerId) {
         currentViewEquipId = equipId;
-        document.getElementById('viewBkTitle').textContent = equipName + ' — все бронирования';
+        document.getElementById('viewBkTitle').textContent = equipName + ' - все бронирования';
         document.getElementById('viewBkOwner').textContent = 'Владелец: ' + ownerId;
         document.getElementById('viewBkList').innerHTML = '<p class="text-sm text-center py-6" style="color: var(--text-muted);">Загрузка...</p>';
         openModal(document.getElementById('viewBookingsModal'));
@@ -499,31 +602,31 @@
             // Owner can approve/decline pending bookings
             if (bk.status === 'pending' && ownerId === CURRENT_USER) {
                 actions = `
-                    <button onclick="approveBooking('${bk.id}')" class="text-xs font-bold py-1.5 px-3 rounded-full" style="background: #22c55e; color: white; border: none; cursor: pointer;">Подтвердить</button>
-                    <button onclick="declineBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: transparent; border: 1px solid rgba(239,68,68,0.3); color: #ef4444; cursor: pointer;">Отклонить</button>
+                    <button type="button" onclick="approveBooking('${bk.id}')" class="bk-btn" style="background:#22c55e;color:#fff;border:none;font-weight:700;">Подтвердить</button>
+                    <button type="button" onclick="declineBooking('${bk.id}')" class="bk-btn" style="background:transparent;border:1px solid rgba(239,68,68,.35);color:#ef4444;">Отклонить</button>
                 `;
             }
             // User who booked can cancel
             if (bk.status === 'pending' && bk.user_id === CURRENT_USER) {
                 actions += `
-                    <button onclick="cancelBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted); cursor: pointer;">Отменить</button>
+                    <button type="button" onclick="cancelBooking('${bk.id}')" class="bk-btn" style="background:transparent;border:1px solid var(--glass-border);color:var(--text-muted);">Отменить</button>
                 `;
             }
             // Mark completed (owner or user)
             if (bk.status === 'approved' && (ownerId === CURRENT_USER || bk.user_id === CURRENT_USER)) {
                 actions += `
-                    <button onclick="completeBooking('${bk.id}')" class="text-xs py-1.5 px-3 rounded-full" style="background: rgba(100,206,251,0.1); border: 1px solid rgba(100,206,251,0.3); color: #64CEFB; cursor: pointer;">Завершить</button>
+                    <button type="button" onclick="completeBooking('${bk.id}')" class="bk-btn" style="background:rgba(100,206,251,.1);border:1px solid rgba(100,206,251,.35);color:#64CEFB;">Завершить</button>
                 `;
             }
 
             div.innerHTML = `
-                <span class="queue-pos" style="flex-shrink:0;">${i + 1}</span>
-                <div class="flex-grow min-w-0" style="flex:1;">
-                    <div class="text-sm font-medium">${bk.user_id}</div>
+                <span class="queue-pos">${i + 1}</span>
+                <div class="booking-item-main">
+                    <div class="text-sm font-medium truncate">${bk.user_id}</div>
                     <div class="text-xs" style="color: var(--text-muted);">${bk.start_date} — ${bk.end_date}</div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-xs px-2.5 py-1 rounded-full" style="background: ${sc.bg}; color: ${sc.text}; border: 1px solid ${sc.text}20;">
+                <div class="booking-item-actions">
+                    <span class="bk-status text-xs px-2.5 py-1 rounded-full" style="background:${sc.bg};color:${sc.text};border:1px solid ${sc.text}33;">
                         ${statusLabels[bk.status] || bk.status}
                     </span>
                     ${actions}

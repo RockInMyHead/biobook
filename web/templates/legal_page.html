@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set page_url = site_origin ~ base_path ~ '/' ~ page.slug %}
+    <title>{{ page.seo_title }} - Lab-Journal</title>
+    <meta name="description" content="{{ page.description }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ page_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Lab-Journal">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:title" content="{{ page.seo_title }}">
+    <meta property="og:description" content="{{ page.description }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
+    <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
+    <link rel="icon" href="{{ base_path }}/static/favicon.ico" sizes="any">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    {% include 'public_site_styles.html' %}
+    <style>
+        body { margin: 0; font-family: Inter, sans-serif; color: #1d232e; background: linear-gradient(180deg, #fbfaf6, #f4f0e8); min-height: 100svh; }
+        .site-footer { margin-top: 3rem; padding: 2rem 1.25rem; border-top: 1px solid rgba(29,35,46,.1); font-size: 0.875rem; color: #4b5563; text-align: center; line-height: 1.55; }
+        .site-footer a { color: #0b5f75; text-decoration: none; font-size: 0.875rem; }
+        .wrap { max-width: 800px; margin: 0 auto; padding: 1.25rem 1.25rem 2.5rem; }
+        nav.crumbs ol { list-style: none; padding: 0; margin: 0 0 1.5rem; display: flex; flex-wrap: wrap; gap: .35rem .5rem; font-size: .8rem; color: #8b93a0; }
+        nav.crumbs li:not(:last-child)::after { content: "›"; margin-left: .5rem; color: #c4c9d1; }
+        nav.crumbs a { color: #0e7490; text-decoration: none; }
+        h1 { font-family: 'Space Grotesk', sans-serif; font-size: clamp(1.45rem, 4vw, 1.9rem); line-height: 1.2; margin: 0 0 .75rem; }
+        .meta { font-size: .8rem; color: #8b93a0; margin-bottom: 1.5rem; }
+        article.prose { background: #fff; border: 1px solid rgba(29,35,46,.09); border-radius: 1rem; padding: 1.5rem 1.35rem; line-height: 1.65; font-size: .94rem; }
+        .prose h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; margin: 1.65rem 0 .7rem; color: #14181f; }
+        .prose p { margin: 0 0 .95rem; }
+        .prose ul, .prose ol { margin: 0 0 .95rem; padding-left: 1.35rem; }
+        .prose li { margin: 0 0 .35rem; }
+        .prose a { color: #0e7490; }
+        .prose strong { color: #14181f; }
+    </style>
+</head>
+<body class="has-pub-header">
+    {% include 'public_site_nav.html' %}
+    <main id="main" class="wrap">
+        <nav class="crumbs" aria-label="Хлебные крошки">
+            <ol>
+                <li><a href="{{ base_path }}/">Главная</a></li>
+                <li aria-current="page">{{ page.h1 }}</li>
+            </ol>
+        </nav>
+        <h1>{{ page.h1 }}</h1>
+        {% if page.updated %}<p class="meta">Редакция от {{ page.updated }}</p>{% endif %}
+        <article class="prose">
+            {{ page.body_html | safe }}
+        </article>
+    </main>
+    {% include 'public_site_footer.html' %}
+    {% include 'cookie_banner.html' %}
+    {% include 'yandex_metrika.html' %}
+</body>
+</html>

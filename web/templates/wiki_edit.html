@@ -65,9 +65,9 @@
         <h1 class="text-3xl md:text-4xl font-heading tracking-tight" id="pageTitle">{{ page.title }}</h1>
         <p class="text-sm mt-1" style="color: var(--text-muted);">
             {{ exp.name }} ·
-            Создана: {{ page.created_at[:10] if page.created_at else '—' }}
+            Создана: {{ page.created_at[:10] if page.created_at else '-' }}
             {% if page.created_by %} · {{ page.created_by }}{% endif %}
-            · Обновлена: {{ page.updated_at[:10] if page.updated_at else '—' }}
+            · Обновлена: {{ page.updated_at[:10] if page.updated_at else '-' }}
         </p>
     </div>
     {% if is_owner or viewing_user %}

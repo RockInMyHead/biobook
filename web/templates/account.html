@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Аккаунт{% endblock %}
+{% block nav_subtitle %}Настройки{% endblock %}
+
+{% block extra_head %}
+<style>
+    .account-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.25rem;
+    }
+    .account-card {
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        border-radius: 1.25rem;
+        padding: 1.35rem 1.4rem;
+    }
+    .account-card h2 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.85rem;
+        font-family: var(--font-heading, inherit);
+    }
+    .account-meta { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
+    .account-meta strong { color: var(--text-main); font-weight: 600; }
+    .storage-bar {
+        height: 10px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+        overflow: hidden;
+        margin: 0.85rem 0 0.45rem;
+    }
+    .storage-bar > span {
+        display: block;
+        height: 100%;
+        background: var(--primary);
+        border-radius: inherit;
+    }
+    .form-row { margin-bottom: 0.85rem; }
+    .form-row label { display: block; font-size: 0.8rem; margin-bottom: 0.35rem; color: var(--text-secondary); }
+    .alert {
+        border-radius: 0.85rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+    }
+    .alert-ok { background: color-mix(in srgb, #22c55e 14%, transparent); color: #15803d; }
+    .alert-err { background: color-mix(in srgb, #ef4444 14%, transparent); color: #b91c1c; }
+    .account-avatar-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 1rem;
+    }
+    .account-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 24px;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        color: var(--primary);
+        border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
+        flex-shrink: 0;
+    }
+    .account-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .account-avatar-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .account-avatar-btns button {
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--glass-border);
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+    }
+    .account-avatar-btns button:hover { border-color: var(--primary); color: var(--primary); }
+    .account-avatar-btns button.danger:hover { border-color: #ef4444; color: #ef4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl md:text-3xl font-heading tracking-tight mb-1">Аккаунт</h1>
+    <p class="text-sm" style="color: var(--text-muted);">Профиль, пароль и использование хранилища</p>
+</div>
+
+{% if msg == 'PasswordChanged' %}
+<div class="alert alert-ok">Пароль обновлён.</div>
+{% endif %}
+{% if error == 'WrongPassword' %}
+<div class="alert alert-err">Текущий пароль неверный.</div>
+{% elif error == 'WeakPassword' %}
+<div class="alert alert-err">Новый пароль должен быть не короче 6 символов.</div>
+{% elif error == 'PasswordMismatch' %}
+<div class="alert alert-err">Новый пароль и подтверждение не совпадают.</div>
+{% elif error == 'NoPassword' %}
+<div class="alert alert-err">Смена пароля недоступна для этого способа входа.</div>
+{% endif %}
+
+<div class="account-grid">
+    <section class="account-card">
+        <h2>Профиль</h2>
+        <div class="account-avatar-row">
+            <div class="account-avatar" id="accountAvatar">
+                {% if profile.avatar_url %}
+                <img src="{{ profile.avatar_url|avatar_src }}" alt="Аватар">
+                {% else %}
+                {{ profile.username[:1]|upper }}
+                {% endif %}
+            </div>
+            <div>
+                <div class="account-avatar-btns">
+                    <button type="button" id="accountAvatarUpload">Загрузить фото</button>
+                    <button type="button" class="danger" id="accountAvatarRemove" {% if not profile.avatar_url %}hidden{% endif %}>Убрать</button>
+                </div>
+                <p class="account-meta" style="margin-top:0.45rem;">JPG, PNG, WebP, GIF · до 5 МБ</p>
+                <input type="file" id="accountAvatarInput" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" hidden>
+            </div>
+        </div>
+        <p class="account-meta"><strong>Логин:</strong> {{ profile.username }}</p>
+        <p class="account-meta"><strong>Email:</strong> {{ profile.email or '—' }}</p>
+        <p class="account-meta"><strong>Имя:</strong> {{ profile.display_name or '—' }}</p>
+        <p class="account-meta"><strong>Тариф:</strong> {{ plan_label }}{% if user_plan == 'free' %} · без ИИ{% endif %}</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <a href="{{ base_path }}/profile/{{ user }}?user={{ user }}" class="text-sm font-medium no-underline" style="color: var(--primary);">Публичный профиль</a>
+            <span style="color: var(--text-muted);">·</span>
+            <a href="{{ base_path }}/pricing?user={{ user }}" class="text-sm font-medium no-underline" style="color: var(--primary);">Тарифы</a>
+        </div>
+    </section>
+
+    <section class="account-card">
+        <h2>Хранилище</h2>
+        <p class="account-meta">Использовано <strong>{{ storage_used_label }}</strong> из <strong>{{ storage_limit_label }}</strong></p>
+        <div class="storage-bar" aria-hidden="true"><span style="width: {{ storage_pct }}%;"></span></div>
+        <p class="account-meta">{{ storage_pct }}% · {% if user_plan == 'free' %}на Free — 1 ГБ; на Pro — 20 ГБ{% else %}лимит тарифа Pro / LabOS — 20 ГБ{% endif %}</p>
+    </section>
+
+    <section class="account-card">
+        <h2>Смена пароля</h2>
+        {% if can_change_password %}
+        <form action="{{ base_path }}/account/password" method="POST">
+            <div class="form-row">
+                <label for="current_password">Текущий пароль</label>
+                <input id="current_password" name="current_password" type="password" class="form-input ym-disable-keys" required autocomplete="current-password">
+            </div>
+            <div class="form-row">
+                <label for="new_password">Новый пароль</label>
+                <input id="new_password" name="new_password" type="password" class="form-input ym-disable-keys" required minlength="6" autocomplete="new-password">
+            </div>
+            <div class="form-row">
+                <label for="new_password2">Повторите новый пароль</label>
+                <input id="new_password2" name="new_password2" type="password" class="form-input ym-disable-keys" required minlength="6" autocomplete="new-password">
+            </div>
+            <button type="submit" class="font-bold py-2.5 px-5 rounded-full text-sm" style="background: var(--primary); color: var(--primary-fg); border: none; cursor: pointer;">
+                Сохранить пароль
+            </button>
+        </form>
+        {% else %}
+        <p class="account-meta">Вы вошли через Яндекс ID — пароль в Lab-Journal не задан. Управляйте доступом в аккаунте Яндекса.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    const BASE_PATH = '{{ base_path }}';
+    const letter = '{{ profile.username[:1]|upper }}';
+    const input = document.getElementById('accountAvatarInput');
+    const box = document.getElementById('accountAvatar');
+    const removeBtn = document.getElementById('accountAvatarRemove');
+
+    function paint(url) {
+        if (!box) return;
+        if (url) {
+            box.innerHTML = `<img src="${url}" alt="Аватар">`;
+            if (removeBtn) removeBtn.hidden = false;
+        } else {
+            box.textContent = letter;
+            if (removeBtn) removeBtn.hidden = true;
+        }
+        const nav = document.querySelector('.user-menu-avatar');
+        if (nav) {
+            if (url) {
+                nav.innerHTML = `<img src="${url}" alt="">`;
+                nav.classList.add('has-photo');
+            } else {
+                nav.textContent = letter;
+                nav.classList.remove('has-photo');
+            }
+        }
+    }
+
+    document.getElementById('accountAvatarUpload')?.addEventListener('click', () => input?.click());
+    input?.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/profile/avatar`, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) { alert(data.error || 'Не удалось загрузить'); return; }
+            paint(data.url);
+        } catch (e) { alert('Ошибка сети'); }
+    });
+    removeBtn?.addEventListener('click', async () => {
+        if (!confirm('Убрать фото профиля?')) return;
+        try {
+            const resp = await fetch(`${BASE_PATH}/api/profile/avatar`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) { alert(data.error || 'Не удалось удалить'); return; }
+            paint('');
+        } catch (e) { alert('Ошибка сети'); }
+    });
+})();
+</script>
+{% endblock %}

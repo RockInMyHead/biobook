@@ -4,16 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% set seo_url = site_origin ~ base_path ~ '/' %}
-    {% set seo_title = 'Электронный лабораторный журнал с ИИ и OCR — Bio-Notebook' %}
-    {% set seo_desc = 'Электронный лабораторный журнал: эксперименты, OCR, ИИ-агент и отчёты DOCX/PDF. Free — 0 ₽; Pro — 319 ₽/мес; LabOS — по заявке. НДС не облагается.' %}
+    {% set seo_title = 'Электронный лабораторный журнал с ИИ и OCR - Lab-Journal' %}
+    {% set seo_desc = 'Электронный лабораторный журнал: эксперименты, OCR, ИИ-агент и отчёты DOCX/PDF. Free - 0 ₽; Pro - 319 ₽/мес; LabOS - по заявке. НДС не облагается.' %}
     <title>{{ seo_title }}</title>
     <meta name="description" content="{{ seo_desc }}">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <link rel="canonical" href="{{ seo_url }}">
+    <link rel="describedby" href="{{ site_origin }}{{ base_path }}/llms.txt">
     <meta name="theme-color" content="#05070a">
 
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:site_name" content="Lab-Journal">
     <meta property="og:locale" content="ru_RU">
     <meta property="og:url" content="{{ seo_url }}">
     <meta property="og:title" content="{{ seo_title }}">
@@ -21,7 +22,7 @@
     <meta property="og:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Bio-Notebook — электронный лабораторный журнал">
+    <meta property="og:image:alt" content="Lab-Journal - электронный лабораторный журнал">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ seo_title }}">
     <meta name="twitter:description" content="{{ seo_desc }}">
@@ -33,7 +34,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ base_path }}/static/apple-touch-icon.png">
     <link rel="manifest" href="{{ base_path }}/static/site.webmanifest">
 
-    {% set schema_product_desc = 'Bio-Notebook — электронный лабораторный журнал (ELN) для студентов и преподавателей с OCR записей и выгрузкой отчёта в DOCX и PDF.' %}
+    {% set schema_product_desc = 'Lab-Journal - электронный лабораторный журнал (ELN) для студентов и преподавателей с OCR записей и выгрузкой отчёта в DOCX и PDF.' %}
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -52,14 +53,14 @@
           "@type": "WebSite",
           "@id": "{{ site_origin }}/#website",
           "url": "{{ site_origin }}/",
-          "name": "Антикусь",
+          "name": "Lab-Journal",
           "publisher": { "@id": "{{ site_origin }}/#organization" }
         },
         {
           "@type": "SoftwareApplication",
           "@id": "{{ seo_url }}#software",
-          "name": "Bio-Notebook",
-          "alternateName": "Электронный лабораторный журнал Bio-Notebook",
+          "name": "Lab-Journal",
+          "alternateName": "Электронный лабораторный журнал Lab-Journal",
           "url": "{{ seo_url }}",
           "description": {{ schema_product_desc | tojson }},
           "applicationCategory": "EducationalApplication",
@@ -69,11 +70,11 @@
           "image": "{{ site_origin }}{{ base_path }}/static/og-image.png",
           "publisher": { "@id": "{{ site_origin }}/#organization" },
           "featureList": [
-            "Ведение этапов, узлов, протоколов и результатов эксперимента",
+            "Ведение этапов, протоколов и результатов эксперимента",
             "Распознавание рукописных записей и фото приборов (OCR)",
-            "ИИ-чат по эксперименту",
+            "ИИ-чат по эксперименту (Pro)",
             "Экспорт отчётов в DOCX и PDF",
-            "Презентация из отчёта (PPTX и PDF)",
+            "Презентация из отчёта (PPTX — Pro; PDF)",
             "Голосовой ввод"
           ],
           "offers": {
@@ -88,7 +89,7 @@
                 "name": "Free",
                 "price": "0",
                 "priceCurrency": "RUB",
-                "description": "Журнал без ИИ-агента — 0 ₽, без карты."
+                "description": "Журнал без ИИ-агента - 0 ₽, без карты."
               },
               {
                 "@type": "Offer",
@@ -108,7 +109,7 @@
                 "@type": "Offer",
                 "name": "LabOS",
                 "priceCurrency": "RUB",
-                "description": "Для кафедр и лабораторий — условия обсуждаем по заявке.",
+                "description": "Для кафедр и лабораторий - условия обсуждаем по заявке.",
                 "availability": "https://schema.org/InStock"
               }
             ]
@@ -136,11 +137,10 @@
     <!-- Google Fonts (non-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
-
+    
     <!-- Lucide Icons -->
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
 
@@ -153,7 +153,7 @@
             font-family: 'Inter', sans-serif;
         }
 
-        /* Critical layout — works even if Tailwind fails to load */
+        /* Critical layout - works even if Tailwind fails to load */
         .hero-section {
             position: relative;
             min-height: 100svh;
@@ -182,11 +182,101 @@
             left: 0;
             right: 0;
             padding: 0 1.5rem;
-            z-index: 50;
+            z-index: 10050;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 0.75rem;
             box-sizing: border-box;
+        }
+        .hero-nav-links {
+            display: none;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+        .hero-nav-brand {
+            position: relative;
+            z-index: 90;
+        }
+        .hero-nav-burger {
+            display: inline-flex;
+            position: relative;
+            z-index: 90;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .hero-nav-burger:hover { background: rgba(255,255,255,0.12); }
+        .hero-nav-burger-icon,
+        .hero-nav-close-icon { display: block; }
+        .hero-nav.is-open .hero-nav-burger-icon { display: none; }
+        .hero-nav.is-open .hero-nav-close-icon { display: block; }
+        .hero-nav:not(.is-open) .hero-nav-close-icon { display: none; }
+        .hero-nav-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 10040;
+            display: none;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            min-height: 100dvh;
+            margin: 0;
+            padding: 5.5rem 1.5rem 2rem;
+            background: #05070a;
+            color: #fff;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        body.hero-nav-open .hero-nav-panel,
+        .hero-nav-panel:not([hidden]) {
+            display: flex;
+        }
+        .hero-nav-panel[hidden] {
+            display: none !important;
+        }
+        .hero-nav-panel a {
+            display: block;
+            text-decoration: none;
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            padding: 0.95rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .hero-nav-panel a:last-child { border-bottom: 0; }
+        .hero-nav-panel a.hero-nav-cta {
+            margin-top: 1.25rem;
+            text-align: center;
+            border: 0;
+            border-radius: 999px;
+            padding: 0.95rem 1.25rem;
+            font-size: 1.05rem;
+            font-weight: 600;
+            background: #64CEFB;
+            color: #0a1620;
+        }
+        body.hero-nav-locked { overflow: hidden; }
+        @media (min-width: 768px) {
+            .hero-nav-links { display: flex; }
+            .hero-nav-burger { display: none; }
+            .hero-nav-panel { display: none !important; }
+        }
+        @media (max-width: 767px) {
+            .hero-nav { padding-left: 1rem; padding-right: 1rem; }
         }
         @media (scripting: none) {
             .reveal { opacity: 1 !important; transform: none !important; }
@@ -910,61 +1000,49 @@
         <div class="video-overlay"></div>
 
         <!-- Navbar -->
-        <nav class="hero-nav absolute top-6 left-0 w-full px-6 lg:px-16 z-50 flex items-center justify-between" aria-label="Основное">
-            <a href="{{ base_path }}/" class="flex items-center gap-3 no-underline text-white" title="Приветственная страница">
+        <nav class="hero-nav absolute top-6 left-0 w-full px-6 lg:px-16 z-50 flex items-center justify-between" id="heroNav" aria-label="Основное">
+            <a href="{{ base_path }}/" class="hero-nav-brand flex items-center gap-3 no-underline text-white" title="Приветственная страница">
                 <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center liquid-glass">
                     <div class="w-4 h-4 rounded-full bg-[#0099ff]"></div>
                 </div>
-                <span class="font-bold text-xl tracking-tight">Bio-Notebook</span>
+                <span class="font-bold text-xl tracking-tight">Lab-Journal</span>
             </a>
-            
-            <div class="flex flex-wrap items-center justify-end gap-3">
+
+            <div class="hero-nav-links">
                 {% if session_user %}
-                <a
-                    href="{{ base_path }}/dashboard?user={{ session_user }}"
-                    class="btn-trial-primary rounded-full px-4 py-2 text-xs sm:text-sm no-underline"
-                >
-                    Кабинет · {{ session_user }}
-                </a>
+                <a href="{{ base_path }}/dashboard?user={{ session_user }}" class="btn-trial-primary rounded-full px-4 py-2 text-xs sm:text-sm no-underline">Кабинет · {{ session_user }}</a>
                 {% else %}
-                <a
-                    href="{{ base_path }}/login"
-                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
-                >
-                    Вход
-                </a>
+                <a href="{{ base_path }}/login" class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm">Вход</a>
                 {% endif %}
-                <a
-                    href="{{ base_path }}/login?mode=register"
-                    class="rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm btn-trial-primary"
-                >
-                    Начать бесплатно
-                </a>
-                <a
-                    href="{{ base_path }}/#ocr"
-                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
-                >
-                    Возможности
-                </a>
-                <a
-                    href="{{ base_path }}/#ceny"
-                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
-                >
-                    Цены
-                </a>
-                <a
-                    href="{{ base_path }}/guides/"
-                    class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm"
-                >
-                    Статьи
-                </a>
+                <a href="{{ base_path }}/login?mode=register" class="rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm btn-trial-primary">Начать бесплатно</a>
+                <a href="{{ base_path }}/#vozmozhnosti" class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm">Возможности</a>
+                <a href="{{ base_path }}/#ceny" class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm">Цены</a>
+                <a href="{{ base_path }}/guides/" class="liquid-glass rounded-full px-4 py-2 text-xs text-white transition-colors hover:bg-white/10 sm:text-sm">Статьи</a>
             </div>
+            
+            <button type="button" class="hero-nav-burger" id="heroNavBurger" aria-label="Открыть меню" aria-expanded="false" aria-controls="heroNavPanel">
+                <svg class="hero-nav-burger-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                <svg class="hero-nav-close-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+
         </nav>
+        <div class="hero-nav-panel" id="heroNavPanel" hidden>
+            <a href="{{ base_path }}/#vozmozhnosti">Возможности</a>
+            <a href="{{ base_path }}/#ceny">Цены</a>
+            <a href="{{ base_path }}/guides/">Статьи</a>
+            {% if session_user %}
+            <a href="{{ base_path }}/dashboard?user={{ session_user }}">Кабинет</a>
+            <a href="{{ base_path }}/dashboard?user={{ session_user }}" class="hero-nav-cta">Открыть кабинет</a>
+            {% else %}
+            <a href="{{ base_path }}/login">Вход</a>
+            <a href="{{ base_path }}/login?mode=register" class="hero-nav-cta">Начать бесплатно</a>
+            {% endif %}
+        </div>
 
         <!-- Hero Content -->
         <div class="hero-inner relative z-10 w-full max-w-7xl mx-auto flex flex-col justify-center items-start flex-grow">
             <h1 class="text-4xl md:text-5xl lg:text-6xl font-heading tracking-tight leading-[1.05] mb-6 max-w-4xl text-white">
-                Электронный лабораторный журнал Bio-Notebook
+                Электронный лабораторный журнал Lab-Journal
             </h1>
             <p class="text-white/80 text-lg md:text-xl max-w-2xl mb-10 leading-relaxed">
                 Делай науку, а не отчеты.
@@ -972,15 +1050,16 @@
             {% if session_user %}
             <a href="{{ base_path }}/dashboard?user={{ session_user }}" class="btn-trial-primary group inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-medium transition-all">
                 Открыть кабинет
-                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
-            </a>
+                    <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                </a>
             {% else %}
             <a href="{{ base_path }}/login?mode=register" class="btn-trial-primary group inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-medium transition-all">
                 Начать бесплатно
                 <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
             </a>
+            <p class="text-white/45 text-sm mt-4">Free — 0 ₽, без карты · Pro с ИИ — 319 ₽/мес</p>
             {% endif %}
-        </div>
+            </div>
     </header>
 
     <main id="main">
@@ -1246,7 +1325,7 @@
                 <p class="usp-kicker">// Суть сервиса</p>
                 <h2 id="chto-heading" class="usp-title">Что такое электронный<br><em>лабораторный журнал</em></h2>
                 <p class="essence-lead">
-                    Bio-Notebook — веб-журнал для учебных и прикладных опытов: шаги, вложения и сырые данные в одном месте, любая версия под рукой, отчёт в DOCX или PDF за минуту.
+                    Lab-Journal - веб-журнал для учебных и прикладных опытов: шаги, вложения и сырые данные в одном месте, любая версия под рукой, отчёт в DOCX или PDF за минуту.
                 </p>
                 <ul class="essence-list">
                     <li><span class="essence-ic" aria-hidden="true"><i data-lucide="layers"></i></span>Шаги и протоколы опыта</li>
@@ -1356,12 +1435,12 @@
         .art-file{font-size:.6rem;color:#9aa1ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     </style>
 
-    <section id="otchet" class="sec-photo relative px-6 z-10 sec-break" aria-labelledby="otchet-heading">
-        <div class="max-w-7xl mx-auto">
+    <section id="vozmozhnosti" class="sec-photo relative px-6 z-10 sec-break" aria-labelledby="otchet-heading">
+        <div id="otchet" class="max-w-7xl mx-auto">
             <div class="reveal">
                 <p class="usp-kicker">// Возможности</p>
-                <h2 id="otchet-heading" class="usp-title">Из фото —<br><em>в понятный отчёт</em></h2>
-                <p class="text-base max-w-2xl" style="color:#5c6570;margin:0 0 2.75rem;line-height:1.65">Записи в журнале — в гайде <a href="{{ base_path }}/guides/kak-vesti-laboratornyy-zhurnal/" style="color:#0e7490">как вести лабораторный журнал</a>; итоговый отчёт — <a href="{{ base_path }}/guides/kak-oformit-otchet-laboratornoy/" style="color:#0e7490">оформление отчёта</a>.</p>
+                <h2 id="otchet-heading" class="usp-title">Из фото -<br><em>в понятный отчёт</em></h2>
+                <p class="text-base max-w-2xl" style="color:#5c6570;margin:0 0 2.75rem;line-height:1.65">Записи в журнале - в гайде <a href="{{ base_path }}/guides/kak-vesti-laboratornyy-zhurnal/" style="color:#0e7490">как вести лабораторный журнал</a>; итоговый отчёт - <a href="{{ base_path }}/guides/kak-oformit-otchet-laboratornoy/" style="color:#0e7490">оформление отчёта</a>.</p>
             </div>
 
             <div class="usp-show">
@@ -1439,8 +1518,8 @@
                         </div>
                     </div>
                     <div class="usp-ic"><i data-lucide="message-circle" style="width:1.15rem;height:1.15rem"></i></div>
-                    <h3>ИИ-Чат по эксперименту</h3>
-                    <p>Задайте вопрос по своим записям: ИИ соберёт выжимку, найдёт ошибку в расчётах и внесёт правки прямо в отчёт.</p>
+                    <h3>ИИ-Чат по эксперименту <span class="usp-chip accent">Pro</span></h3>
+                    <p>Задайте вопрос по своим записям: ИИ соберёт выжимку, найдёт ошибку в расчётах и внесёт правки прямо в отчёт. ИИ-агент — на тарифе Pro.</p>
                 </div>
                 <div class="usp-mini reveal">
                     <div class="usp-art">
@@ -1455,7 +1534,7 @@
                     </div>
                     <div class="usp-ic"><i data-lucide="mic" style="width:1.15rem;height:1.15rem"></i></div>
                     <h3>Голосовой ввод</h3>
-                    <p>Надиктуйте результат, стоя у стенда, — речь превратится в текст и попадёт в журнал без ручного ввода.</p>
+                    <p>Надиктуйте результат, стоя у стенда, - речь превратится в текст и попадёт в журнал без ручного ввода.</p>
                 </div>
                 <div class="usp-mini reveal">
                     <div class="usp-art">
@@ -1475,8 +1554,8 @@
                         </div>
                     </div>
                     <div class="usp-ic"><i data-lucide="presentation" style="width:1.15rem;height:1.15rem"></i></div>
-                    <h3>Презентация из отчёта</h3>
-                    <p>Из записей эксперимента — готовые слайды: цель, графики, выводы. Удобно для защиты работы или отчёта на кафедре.</p>
+                    <h3>Презентация из отчёта <span class="usp-chip accent">Pro</span></h3>
+                    <p>Из записей эксперимента — готовые слайды: цель, графики, выводы. PPTX — на тарифе Pro. Удобно для защиты работы или отчёта на кафедре.</p>
                 </div>
             </div>
         </div>
@@ -1488,46 +1567,38 @@
             <h2 id="sravnenie-heading" class="usp-title" style="margin-bottom:1.5rem;font-size:clamp(1.75rem,4vw,2.75rem)">Чем отличается от <em>бумаги и Word</em></h2>
             <div class="pricing-table-wrap" style="margin-bottom:0">
                 <table class="pricing-table">
-                    <caption class="sr-only">Сравнение бумажной тетради, Word и Bio-Notebook</caption>
+                    <caption class="sr-only">Сравнение бумажной тетради, Word и Lab-Journal</caption>
                     <thead>
-                        <tr><th scope="col">Критерий</th><th scope="col">Бумажная тетрадь</th><th scope="col">Word / таблицы</th><th scope="col">Bio-Notebook</th></tr>
+                        <tr><th scope="col">Критерий</th><th scope="col">Бумажная тетрадь</th><th scope="col">Word / таблицы</th><th scope="col">Lab-Journal</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>Поиск по старым опытам</td><td>Сложно</td><td>Зависит от папок</td><td>По экспериментам и узлам</td></tr>
+                        <tr><td>Поиск по старым опытам</td><td>Сложно</td><td>Зависит от папок</td><td>По экспериментам и этапам</td></tr>
                         <tr><td>Фото и OCR</td><td>Вручную переписывать</td><td>Картинки без структуры</td><td>OCR в шаги эксперимента</td></tr>
                         <tr><td>Версии и исправления</td><td>Зачёркивания</td><td>Копии файлов</td><td>История версий</td></tr>
-                        <tr><td>ИИ по записям</td><td>—</td><td>—</td><td>Чат, отчёт, презентация</td></tr>
+                        <tr><td>ИИ по записям</td><td>-</td><td>-</td><td>Чат, отчёт, презентация</td></tr>
                         <tr><td>Главный минус для учебной работы</td><td>Нет поиска, легко потерять</td><td>Нет модели «опыт → шаги»</td><td>Нужна дисциплина структуры; не промышленный ELN</td></tr>
                         <tr><td>Цена</td><td>Тетрадь</td><td>Офис / облако</td><td><a href="#ceny" style="color:#0e7490">публичные тарифы</a></td></tr>
                     </tbody>
                 </table>
-            </div>
-            <p style="margin-top:1.25rem;font-size:.9rem;color:#5c6570;text-align:left;max-width:48rem">Сравнение электронных журналов и ELN для вуза — на отдельной странице <a href="{{ base_path }}/sravnenie-elektronnyh-laboratornyh-zhurnalov/" style="color:#0e7490">«Какой электронный лабораторный журнал выбрать»</a> (без рейтинга «лучший»).</p>
         </div>
+            <p style="margin-top:1.25rem;font-size:.9rem;color:#5c6570;text-align:left;max-width:48rem">Сравнение электронных журналов и ELN для вуза - на отдельной странице <a href="{{ base_path }}/sravnenie-elektronnyh-laboratornyh-zhurnalov/" style="color:#0e7490">«Какой электронный лабораторный журнал выбрать»</a> (без рейтинга «лучший»).</p>
+                </div>
     </section>
 
 <section id="ceny" class="sec-light relative px-6 z-10 sec-break" aria-labelledby="ceny-heading">
     <div class="max-w-7xl mx-auto pricing-section reveal">
       <p class="pricing-kicker">// Публичные тарифы</p>
-      <h2 id="ceny-heading">Сколько стоит <em style="font-style:italic;color:#0e7490">Bio-Notebook</em></h2>
-
-      <figure class="pricing-hero">
-        <img src="{{ base_path }}/static/pricing-lab-atmosphere.jpg" width="1280" height="720" alt="Лабораторный стол: рукописный журнал, чашка Петри и ноутбук с цифровым журналом" loading="lazy" decoding="async">
-        <figcaption class="pricing-hero-copy">
-          <strong>От тетради — к цифровому журналу</strong>
-          <span>Free для старта, Pro с агентом за 319 ₽/мес, LabOS — для кафедр и лабораторий.</span>
-        </figcaption>
-      </figure>
+      <h2 id="ceny-heading">Сколько стоит <em style="font-style:italic;color:#0e7490">Lab-Journal</em></h2>
 
       <div class="pricing-grid" role="list">
         <article class="plan-card" role="listitem">
           <span class="plan-badge">Старт</span>
           <h3>Free</h3>
-          <p class="plan-tagline">Журнал без ИИ-агента — без карты и без срока.</p>
+          <p class="plan-tagline">Журнал без ИИ-агента - без карты и без срока.</p>
           <p class="plan-price">0 ₽ <small>/ навсегда</small></p>
           <p class="plan-term">Без ограничения срока</p>
           <ul class="plan-features">
-            <li><i data-lucide="check"></i> Эксперименты и узлы</li>
+            <li><i data-lucide="check"></i> Эксперименты и этапы</li>
             <li><i data-lucide="check"></i> OCR и голосовой ввод</li>
             <li><i data-lucide="check"></i> Отчёты DOCX / PDF</li>
             <li><i data-lucide="check"></i> Без ИИ-агента</li>
@@ -1538,7 +1609,7 @@
         <article class="plan-card featured" role="listitem">
           <span class="plan-badge">Рекомендуем</span>
           <h3>Pro</h3>
-          <p class="plan-tagline">Агент и все возможности Bio-Notebook.</p>
+          <p class="plan-tagline">Агент и все возможности Lab-Journal.</p>
           <p class="plan-price">319 ₽ <small>/ мес</small></p>
           <p class="plan-term">Помесячно · цены на 12.11.2026</p>
           <ul class="plan-features">
@@ -1547,13 +1618,13 @@
             <li><i data-lucide="check"></i> Презентации из отчёта</li>
             <li><i data-lucide="check"></i> Друзья, чаты, 20 ГБ</li>
           </ul>
-          <a class="plan-cta" href="{{ base_path }}/login?mode=register">Оформить Pro</a>
+          <a class="plan-cta" href="{{ base_path }}/login?mode=register&amp;plan=pro">Оформить Pro</a>
         </article>
 
         <article class="plan-card" role="listitem">
           <span class="plan-badge">Кафедры</span>
           <h3>LabOS</h3>
-          <p class="plan-tagline">Для кафедр, лабораторий и команд — условия под задачу.</p>
+          <p class="plan-tagline">Для кафедр, лабораторий и команд - условия под задачу.</p>
           <p class="plan-price">обсудим</p>
           <p class="plan-term">Договор · счёт · внедрение</p>
           <ul class="plan-features">
@@ -1569,9 +1640,9 @@
       <div class="pricing-foot">
         <p>Подробнее: <a href="{{ base_path }}/guides/kak-oformit-otchet-laboratornoy/">оформление отчёта</a>, <a href="{{ base_path }}/guides/vyvod-laboratornoy-raboty/">вывод к лабораторной</a>.</p>
         <a class="pricing-cta-link" href="{{ base_path }}/login?mode=register">Начать с Free →</a>
-      </div>
+                    </div>
       <p class="pricing-note">Публичные тарифы ООО «Антикусь». Цены в рублях, НДС не облагается. Дата: 12 ноября 2026 г.</p>
-    </div>
+                        </div>
   </section>
 
     <section id="faq" class="sec-light relative px-6 z-10 sec-break" aria-labelledby="faq-heading">
@@ -1591,7 +1662,7 @@
 
     <section class="sec-light relative px-6 z-10 sec-break final-cta" aria-labelledby="final-cta-heading">
         <h2 id="final-cta-heading" class="sr-only">Начать бесплатно</h2>
-        <p>Free — 0&nbsp;₽ без карты. Pro — 319&nbsp;₽/мес с агентом. LabOS — обсудим.</p>
+        <p>Free - 0&nbsp;₽ без карты. Pro - 319&nbsp;₽/мес с агентом. LabOS - обсудим.</p>
         <a href="{{ base_path }}/login?mode=register">Начать бесплатно <i data-lucide="arrow-right" class="w-5 h-5"></i></a>
     </section>
 
@@ -1605,13 +1676,15 @@
                 <div class="space-y-1 text-sm leading-relaxed" style="color:#5c6570">
                     <p>ОГРН 1257700473359</p>
                     <p>ИНН 7751375380 · КПП 775101001</p>
+                    <p><a href="{{ legal_base_url }}/requisites" style="color:#0b5f75">Все реквизиты →</a></p>
                 </div>
             </div>
-            <nav class="flex flex-col gap-2 text-xs sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2" aria-label="Юридическая информация" style="color:rgba(29,35,46,.55)">
-                <a href="{{ base_path }}/guides/" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Статьи</a>
-                <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Политика конфиденциальности</a>
-                <a href="{{ legal_base_url }}/public-offer" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Публичная оферта</a>
-                <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener" class="transition-colors" style="color:inherit" onmouseover="this.style.color='#0e7490'" onmouseout="this.style.color=''">Согласие на обработку ПДн</a>
+            <nav class="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2" aria-label="Юридическая информация" style="color:#374151">
+                <a href="{{ base_path }}/guides/" class="transition-colors" style="color:#0b5f75">Статьи</a>
+                <a href="{{ legal_base_url }}/requisites" target="_blank" rel="noopener" class="transition-colors" style="color:#0b5f75">Реквизиты</a>
+                <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener" class="transition-colors" style="color:#0b5f75">Политика конфиденциальности</a>
+                <a href="{{ legal_base_url }}/public-offer" target="_blank" rel="noopener" class="transition-colors" style="color:#0b5f75">Публичная оферта</a>
+                <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener" class="transition-colors" style="color:#0b5f75">Согласие на обработку ПДн</a>
             </nav>
         </div>
         <div class="mx-auto max-w-7xl footer-fund">
@@ -1625,7 +1698,7 @@
                 </a>
             </div>
         </div>
-        <p class="mx-auto mt-8 max-w-7xl text-xs" style="color:rgba(29,35,46,.4)">© 2026 ООО «Антикусь». Bio-Notebook</p>
+        <p class="mx-auto mt-8 max-w-7xl text-xs" style="color:rgba(29,35,46,.4)">© 2026 ООО «Антикусь». Lab-Journal</p>
     </footer>
 
     <script>
@@ -1761,7 +1834,7 @@
         <div class="labos-card" role="document">
             <button type="button" class="labos-close" id="labosCloseBtn" aria-label="Закрыть">×</button>
             <h2 id="labosModalTitle">Заявка на LabOS</h2>
-            <p class="labos-sub">Расскажите о кафедре или лаборатории — ответим и предложим условия.</p>
+            <p class="labos-sub">Расскажите о кафедре или лаборатории - ответим и предложим условия.</p>
             <form id="labosForm" novalidate>
                 <div class="field">
                     <label for="labosName">Имя</label>
@@ -1770,7 +1843,7 @@
                 <div class="field">
                     <label for="labosEmail">Email</label>
                     <input id="labosEmail" name="email" type="email" autocomplete="email" required maxlength="320" placeholder="name@university.ru">
-                </div>
+            </div>
                 <div class="field">
                     <label for="labosOrg">Организация</label>
                     <input id="labosOrg" name="org" type="text" autocomplete="organization" maxlength="300" placeholder="Вуз, кафедра, лаборатория">
@@ -1778,6 +1851,13 @@
                 <div class="field">
                     <label for="labosMessage">Задача</label>
                     <textarea id="labosMessage" name="message" maxlength="4000" placeholder="Сколько человек, какие процессы, сроки"></textarea>
+                </div>
+                <div class="field" style="display:flex;align-items:flex-start;gap:.5rem">
+                    <input id="labosConsent" name="consent_personal_data" type="checkbox" required style="margin-top:.2rem;accent-color:#0e7490">
+                    <label for="labosConsent" style="font-size:.78rem;line-height:1.4;color:#5c6570;font-weight:500">
+                        Согласен на <a href="{{ legal_base_url }}/consent-personal-data" target="_blank" rel="noopener" style="color:#0e7490">обработку персональных данных</a>
+                        и принимаю <a href="{{ legal_base_url }}/privacy" target="_blank" rel="noopener" style="color:#0e7490">политику конфиденциальности</a>
+                    </label>
                 </div>
                 <div class="labos-actions">
                     <button type="button" class="labos-cancel" id="labosCancelBtn">Отмена</button>
@@ -1788,6 +1868,35 @@
         </div>
     </div>
 
+    <script>
+    (function () {
+        var nav = document.getElementById('heroNav');
+        var burger = document.getElementById('heroNavBurger');
+        var panel = document.getElementById('heroNavPanel');
+        if (!nav || !burger || !panel) return;
+        if (panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
+        }
+        function setOpen(open) {
+            nav.classList.toggle('is-open', open);
+            document.body.classList.toggle('hero-nav-open', open);
+            document.body.classList.toggle('hero-nav-locked', open);
+            panel.hidden = !open;
+            burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+            burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+        }
+        burger.addEventListener('click', function (e) {
+            e.stopPropagation();
+            setOpen(!document.body.classList.contains('hero-nav-open'));
+        });
+        panel.querySelectorAll('a').forEach(function (a) {
+            a.addEventListener('click', function () { setOpen(false); });
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') setOpen(false);
+            });
+        })();
+    </script>
     <script>
     (function () {
         var modal = document.getElementById('labosModal');
@@ -1826,11 +1935,13 @@
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             if (hint) { hint.textContent = ''; hint.className = 'labos-hint'; }
+            var consentEl = document.getElementById('labosConsent');
             var payload = {
                 name: (document.getElementById('labosName').value || '').trim(),
                 email: (document.getElementById('labosEmail').value || '').trim(),
                 org: (document.getElementById('labosOrg').value || '').trim(),
-                message: (document.getElementById('labosMessage').value || '').trim()
+                message: (document.getElementById('labosMessage').value || '').trim(),
+                consent_personal_data: !!(consentEl && consentEl.checked)
             };
             if (payload.name.length < 2) {
                 hint.textContent = 'Укажите имя';
@@ -1839,6 +1950,11 @@
             }
             if (!payload.email || payload.email.indexOf('@') < 1) {
                 hint.textContent = 'Укажите корректный email';
+                hint.className = 'labos-hint error';
+                return;
+            }
+            if (!payload.consent_personal_data) {
+                hint.textContent = 'Нужно согласие на обработку персональных данных';
                 hint.className = 'labos-hint error';
                 return;
             }
@@ -1856,6 +1972,7 @@
                 }
                 hint.textContent = 'Заявка отправлена. Мы свяжемся с вами.';
                 hint.className = 'labos-hint ok';
+                if (window.bnGoal) window.bnGoal('bn_labos_request');
                 form.reset();
                 setTimeout(closeModal, 1400);
             }).catch(function (err) {
@@ -1868,49 +1985,7 @@
     })();
     </script>
 
-    <!-- ── Cookie Banner ── -->
-    <div id="cookieBanner" class="fixed bottom-0 left-0 right-0 z-[200] transition-all duration-500 ease-out" style="transform:translateY(100%);opacity:0;">
-        <div class="mx-auto max-w-7xl px-4 pb-4">
-            <div class="rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xl" style="background:rgba(10,10,20,0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);">
-                <div class="flex-grow min-w-0">
-                    <div class="font-semibold text-sm mb-1" style="color:white;font-family:'Space Grotesk',sans-serif;">🍪 Мы используем cookies</div>
-                    <p class="text-xs leading-relaxed" style="color:rgba(255,255,255,0.5);">
-                        Этот сайт использует файлы cookie для обеспечения корректной работы. Данные хранятся в течение 31 дня. Продолжая использовать сайт, вы соглашаетесь с этим.
-                    </p>
-                </div>
-                <button onclick="acceptCookies()" class="font-bold py-2.5 px-8 rounded-full transition-all duration-200 flex-shrink-0 text-sm whitespace-nowrap" style="background:#64CEFB;color:#ffffff;border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
-                    Принять
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        (function() {
-            const banner = document.getElementById('cookieBanner');
-            if (!banner) return;
-            const consent = localStorage.getItem('biobook-cookie-consent');
-            const date = localStorage.getItem('biobook-cookie-date');
-            if (consent === 'accepted' && date) {
-                const daysSince = (Date.now() - parseInt(date)) / (1000 * 60 * 60 * 24);
-                if (daysSince < 31) return;
-            }
-            requestAnimationFrame(() => {
-                banner.style.transform = 'translateY(0)';
-                banner.style.opacity = '1';
-            });
-        })();
-        function acceptCookies() {
-            const banner = document.getElementById('cookieBanner');
-            if (banner) {
-                banner.style.transform = 'translateY(100%)';
-                banner.style.opacity = '0';
-                setTimeout(() => { banner.style.display = 'none'; }, 500);
-            }
-            localStorage.setItem('biobook-cookie-consent', 'accepted');
-            localStorage.setItem('biobook-cookie-date', String(Date.now()));
-        }
-    </script>
+    {% include "cookie_banner.html" %}
     {% include "yandex_metrika.html" %}
 </body>
 </html>

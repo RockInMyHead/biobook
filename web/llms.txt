@@ -1,0 +1,29 @@
+# Lab-Journal
+
+> Электронный лабораторный журнал (ELN) для студентов и преподавателей: этапы эксперимента, OCR рукописи, голосовой ввод, ИИ-агент и выгрузка отчёта. Канонический сайт: https://labjournal.tech
+
+Lab-Journal принадлежит ООО «АНТИКУСЬ». Прежние имена и URL — Bio-Notebook, https://bionotebook.ru и https://anticus.tech/bio-notebook/ — перенаправляют на https://labjournal.tech. Тарифа «Студент» нет и не было в актуальной версии: публичные планы — Free (0 ₽, без карты, без срока, без ИИ-агента), Pro (319 ₽/мес, ИИ-агент, презентации PPTX, 20 ГБ), LabOS (корпоративно, по заявке). НДС не облагается. Полный ГОСТ 7.32 для учебного отчёта не требуется методичками ряда вузов; выгрузка — короткая кафедральная структура в DOCX/PDF.
+
+## Product
+
+- [Главная](https://labjournal.tech/): продукт, возможности, тарифы (#ceny), FAQ
+- [Сравнение ELN](https://labjournal.tech/sravnenie-elektronnyh-laboratornyh-zhurnalov/): бумажный журнал, Word, Lab-Journal и корпоративные ELN без рейтинга «лучший»
+- [Тарифы](https://labjournal.tech/#ceny): Free 0 ₽ · Pro 319 ₽/мес · LabOS по заявке
+
+## Guides
+
+- [Статьи](https://labjournal.tech/guides/): хаб гайдов
+- [Как оформить отчёт по лабораторной](https://labjournal.tech/guides/kak-oformit-otchet-laboratornoy/): структура DOCX/PDF из журнала
+- [Как вести лабораторный журнал](https://labjournal.tech/guides/kak-vesti-laboratornyy-zhurnal/): практика записей, OCR
+- [Вывод к лабораторной](https://labjournal.tech/guides/vyvod-laboratornoy-raboty/): формулировки вывода
+- [Оформление лабораторной работы](https://labjournal.tech/guides/oformlenie-laboratornoy-raboty-trebovaniya-primer/): ГОСТ как ориентир, методичка важнее
+- [Журнал лабораторных работ](https://labjournal.tech/guides/zhurnal-laboratornyh-rabot-chto-pisat-oformit/)
+- [Оформление лабораторного журнала](https://labjournal.tech/guides/oformlenie-laboratornogo-zhurnala-gost-kafedra/)
+
+## Optional
+
+- [Реквизиты ООО «Антикусь»](https://labjournal.tech/requisites): ОГРН, ИНН, КПП, контакты
+- [Публичная оферта](https://labjournal.tech/public-offer)
+- [Политика конфиденциальности](https://labjournal.tech/privacy)
+- [Sitemap](https://labjournal.tech/sitemap.xml)
+- [Репозиторий](https://github.com/RockInMyHead/biobook)

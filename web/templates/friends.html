@@ -91,6 +91,13 @@
         background: color-mix(in srgb, var(--primary) 15%, transparent);
         color: var(--primary);
         border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
+        overflow: hidden;
+    }
+    .friend-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
     }
     .friend-avatar-link {
         display: block;
@@ -155,16 +162,13 @@
 {% endblock %}
 
 {% block content %}
+{% include "social_tabs.html" %}
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
     <div>
         <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Друзья <span class="shiny-text">и коллеги</span></h1>
         <p class="text-sm" style="color: var(--text-muted);">Добавляйте коллег в друзья, чтобы обмениваться экспериментами и проектами</p>
     </div>
     <div class="flex items-center gap-3 flex-wrap">
-        <a href="{{ base_path }}/chat?user={{ user }}" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap no-underline" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-muted);" onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--glass-border)'; this.style.color='var(--text-muted)'">
-            <i data-lucide="message-circle" class="w-5 h-5"></i>
-            Чаты
-        </a>
         <button onclick="openSearchModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
             <i data-lucide="search" class="w-5 h-5"></i>
             Найти пользователей
@@ -183,10 +187,12 @@
         {% for p in pending_in %}
         <div class="friend-card friend-card--request" id="pending-{{ p.username }}">
             <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="friend-avatar-link" title="Открыть профиль">
-                <div class="friend-avatar">{{ p.username[:1].upper() }}</div>
+                <div class="friend-avatar">
+                    {% if p.avatar_url %}<img src="{{ p.avatar_url|avatar_src }}" alt="">{% else %}{{ p.username[:1].upper() }}{% endif %}
+                </div>
             </a>
             <div class="friend-card-info">
-                <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="font-semibold truncate block">{{ p.username }}</a>
+                <a href="{{ base_path }}/profile/{{ p.username }}?user={{ user }}" class="font-semibold truncate block">{{ p.display_name or p.username }}</a>
                 <div class="text-xs" style="color: var(--text-muted);">хочет добавить вас в друзья</div>
             </div>
             <div class="friend-card-actions">
@@ -256,10 +262,12 @@
     {% for f in friends %}
     <div class="friend-card friend-card--member" id="friend-{{ f.username }}">
         <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="friend-avatar-link" title="Открыть профиль">
-            <div class="friend-avatar">{{ f.username[:1].upper() }}</div>
+            <div class="friend-avatar">
+                {% if f.avatar_url %}<img src="{{ f.avatar_url|avatar_src }}" alt="">{% else %}{{ f.username[:1].upper() }}{% endif %}
+            </div>
         </a>
         <div class="friend-card-info">
-            <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="font-semibold truncate block">{{ f.username }}</a>
+            <a href="{{ base_path }}/profile/{{ f.username }}?user={{ user }}" class="font-semibold truncate block">{{ f.display_name or f.username }}</a>
             {% if f.email %}
             <div class="text-xs truncate" style="color: var(--text-muted);">{{ f.email }}</div>
             {% endif %}

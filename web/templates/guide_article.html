@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% set page_url = site_origin ~ base_path ~ '/guides/' ~ article.slug ~ '/' %}
     {% set hero_src = (base_path ~ '/static/' ~ article.hero_image) if article.hero_image else (base_path ~ '/static/og-image.png') %}
-    <title>{{ article.seo_title }} — Bio-Notebook</title>
+    <title>{{ article.seo_title }} - Lab-Journal</title>
     <meta name="description" content="{{ article.description }}">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <link rel="canonical" href="{{ page_url }}">
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:site_name" content="Lab-Journal">
     <meta property="og:locale" content="ru_RU">
     <meta property="og:url" content="{{ page_url }}">
     <meta property="og:title" content="{{ article.seo_title }}">
@@ -18,7 +18,7 @@
     <meta property="og:image" content="{{ site_origin }}{{ hero_src }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="{{ article.h1 }} — Bio-Notebook">
+    <meta property="og:image:alt" content="{{ article.h1 }} - Lab-Journal">
     <meta property="article:published_time" content="{{ article.published }}">
     <meta property="article:modified_time" content="{{ article.updated }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -253,7 +253,7 @@
             padding: 2.25rem 1.5rem 2.75rem;
             background: #05070a;
             border-top: 1px solid rgba(255,255,255,.08);
-            font-size: .8rem;
+            font-size: 0.875rem;
             color: rgba(255,255,255,.45);
             text-align: center;
             line-height: 1.6;
@@ -268,8 +268,8 @@
     <header class="guide-hero">
         <img src="{{ hero_src }}" width="1280" height="720" alt="" decoding="async" fetchpriority="high">
         <div class="guide-hero-inner">
-            <p class="guide-kicker">{{ article.kicker|default('// Статья Bio-Notebook') }}</p>
-            <h1>{{ article.h1 }}{% if article.h1_em %}<br><em>{{ article.h1_em }}</em>{% endif %}</h1>
+            <p class="guide-kicker">{{ article.kicker|default('// Статья Lab-Journal') }}</p>
+            <h1>{{ article.h1 }}{% if article.h1_em %}{% if not article.h1_em_plain %}: {% endif %}<br><em>{{ article.h1_em }}</em>{% endif %}</h1>
             <p class="guide-lead">{{ article.description }}</p>
             <p class="guide-meta">
                 Опубликовано <time datetime="{{ article.published }}">{{ article.published | ru_date }}</time>
@@ -285,7 +285,7 @@
         <main id="main" class="wrap">
             <nav class="crumbs" aria-label="Хлебные крошки">
                 <ol>
-                    <li><a href="{{ base_path }}/">Bio-Notebook</a></li>
+                    <li><a href="{{ base_path }}/">Lab-Journal</a></li>
                     <li><a href="{{ base_path }}/guides/">Статьи</a></li>
                     <li><span aria-current="page">{{ article.h1 }}</span></li>
                 </ol>
@@ -294,13 +294,14 @@
                 <div class="prose">{{ article.body_html | safe }}</div>
             </article>
             <section class="guide-cta" aria-labelledby="guide-cta-heading">
-                <h2 id="guide-cta-heading">Ведите журнал в Bio-Notebook</h2>
-                <p>OCR с фото тетради, версии правок и экспорт отчёта в DOCX/PDF — Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
+                <h2 id="guide-cta-heading">Ведите журнал в Lab-Journal</h2>
+                <p>OCR с фото тетради, версии правок и экспорт отчёта в DOCX/PDF - Free 0&nbsp;₽, Pro 319&nbsp;₽/мес.</p>
                 <a href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
             </section>
         </main>
         {% include 'public_site_footer.html' %}
     </div>
+{% include "cookie_banner.html" %}
 {% include "yandex_metrika.html" %}
 </body>
 </html>

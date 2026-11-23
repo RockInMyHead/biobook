@@ -277,7 +277,8 @@ label {
   border-color: var(--primary);
 }
 
-input, textarea {
+input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="image"]),
+textarea {
   width: 100%;
   padding: 0.75rem 1rem;
   background: var(--input-bg);
@@ -286,6 +287,17 @@ input, textarea {
   color: var(--input-text);
   font-size: 1rem;
   transition: all 0.3s ease;
+}
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  flex-shrink: 0;
 }
 
 input:focus, textarea:focus {
@@ -501,7 +513,7 @@ input:focus, textarea:focus {
 .navbar {
   width: 100%;
   padding: 1.5rem 1.5rem;
-  z-index: 50;
+  z-index: 300;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -513,6 +525,7 @@ input:focus, textarea:focus {
   -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
+  isolation: isolate;
 }
 
 @media (min-width: 1024px) {

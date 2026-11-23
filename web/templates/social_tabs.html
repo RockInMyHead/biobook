@@ -1,0 +1,46 @@
+{# Shared Друзья / Чаты tab strip. Expects active_page. #}
+<style>
+    .social-tabs {
+        display: inline-flex;
+        gap: 0.3rem;
+        padding: 0.28rem;
+        border-radius: 999px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        margin-bottom: 1.25rem;
+    }
+    .social-tabs.social-tabs--compact {
+        margin: 0;
+        flex-shrink: 0;
+    }
+    .social-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border: 0;
+        text-decoration: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        padding: 0.45rem 0.95rem;
+        border-radius: 999px;
+        transition: background .15s, color .15s;
+        white-space: nowrap;
+    }
+    .social-tab:hover { color: var(--text-main); }
+    .social-tab.active {
+        background: var(--primary);
+        color: var(--primary-fg);
+    }
+</style>
+<nav class="social-tabs {% if compact|default(false) %}social-tabs--compact{% endif %}" aria-label="Друзья и чаты">
+    <a href="{{ base_path }}/friends?user={{ user }}"
+       class="social-tab {% if active_page == 'friends' %}active{% endif %}">
+        <i data-lucide="users" class="w-3.5 h-3.5"></i>Друзья
+    </a>
+    <a href="{{ base_path }}/chat?user={{ user }}"
+       class="social-tab {% if active_page == 'chat' %}active{% endif %}">
+        <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>Чаты
+    </a>
+</nav>

@@ -51,13 +51,78 @@
         font-weight: 600;
     }
 
-    /* ── Animated tree ── */
+    /* ── Animated tree (PC layout + mobile zoom/pan) ── */
+    .tree-stage {
+        position: relative;
+    }
+    .tree-zoom-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .tree-zoom-hint {
+        font-size: 11px;
+        color: var(--text-muted);
+        line-height: 1.3;
+    }
+    .tree-zoom-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        flex-shrink: 0;
+    }
+    .tree-zoom-controls button {
+        width: 36px;
+        height: 36px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-main);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1;
+    }
+    .tree-zoom-controls button:active {
+        background: color-mix(in srgb, var(--primary) 14%, transparent);
+        color: var(--primary);
+    }
+    .tree-zoom-pct {
+        min-width: 3.2rem;
+        text-align: center;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+    }
+    .tree-viewport {
+        position: relative;
+        border-radius: 1.25rem;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        overflow: hidden;
+    }
+    .tree-world {
+        transform-origin: 0 0;
+        will-change: transform;
+    }
     .tree-wrapper {
         position: relative;
         max-width: 1100px;
         margin: 0 auto;
-        padding-bottom: 3rem;
+        padding: 1.5rem 1.5rem 3rem;
         overflow: visible !important;
+        width: max-content;
+        min-width: min(100%, 720px);
+        box-sizing: border-box;
     }
 
     .arrow-svg {
@@ -98,15 +163,20 @@
         justify-content: center;
         align-items: stretch;
         gap: 1.5rem;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         margin-bottom: 72px;
+        width: max-content;
+        max-width: none;
+        margin-left: auto;
+        margin-right: auto;
     }
     .level-row:last-of-type { margin-bottom: 0; }
 
     .node-card {
-        flex: 1;
-        min-width: 260px;
-        max-width: 320px;
+        flex: 0 0 280px;
+        width: 280px;
+        min-width: 280px;
+        max-width: 280px;
         display: flex;
         flex-direction: column;
         text-decoration: none;
@@ -119,24 +189,33 @@
     }
 
     .add-parallel-btn {
+        flex: 0 0 48px;
         min-width: 48px;
         max-width: 48px;
+        width: 48px;
+        min-height: 120px;
         align-self: center;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 8px;
         cursor: pointer;
         border: 2px dashed color-mix(in srgb, var(--primary) 25%, transparent);
         border-radius: 1rem;
         background: transparent;
         transition: all 0.25s ease;
         color: color-mix(in srgb, var(--primary) 60%, var(--text-muted));
+        padding: 0;
+        font: inherit;
+        z-index: 3;
+        position: relative;
     }
     .add-parallel-btn:hover {
         border-color: var(--primary);
         background: color-mix(in srgb, var(--primary) 10%, transparent);
         color: var(--primary);
     }
+    .add-parallel-label { display: none; }
 
     /* List view */
     .tree-level {
@@ -183,10 +262,74 @@
     .tree-node:hover .node-arrow { transform: translateX(4px); }
 
     @media (max-width: 768px) {
-        .level-row { margin-bottom: 56px; gap: 1rem; }
-        .node-card { min-width: 100%; max-width: 100%; }
+        .tree-zoom-bar { display: flex; }
+        .tree-viewport {
+            height: min(72vh, 640px);
+            touch-action: none;
+            cursor: grab;
+            overscroll-behavior: contain;
+            background:
+                radial-gradient(120% 80% at 10% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 55%),
+                var(--glass-bg);
+        }
+        .tree-viewport.is-panning { cursor: grabbing; }
+        .tree-world {
+            display: inline-block;
+            min-width: 100%;
+        }
+        .tree-wrapper {
+            max-width: none;
+            min-width: 720px;
+            padding: 1.25rem 1.25rem 2.5rem;
+            margin: 0;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+        }
+        .level-row {
+            gap: 1.1rem;
+            margin-bottom: 64px;
+        }
+        .node-card {
+            flex: 0 0 260px;
+            width: 260px;
+            min-width: 260px;
+            max-width: 260px;
+            padding: 1.1rem !important;
+        }
+        .node-card:hover { transform: none; }
+        .add-parallel-btn {
+            min-height: 100px;
+        }
         .tree-level { padding-left: 20px; }
         .tree-level::before { left: 6px; }
+    }
+
+    @media (min-width: 769px) {
+        .tree-viewport {
+            overflow: visible;
+            border: 0;
+            background: transparent;
+            border-radius: 0;
+        }
+        .tree-world { transform: none !important; }
+        .tree-wrapper {
+            width: 100%;
+            max-width: 1100px;
+            min-width: 0;
+            padding: 1.75rem 2rem 3rem;
+            border-radius: 1.25rem;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+        }
+        .level-row { flex-wrap: wrap; }
+        .node-card {
+            flex: 1 1 260px;
+            width: auto;
+            min-width: 260px;
+            max-width: 320px;
+        }
     }
 
     /* Sub-navigation tabs */
@@ -277,14 +420,10 @@
     </div>
 </div>
 
-<div class="liquid-glass rounded-2xl p-6 mb-6">
-    <p class="leading-relaxed" style="color: var(--text-secondary);">{{ exp.description }}</p>
-</div>
-
 <!-- Sub-navigation tabs -->
 <div class="flex items-center gap-1 mb-6 flex-wrap" style="border-bottom: 1px solid var(--glass-border); padding-bottom: 0;">
     <button class="exp-tab active" data-tab="nodes" onclick="switchExpTab('nodes')">
-        <i data-lucide="git-branch" class="w-4 h-4"></i> Узлы
+        <i data-lucide="list-ordered" class="w-4 h-4"></i> Этапы
     </button>
     <button class="exp-tab" data-tab="wiki" onclick="switchExpTab('wiki')">
         <i data-lucide="book-open" class="w-4 h-4"></i> Wiki
@@ -307,66 +446,79 @@
     </div>
     <div class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
         <span class="w-2 h-2 rounded-full" style="background: var(--primary);"></span>
-        <span>{{ exp.levels|length }} уровней</span>
+        <span>{{ exp.levels|length }} разделов</span>
         <span class="mx-1">·</span>
-        <span>{{ exp.levels|map('length')|sum }} узлов</span>
+        <span>{{ exp.levels|map('length')|sum }} этапов</span>
     </div>
 </div>
 
 <!-- Animated tree -->
-<div id="view-tree">
-    <div class="tree-wrapper rounded-2xl p-6 md:p-8 liquid-glass" id="treeWrapper" style="border-color: var(--glass-border); overflow: visible;">
-        <svg class="arrow-svg" id="arrowSvg" aria-hidden="true">
-            <defs>
-                <marker id="arrowMarker" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-                    <polygon points="0 0, 10 4, 0 8" fill="var(--primary)" fill-opacity="0.85"/>
-                </marker>
-            </defs>
-        </svg>
+<div id="view-tree" class="tree-stage">
+    <div class="tree-zoom-bar">
+        <div class="tree-zoom-hint">Как на ПК · щипок или ± · перетаскивайте пальцем</div>
+        <div class="tree-zoom-controls" role="group" aria-label="Масштаб дерева">
+            <button type="button" id="treeZoomOut" aria-label="Отдалить">−</button>
+            <span class="tree-zoom-pct" id="treeZoomPct">100%</span>
+            <button type="button" id="treeZoomIn" aria-label="Приблизить">+</button>
+            <button type="button" id="treeZoomFit" aria-label="Вписать" title="Вписать">⊡</button>
+        </div>
+    </div>
+    <div class="tree-viewport" id="treeViewport">
+        <div class="tree-world" id="treeWorld">
+            <div class="tree-wrapper liquid-glass" id="treeWrapper" style="border-color: var(--glass-border); overflow: visible;">
+                <svg class="arrow-svg" id="arrowSvg" aria-hidden="true">
+                    <defs>
+                        <marker id="arrowMarker" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                            <polygon points="0 0, 10 4, 0 8" fill="var(--primary)" fill-opacity="0.85"/>
+                        </marker>
+                    </defs>
+                </svg>
 
-        {% for level in exp.levels %}
-        {% set level_idx = loop.index0 %}
-        <div class="level-row" data-level="{{ level_idx }}">
-            {% for node in level %}
-            <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-5 md:p-6 node-card group" style="border-color: var(--glass-border);">
-                <div class="flex justify-between items-start mb-3">
-                    <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md font-mono" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);">{{ node.id }}</span>
-                    <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
+                {% for level in exp.levels %}
+                {% set level_idx = loop.index0 %}
+                <div class="level-row" data-level="{{ level_idx }}">
+                    {% for node in level %}
+                    <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-5 md:p-6 node-card group" style="border-color: var(--glass-border);">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);">Этап</span>
+                            <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
+                        </div>
+                        <h3 class="text-lg md:text-xl font-heading mb-2 group-hover:text-[#64CEFB] transition-colors">{{ node.title }}</h3>
+                        <p class="text-sm mb-5 flex-grow leading-relaxed" style="color: var(--text-muted);">{{ node.content or '-' }}</p>
+                        <div class="mt-auto border-t pt-3 flex items-center justify-between" style="border-color: var(--glass-border);">
+                            <span class="text-xs uppercase tracking-widest font-bold" style="color: var(--text-muted); opacity: 0.6;">Этап {{ level_idx + 1 }}</span>
+                            <i data-lucide="arrow-right" class="w-4 h-4 transition-all group-hover:translate-x-1" style="color: var(--text-muted);"></i>
+                        </div>
+                    </a>
+                    {% endfor %}
+                    {% if is_owner %}
+                    <button type="button" class="add-parallel-btn" onclick="event.stopPropagation(); openAddNodeModal({{ level_idx }})" title="Добавить параллельный этап на этом уровне" aria-label="Добавить параллельный этап на этом уровне">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                    </button>
+                    {% endif %}
                 </div>
-                <h3 class="text-lg md:text-xl font-heading mb-2 group-hover:text-[#64CEFB] transition-colors">{{ node.title }}</h3>
-                <p class="text-sm mb-5 flex-grow leading-relaxed" style="color: var(--text-muted);">{{ node.content or '—' }}</p>
-                <div class="mt-auto border-t pt-3 flex items-center justify-between" style="border-color: var(--glass-border);">
-                    <span class="text-xs uppercase tracking-widest font-bold" style="color: var(--text-muted); opacity: 0.6;">Этап {{ level_idx + 1 }}</span>
-                    <i data-lucide="arrow-right" class="w-4 h-4 transition-all group-hover:translate-x-1" style="color: var(--text-muted);"></i>
+                {% endfor %}
+
+                {% if is_owner %}
+                <div class="flex justify-center relative z-10 mt-10">
+                    <button type="button" onclick="openAddNodeModal(-1)" class="liquid-glass px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center gap-2 hover:-translate-y-0.5" style="color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);">
+                        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                        Добавить следующий этап
+                    </button>
                 </div>
-            </a>
-            {% endfor %}
-            {% if is_owner %}
-            <button type="button" class="add-parallel-btn" onclick="openAddNodeModal({{ level_idx }})" title="Добавить параллельный блок">
-                <i data-lucide="plus" class="w-6 h-6"></i>
-            </button>
-            {% endif %}
-        </div>
-        {% endfor %}
+                {% endif %}
 
-        {% if is_owner %}
-        <div class="flex justify-center relative z-10 mt-10">
-            <button type="button" onclick="openAddNodeModal(-1)" class="liquid-glass px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center gap-2 hover:-translate-y-0.5" style="color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);">
-                <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                Добавить следующий этап
-            </button>
+                {% if exp.levels|length == 0 %}
+                <div class="text-center py-16 relative z-10" style="color: var(--text-muted);">
+                    <i data-lucide="git-branch" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+                    <p class="mb-4">Дерево эксперимента пусто</p>
+                    {% if is_owner %}
+                    <button type="button" onclick="openAddNodeModal(-1)" class="font-bold py-2.5 px-6 rounded-full text-sm" style="background: var(--primary); color: var(--primary-fg);">Добавить первый этап</button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
         </div>
-        {% endif %}
-
-        {% if exp.levels|length == 0 %}
-        <div class="text-center py-16 relative z-10" style="color: var(--text-muted);">
-            <i data-lucide="git-branch" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
-            <p class="mb-4">Дерево эксперимента пусто</p>
-            {% if is_owner %}
-            <button type="button" onclick="openAddNodeModal(-1)" class="font-bold py-2.5 px-6 rounded-full text-sm" style="background: var(--primary); color: var(--primary-fg);">Добавить первый этап</button>
-            {% endif %}
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -513,8 +665,15 @@
     function openAddNodeModal(levelIdx) {
         if (!modal) return;
         document.getElementById('levelIdxInput').value = levelIdx;
-        document.getElementById('modalTitle').innerText =
-            levelIdx === -1 ? 'Добавить новый этап' : 'Добавить параллельный блок';
+        const title = document.getElementById('modalTitle');
+        const sub = modal.querySelector('.mb-6 p');
+        if (levelIdx === -1) {
+            title.innerText = 'Добавить новый этап';
+            if (sub) sub.textContent = 'Новый уровень ниже текущего дерева';
+        } else {
+            title.innerText = 'Параллельный этап';
+            if (sub) sub.textContent = 'На одной линии с этапом ' + (Number(levelIdx) + 1);
+        }
         modal.classList.add('active');
     }
 
@@ -535,10 +694,68 @@
         document.getElementById('view-tree').style.display = view === 'tree' ? 'block' : 'none';
         document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
         if (view === 'tree') {
-            setTimeout(drawArrows, 80);
+            setTimeout(() => { treeCam.fit(); drawArrows(); }, 80);
             setTimeout(drawArrows, 400);
         }
     }
+
+    const treeViewport = document.getElementById('treeViewport');
+    const treeWorld = document.getElementById('treeWorld');
+    const treeWrapper = document.getElementById('treeWrapper');
+    const treeZoomPct = document.getElementById('treeZoomPct');
+
+    const treeCam = {
+        scale: 1,
+        x: 0,
+        y: 0,
+        min: 0.35,
+        max: 2.2,
+        mobile() { return window.matchMedia('(max-width: 768px)').matches; },
+        apply() {
+            if (!treeWorld) return;
+            if (!this.mobile()) {
+                treeWorld.style.transform = '';
+                if (treeZoomPct) treeZoomPct.textContent = '100%';
+                return;
+            }
+            treeWorld.style.transform = `translate(${this.x}px, ${this.y}px) scale(${this.scale})`;
+            if (treeZoomPct) treeZoomPct.textContent = Math.round(this.scale * 100) + '%';
+        },
+        setScale(next, cx, cy) {
+            if (!this.mobile() || !treeViewport) return;
+            const prev = this.scale;
+            const s = Math.max(this.min, Math.min(this.max, next));
+            if (Math.abs(s - prev) < 0.0001) return;
+            const rect = treeViewport.getBoundingClientRect();
+            const px = (cx == null ? rect.width / 2 : cx - rect.left);
+            const py = (cy == null ? rect.height / 2 : cy - rect.top);
+            // Keep point under fingers stable
+            this.x = px - (px - this.x) * (s / prev);
+            this.y = py - (py - this.y) * (s / prev);
+            this.scale = s;
+            this.apply();
+            drawArrows();
+        },
+        zoomBy(factor) {
+            this.setScale(this.scale * factor);
+        },
+        fit() {
+            if (!this.mobile() || !treeViewport || !treeWrapper) {
+                this.scale = 1; this.x = 0; this.y = 0; this.apply();
+                return;
+            }
+            const vw = treeViewport.clientWidth;
+            const vh = treeViewport.clientHeight;
+            const tw = Math.max(treeWrapper.scrollWidth, treeWrapper.offsetWidth, 1);
+            const th = Math.max(treeWrapper.scrollHeight, treeWrapper.offsetHeight, 1);
+            const pad = 20;
+            const s = Math.max(this.min, Math.min(1, Math.min((vw - pad) / tw, (vh - pad) / th)));
+            this.scale = s;
+            this.x = (vw - tw * s) / 2;
+            this.y = Math.max(12, (vh - th * s) / 2);
+            this.apply();
+        }
+    };
 
     function drawArrows() {
         const svg = document.getElementById('arrowSvg');
@@ -548,12 +765,16 @@
         const levels = wrapper.querySelectorAll('.level-row');
         svg.querySelectorAll('.tree-arrow, .tree-arrow-glow, .tree-particle').forEach(el => el.remove());
 
-        const wRect = wrapper.getBoundingClientRect();
-        if (wRect.width < 10 || wRect.height < 10) return;
+        // Layout sizes (ignore CSS zoom transform)
+        const w = Math.max(wrapper.scrollWidth, wrapper.offsetWidth, 1);
+        const h = Math.max(wrapper.scrollHeight, wrapper.offsetHeight, 1);
+        if (w < 10 || h < 10) return;
 
-        svg.setAttribute('width', wRect.width);
-        svg.setAttribute('height', wRect.height);
-        svg.setAttribute('viewBox', `0 0 ${wRect.width} ${wRect.height}`);
+        svg.setAttribute('width', w);
+        svg.setAttribute('height', h);
+        svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        svg.style.width = w + 'px';
+        svg.style.height = h + 'px';
 
         const ns = 'http://www.w3.org/2000/svg';
         const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#64CEFB';
@@ -562,19 +783,33 @@
 
         if (levels.length < 2) return;
 
+        const scale = treeCam.mobile() ? (treeCam.scale || 1) : 1;
+        const wRect = wrapper.getBoundingClientRect();
+
+        function localBox(el) {
+            const r = el.getBoundingClientRect();
+            return {
+                left: (r.left - wRect.left) / scale,
+                top: (r.top - wRect.top) / scale,
+                width: r.width / scale,
+                height: r.height / scale,
+                bottom: (r.bottom - wRect.top) / scale,
+            };
+        }
+
         for (let i = 0; i < levels.length - 1; i++) {
             const fromCards = levels[i].querySelectorAll('.node-card');
             const toCards = levels[i + 1].querySelectorAll('.node-card');
 
             fromCards.forEach(fromCard => {
                 toCards.forEach(toCard => {
-                    const fromRect = fromCard.getBoundingClientRect();
-                    const toRect = toCard.getBoundingClientRect();
+                    const fromRect = localBox(fromCard);
+                    const toRect = localBox(toCard);
 
-                    const x1 = fromRect.left + fromRect.width / 2 - wRect.left;
-                    const y1 = fromRect.bottom - wRect.top + 2;
-                    const x2 = toRect.left + toRect.width / 2 - wRect.left;
-                    const y2 = toRect.top - wRect.top - 2;
+                    const x1 = fromRect.left + fromRect.width / 2;
+                    const y1 = fromRect.bottom + 2;
+                    const x2 = toRect.left + toRect.width / 2;
+                    const y2 = toRect.top - 2;
                     const midY = (y1 + y2) / 2;
                     const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
 
@@ -603,22 +838,143 @@
         }
     }
 
-    window.addEventListener('load', () => {
-        setTimeout(drawArrows, 100);
-        setTimeout(drawArrows, 500);
-        setTimeout(drawArrows, 1200);
-    });
-    window.addEventListener('resize', drawArrows);
+    (function initTreeCamera() {
+        if (!treeViewport || !treeWorld) return;
 
-    const treeWrapper = document.getElementById('treeWrapper');
-    if (treeWrapper && typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(() => drawArrows()).observe(treeWrapper);
-    }
+        const btnIn = document.getElementById('treeZoomIn');
+        const btnOut = document.getElementById('treeZoomOut');
+        const btnFit = document.getElementById('treeZoomFit');
+        if (btnIn) btnIn.addEventListener('click', () => treeCam.zoomBy(1.18));
+        if (btnOut) btnOut.addEventListener('click', () => treeCam.zoomBy(1 / 1.18));
+        if (btnFit) btnFit.addEventListener('click', () => { treeCam.fit(); drawArrows(); });
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const themeBtn = document.getElementById('themeToggle');
-        if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(drawArrows, 50));
-    });
+        let pointers = new Map();
+        let pinchStartDist = 0;
+        let pinchStartScale = 1;
+        let panMoved = false;
+        let suppressClick = false;
+
+        function dist(a, b) {
+            const dx = a.x - b.x, dy = a.y - b.y;
+            return Math.hypot(dx, dy);
+        }
+
+        treeViewport.addEventListener('pointerdown', (e) => {
+            if (!treeCam.mobile()) return;
+            if (e.target.closest('a, button, input, textarea, select, label')) return;
+            treeViewport.setPointerCapture(e.pointerId);
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            panMoved = false;
+            treeViewport.classList.add('is-panning');
+            if (pointers.size === 2) {
+                const pts = [...pointers.values()];
+                pinchStartDist = dist(pts[0], pts[1]) || 1;
+                pinchStartScale = treeCam.scale;
+            }
+        });
+
+        treeViewport.addEventListener('pointermove', (e) => {
+            if (!pointers.has(e.pointerId)) return;
+            const prev = pointers.get(e.pointerId);
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (pointers.size === 2) {
+                const pts = [...pointers.values()];
+                const d = dist(pts[0], pts[1]) || 1;
+                const midX = (pts[0].x + pts[1].x) / 2;
+                const midY = (pts[0].y + pts[1].y) / 2;
+                treeCam.setScale(pinchStartScale * (d / pinchStartDist), midX, midY);
+                panMoved = true;
+                return;
+            }
+
+            if (pointers.size === 1) {
+                const dx = e.clientX - prev.x;
+                const dy = e.clientY - prev.y;
+                if (Math.abs(dx) + Math.abs(dy) > 2) panMoved = true;
+                treeCam.x += dx;
+                treeCam.y += dy;
+                treeCam.apply();
+            }
+        });
+
+        function endPointer(e) {
+            if (!pointers.has(e.pointerId)) return;
+            pointers.delete(e.pointerId);
+            if (pointers.size < 2) {
+                pinchStartDist = 0;
+            }
+            if (pointers.size === 0) {
+                treeViewport.classList.remove('is-panning');
+                if (panMoved) {
+                    suppressClick = true;
+                    setTimeout(() => { suppressClick = false; }, 280);
+                    drawArrows();
+                }
+            }
+        }
+        treeViewport.addEventListener('pointerup', endPointer);
+        treeViewport.addEventListener('pointercancel', endPointer);
+
+        // Block accidental navigation after a drag
+        treeViewport.addEventListener('click', (e) => {
+            if (!suppressClick) return;
+            const link = e.target.closest('a');
+            if (link) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+
+        // Pinch via wheel (trackpad) / ctrl+wheel
+        treeViewport.addEventListener('wheel', (e) => {
+            if (!treeCam.mobile()) return;
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                const factor = e.deltaY > 0 ? 1 / 1.08 : 1.08;
+                treeCam.setScale(treeCam.scale * factor, e.clientX, e.clientY);
+            } else {
+                e.preventDefault();
+                treeCam.x -= e.deltaX;
+                treeCam.y -= e.deltaY;
+                treeCam.apply();
+            }
+        }, { passive: false });
+
+        // Native gesture events (Safari)
+        treeViewport.addEventListener('gesturestart', (e) => { e.preventDefault(); pinchStartScale = treeCam.scale; }, { passive: false });
+        treeViewport.addEventListener('gesturechange', (e) => {
+            e.preventDefault();
+            treeCam.setScale(pinchStartScale * (e.scale || 1), e.clientX, e.clientY);
+        }, { passive: false });
+
+        function bootCam() {
+            treeCam.fit();
+            drawArrows();
+        }
+        window.addEventListener('load', () => {
+            setTimeout(bootCam, 80);
+            setTimeout(bootCam, 400);
+            setTimeout(drawArrows, 1000);
+        });
+        window.addEventListener('resize', () => {
+            if (treeCam.mobile()) treeCam.fit();
+            else { treeCam.scale = 1; treeCam.x = 0; treeCam.y = 0; treeCam.apply(); }
+            drawArrows();
+        });
+
+        if (typeof ResizeObserver !== 'undefined' && treeWrapper) {
+            new ResizeObserver(() => {
+                drawArrows();
+            }).observe(treeWrapper);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeBtn = document.getElementById('themeToggle');
+            if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(drawArrows, 50));
+            setTimeout(bootCam, 60);
+        });
+    })();
 
     async function toggleFriend(targetUser) {
         const btn = document.getElementById('friendBtn');
@@ -843,8 +1199,8 @@
                 </div>
             </div>
             <div class="text-xs mb-4" style="color: var(--text-muted);">
-                Создана: ${(page.created_at || '—').slice(0, 10)}${page.created_by ? ' · ' + page.created_by : ''}
-                · Обновлена: ${(page.updated_at || '—').slice(0, 10)}
+                Создана: ${(page.created_at || '-').slice(0, 10)}${page.created_by ? ' · ' + page.created_by : ''}
+                · Обновлена: ${(page.updated_at || '-').slice(0, 10)}
             </div>
             <div class="wiki-content leading-relaxed" style="line-height: 1.7;">${content}</div>
         `;

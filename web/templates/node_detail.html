@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>(function(){try{var t=localStorage.getItem('biobook-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-    <title>{{ node.title }} | Bio-Notebook</title>
+    <title>{{ node.title }} | Lab-Journal</title>
     
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -161,7 +161,7 @@
         .node-topbar {
             flex-shrink: 0;
             display: flex; align-items: center; justify-content: space-between; gap: 0.65rem;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
             padding: 0.65rem 1rem 0.65rem 0.85rem;
             border-bottom: 1px solid var(--nb-border);
             background: var(--nb-topbar-bg);
@@ -228,7 +228,10 @@
             width: 26px; height: 26px; border-radius: 50%;
             display: inline-flex; align-items: center; justify-content: center;
             font-size: 11px; font-weight: 700; background: var(--nb-accent-soft); color: var(--nb-accent);
+            overflow: hidden;
         }
+        .user-menu-avatar.has-photo { background: transparent; padding: 0; }
+        .user-menu-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
         .user-menu-meta { display: none; flex-direction: column; align-items: flex-start; line-height: 1.15; }
         @media (min-width: 720px) { .user-menu-meta { display: flex; } }
         .user-menu-name { font-size: 12px; font-weight: 600; }
@@ -277,11 +280,33 @@
             min-height: calc(100vh - 220px); outline: none;
             font-size: 1.02rem; line-height: 1.75; color: var(--nb-editor-text);
             padding: 0.25rem 0.35rem 2rem;
+            position: relative;
         }
-        .editable-area:empty:before {
-            content: 'Начните заметку… Добавьте текст, фото или ячейку кода через панель сверху.';
-            color: var(--nb-editor-placeholder); pointer-events: none; display: block;
-            font-size: 0.95rem; line-height: 1.6;
+        /* :empty rarely matches (browsers insert <p><br>), so we toggle .is-empty in JS */
+        .editable-area.is-empty {
+            min-height: 220px;
+        }
+        .editable-area.is-empty::before {
+            content: 'Пишите здесь\A Текст заметки, протокол опыта или выводы. Сверху: Фото · Аудио · Рисунок · Код.';
+            white-space: pre-line;
+            color: var(--nb-editor-placeholder);
+            pointer-events: none;
+            display: block;
+            position: absolute;
+            left: 0.35rem; right: 0.35rem; top: 0.35rem;
+            padding: 1.1rem 1.15rem;
+            border: 1.5px dashed color-mix(in srgb, var(--nb-accent) 45%, transparent);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--nb-accent) 6%, transparent);
+            font-size: 0.95rem;
+            line-height: 1.55;
+            font-weight: 500;
+        }
+        .editable-area.is-empty > * {
+            /* keep caret visible above the hint, but don't hide real empty p */
+            position: relative;
+            z-index: 1;
+            min-height: 1.5em;
         }
         .editable-area h1, .editable-area h2, .editable-area h3 {
             font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; margin: 1.4rem 0 0.6rem;
@@ -292,10 +317,10 @@
             box-shadow: 0 10px 30px var(--nb-shadow-img); vertical-align: bottom; display: inline-block;
         }
 
-        /* Toolbar — Colab / Cursor style */
+        /* Toolbar - Colab / Cursor style */
         .workspace-toolbar {
             position: sticky; top: 0; z-index: 12;
-            display: flex; align-items: center; gap: 0.45rem; flex-wrap: nowrap;
+            display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
             margin: 0 -1.25rem 1.1rem; padding: 0.55rem 1.25rem;
             border-bottom: 1px solid var(--nb-border);
             background: var(--nb-toolbar-bg);
@@ -303,13 +328,9 @@
             min-width: 0;
         }
         .toolbar-main {
-            display: flex; align-items: center; gap: 0.45rem;
+            display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
             flex: 1; min-width: 0;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
         }
-        .toolbar-main::-webkit-scrollbar { display: none; }
         .tool-group {
             display: flex; align-items: center; gap: 0.25rem;
             padding: 0.2rem;
@@ -340,12 +361,51 @@
         @media (min-width: 900px) { .tool-btn .tool-label { display: inline; } }
         .tool-sep { width: 1px; height: 22px; background: var(--nb-border); margin: 0 0.15rem; }
         .history-group { margin-left: 0; flex-shrink: 0; }
+        .version-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(340px, 86vw);
+            max-height: 360px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: var(--nb-dropdown-bg);
+            border: 1px solid var(--nb-border-strong);
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+            z-index: 80;
+        }
+        .version-panel[hidden] { display: none !important; }
+        .version-panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--nb-border);
+            font-size: 0.75rem; font-weight: 600; color: var(--nb-text);
+        }
+        .version-panel-list {
+            overflow-y: auto; padding: 0.35rem;
+            font-size: 0.74rem; color: var(--nb-muted);
+        }
+        .version-item {
+            width: 100%; text-align: left; border: none; cursor: pointer;
+            background: transparent; color: inherit;
+            border-radius: 8px; padding: 0.55rem 0.6rem;
+            display: flex; flex-direction: column; gap: 0.15rem;
+        }
+        .version-item:hover { background: var(--nb-surface-hover); color: var(--nb-text); }
+        .version-item-msg { color: var(--nb-text); font-weight: 500; }
+        .version-item-meta { font-size: 0.68rem; opacity: 0.8; }
         .history-center {
             min-width: 64px; text-align: center; font-size: 0.72rem; font-weight: 700;
             color: var(--nb-accent); padding: 0 0.25rem;
         }
+        button.history-center {
+            border: none; background: transparent; cursor: pointer;
+            font: inherit; color: var(--nb-accent);
+        }
+        button.history-center:hover { color: var(--nb-text); }
 
-        /* Chat v3 — Claude / ChatGPT density */
+        /* Chat v3 - Claude / ChatGPT density */
         .chat-sidebar {
             flex: 0 0 min(380px, 34vw);
             min-width: 300px;
@@ -377,6 +437,7 @@
         .chat-header-title { font-size: 0.8rem; font-weight: 600; color: var(--nb-chat-title); }
         .chat-header-sub { font-size: 0.62rem; color: var(--nb-chat-sub); margin-top: 1px; }
         .chat-header-actions { display: flex; align-items: center; gap: 0.15rem; }
+        .chat-header-minimal { justify-content: flex-end; padding-top: 0.45rem; padding-bottom: 0.45rem; }
         .chat-icon-btn {
             width: 30px; height: 30px; border-radius: 8px;
             border: none; background: transparent;
@@ -717,7 +778,7 @@
             display: none !important;
         }
 
-        /* Code cells — Colab-like */
+        /* Code cells - Colab-like */
         .code-cell {
             position: relative;
             background: var(--nb-code-bg);
@@ -905,7 +966,7 @@
                 <div class="node-crumb">
                     <span title="{{ exp.name }}">{{ exp.name }}</span>
                     <span class="sep">/</span>
-                    <span>{{ 'ROOT' if node.id == 'root' else 'NODE-' ~ node.id.upper() }}</span>
+                    <span>{{ node.title or 'Этап' }}</span>
                 </div>
             </div>
         </div>
@@ -924,7 +985,13 @@
             {% if not is_public_view %}
             <div class="user-menu" id="userMenu">
                 <button type="button" class="user-menu-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
-                    <span class="user-menu-avatar">{{ user[:1]|upper }}</span>
+                    <span class="user-menu-avatar {% if user_avatar_url %}has-photo{% endif %}">
+                        {% if user_avatar_url %}
+                        <img src="{{ user_avatar_url }}" alt="">
+                        {% else %}
+                        {{ user[:1]|upper }}
+                        {% endif %}
+                    </span>
                     <span class="user-menu-meta">
                         <span class="user-menu-name">{{ user }}</span>
                         <span class="user-menu-plan">{{ plan_label|default('Бесплатный') }}</span>
@@ -932,6 +999,12 @@
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5" style="opacity:0.45"></i>
                 </button>
                 <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+                    <a href="{{ base_path }}/profile/{{ user }}?user={{ user }}" class="user-menu-item" role="menuitem">
+                        <i data-lucide="user" class="w-4 h-4"></i> Профиль
+                    </a>
+                    <a href="{{ base_path }}/account" class="user-menu-item" role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i> Аккаунт
+                    </a>
                     <a href="{{ base_path }}/pricing?user={{ user }}" class="user-menu-item" role="menuitem">
                         <i data-lucide="credit-card" class="w-4 h-4"></i> Тарифы
                     </a>
@@ -955,38 +1028,61 @@
                 {% if not is_public_view %}
                 <div class="workspace-toolbar">
                     <div class="toolbar-main">
-                        <div class="tool-group">
-                            <span class="tool-group-label">Вставка</span>
+                    <div class="tool-group">
+                        <span class="tool-group-label">Вставка</span>
                             <button type="button" class="tool-btn" data-media-tool="photo" title="Фото" onclick="requestMediaTool('photo')">
-                                <i data-lucide="image" class="w-4 h-4"></i><span class="tool-label">Фото</span>
-                            </button>
-                            <input type="file" id="imageUpload" style="display:none" accept="image/*" onchange="uploadImage(this)">
-                            <button type="button" class="tool-btn" id="voiceBtn" data-media-tool="audio" title="Аудио" onclick="requestMediaTool('audio')">
-                                <i data-lucide="mic" class="w-4 h-4"></i><span class="tool-label">Аудио</span>
+                            <i data-lucide="image" class="w-4 h-4"></i><span class="tool-label">Фото</span>
+                        </button>
+                        <input type="file" id="imageUpload" style="display:none" accept="image/*" onchange="uploadImage(this)">
+                            <button type="button" class="tool-btn" title="OCR — распознать текст с фото" onclick="requestOCRTool()">
+                                <i data-lucide="scan" class="w-4 h-4"></i><span class="tool-label">OCR</span>
+                        </button>
+                            <input type="file" id="ocrUpload" style="display:none" accept="image/*" onchange="uploadImageForOCR(this)">
+                            <button type="button" class="tool-btn" id="voiceBtn" data-media-tool="audio" title="Диктовка в текст" onclick="requestMediaTool('audio')">
+                                <i data-lucide="mic" class="w-4 h-4"></i><span class="tool-label">Диктовка</span>
                             </button>
                             <button type="button" class="tool-btn" data-media-tool="draw" title="Рисовать" onclick="requestMediaTool('draw')">
-                                <i data-lucide="pen-tool" class="w-4 h-4"></i><span class="tool-label">Рисунок</span>
-                            </button>
-                            <button type="button" class="tool-btn primary" onclick="addCodeCell()" title="Ячейка кода">
-                                <i data-lucide="code-2" class="w-4 h-4"></i><span class="tool-label">Код</span>
-                            </button>
-                        </div>
+                            <i data-lucide="pen-tool" class="w-4 h-4"></i><span class="tool-label">Рисунок</span>
+                        </button>
+                        <button type="button" class="tool-btn primary" onclick="addCodeCell()" title="Ячейка кода">
+                            <i data-lucide="code-2" class="w-4 h-4"></i><span class="tool-label">Код</span>
+                        </button>
+                    </div>
 
-                        <div class="tool-group">
-                            <button type="button" class="tool-btn" onclick="downloadDocx()" title="Скачать DOCX">
-                                <i data-lucide="download" class="w-4 h-4"></i><span class="tool-label">Скачать</span>
+                    <div class="tool-group">
+                            <span class="tool-group-label">Экспорт</span>
+                            <button type="button" class="tool-btn" onclick="downloadExport('docx')" title="Скачать DOCX">
+                                <i data-lucide="file-text" class="w-4 h-4"></i><span class="tool-label">DOCX</span>
+                            </button>
+                            <button type="button" class="tool-btn" onclick="downloadExport('pdf')" title="Скачать PDF">
+                                <i data-lucide="file-type" class="w-4 h-4"></i><span class="tool-label">PDF</span>
+                            </button>
+                            <button type="button" class="tool-btn" onclick="downloadExport('pptx')" title="Скачать PPTX">
+                                <i data-lucide="presentation" class="w-4 h-4"></i><span class="tool-label">PPTX</span>
+                            </button>
+                            <button type="button" class="tool-btn" onclick="requestCustomExportTemplate()" title="Добавить свой шаблон">
+                                <i data-lucide="file-plus" class="w-4 h-4"></i><span class="tool-label">Добавить свой шаблон</span>
                             </button>
                         </div>
                     </div>
 
-                    <div class="tool-group history-group">
+                    <div class="tool-group history-group" style="position:relative">
                         <button type="button" class="tool-btn" onclick="travelTime(1)" title="Назад по версиям">
                             <i data-lucide="undo-2" class="w-4 h-4"></i>
                         </button>
-                        <span class="history-center">Ветки</span>
+                        <button type="button" class="tool-btn history-center" onclick="toggleVersionPanel()" title="История версий" id="versionHistoryBtn">
+                            Версии
+                        </button>
                         <button type="button" class="tool-btn" onclick="travelTime(-1)" title="Вперёд по версиям">
                             <i data-lucide="redo-2" class="w-4 h-4"></i>
                         </button>
+                        <div id="versionPanel" class="version-panel" hidden>
+                            <div class="version-panel-head">
+                                <span>История версий</span>
+                                <button type="button" class="tool-btn" onclick="toggleVersionPanel(false)" title="Закрыть">×</button>
+                            </div>
+                            <div id="versionPanelList" class="version-panel-list">Загрузка…</div>
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -998,7 +1094,7 @@
                 </div>
 
                 <div id="editorWrap" class="relative">
-                    <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}" oninput="autoSave()">
+                    <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}" oninput="autoSave(); updateEditorEmptyState()">
                         {{ (notes.notes_html | fix_uploads) | safe if notes else '' }}
                     </div>
                 </div>
@@ -1007,24 +1103,15 @@
 
         <!-- AI Chat -->
         <aside class="chat-sidebar" data-chat-ui="v3">
-            <div class="chat-header">
-                <div class="chat-header-left">
-                    <div class="chat-header-avatar">
-                        <i data-lucide="bot" class="w-3.5 h-3.5 text-[#64CEFB]"></i>
-                    </div>
-                    <div>
-                        <div class="chat-header-title">Ассистент</div>
-                        <div class="chat-header-sub">Контекст этого узла</div>
-                    </div>
-                </div>
                 {% if not is_public_view %}
+            <div class="chat-header chat-header-minimal">
                 <div class="chat-header-actions">
                     <button type="button" class="chat-icon-btn" id="chatClearBtn" title="Очистить чат" onclick="clearChat()">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
-                {% endif %}
             </div>
+            {% endif %}
 
             <div class="chat-messages" id="chatMessages">
                 {% if notes and notes.chat_history %}
@@ -1054,7 +1141,7 @@
                             <i data-lucide="sparkles" class="w-4 h-4 text-[#64CEFB]"></i>
                         </div>
                         <h4>Чем помочь?</h4>
-                        <p>Спросите про код, данные или попросите править заметку узла.</p>
+                        <p>Спросите про код, данные или попросите править заметку этапа.</p>
                     </div>
                 {% endif %}
             </div>
@@ -1080,7 +1167,7 @@
                         </button>
                     </div>
                 </form>
-                <div class="composer-hint">Enter — отправить · Shift+Enter — строка</div>
+                <div class="composer-hint">Enter - отправить · Shift+Enter - строка</div>
             </div>
             {% endif %}
         </aside>
@@ -1090,7 +1177,7 @@
 
     <div id="sketchpadBackdrop" class="sketchpad-backdrop" onclick="cancelDrawing()"></div>
     <div id="sketchpadModal" class="sketchpad-container" role="dialog" aria-label="Рисунок" onclick="event.stopPropagation()">
-        <div class="sketchpad-head">Нарисуйте здесь — сохранится как изображение в заметке</div>
+        <div class="sketchpad-head">Нарисуйте здесь - сохранится как изображение в заметке</div>
         <div class="sketchpad-canvas-wrap">
             <canvas id="sketchCanvas"></canvas>
         </div>
@@ -1342,7 +1429,7 @@
             }
         })();
 
-        // Chat Logic — ChatGPT / Claude-style UX
+        // Chat Logic - ChatGPT / Claude-style UX
         let chatAbort = null;
         let chatBusy = false;
         let lastUserPrompt = '';
@@ -1368,7 +1455,7 @@
                             <i data-lucide="sparkles" class="w-4 h-4 text-[#64CEFB]"></i>
                         </div>
                         <h4>Чем помочь?</h4>
-                        <p>Спросите про код, данные или попросите править заметку узла.</p>
+                        <p>Спросите про код, данные или попросите править заметку этапа.</p>
                     </div>`;
                 refreshChatIcons();
             }
@@ -1498,7 +1585,9 @@
                     <div class="message ${role}"></div>
                     ${actions}
                 </div>`;
-            setMessageContent(row.querySelector('.message'), role, text);
+            const msgEl = row.querySelector('.message');
+            if (opts.id && msgEl) msgEl.id = opts.id;
+            setMessageContent(msgEl, role, text);
             container.appendChild(row);
             refreshChatIcons();
             scrollChatToBottom(true);
@@ -1526,12 +1615,15 @@
 
         const QUICK_PROMPT_TEXT = {
             'Добавь таблицу':
-                'Добавь в блокнот Python-ячейку с анализом данных из существующих ячеек: ' +
-                '(1) сводная статистика по группам — n, mean, SD, SEM, median, min, max; ' +
-                '(2) итоги статтестов — тест, статистика, p-value, значимость. ' +
-                'Сохрани таблицы в CSV (summary_stats.csv и test_results.csv) и выведи обе через print(...to_string()). ' +
-                'Если логика уже есть в ячейке — дополни её через [EDIT_CODE_CELL:N], иначе [INSERT_CODE]...[/INSERT_CODE]. ' +
-                'Не отвечай, что «добавил», без этих тегов.',
+                'Добавь код в блокнот: Python-ячейку через [INSERT_CODE]...[/INSERT_CODE]. ' +
+                'Сделай сводную статистику (n, mean, SD, SEM, median, min, max) и каркас тестов с CSV. ' +
+                'Не здоровайся.',
+            'Объясни код':
+                'Кратко объясни код в текущих ячейках. Если ячеек нет - скажи об этом. Код в блокнот не вставляй.',
+            'Проверь текст':
+                'Проверь текст заметки: ясность, единицы, логика. Предложи правки текстом в чате, без изменения блокнота.',
+            'Следующий шаг':
+                'Предложи следующий конкретный шаг по текущей записи текстом в чате. Код в блокнот не вставляй, пока я явно не попрошу.',
         };
 
         function extractPythonFromAssistantReply(text) {
@@ -1548,7 +1640,8 @@
 
         function assistantClaimsNotebookEdit(text) {
             const t = (text || '').toLowerCase();
-            return /добавил|обновил|вставил|сохранил.*csv|в ячейк|в блокнот/.test(t);
+            // Only past-tense "I edited the notebook" claims — not casual "в блокноте"
+            return /(добавил|обновил|вставил|создал)\s+.+\s+(ячейк|блокнот|документ|таблиц)|сохранил\s+\w+\.csv|вставил\s+код|добавил\s+код/.test(t);
         }
 
         function useQuickPrompt(btn) {
@@ -1574,7 +1667,7 @@
 
         async function clearChat() {
             if (chatBusy) return;
-            if (!confirm('Очистить историю чата для этого узла?')) return;
+            if (!confirm('Очистить историю чата для этого этапа?')) return;
             try {
                 const resp = await fetch('{{ base_path }}/api/chat/clear', {
                     method: 'POST',
@@ -1658,12 +1751,9 @@
                     changed = true;
                 }
             }
-            let code = data.insert_code;
-            if (!code && !data.edit_code_cell && !data.edit_html && !data.append_html) {
-                code = extractPythonFromAssistantReply(data.reply || '');
-            }
-            if (code) {
-                insertCodeFromAssistant(code);
+            // Only insert code when the API returned an explicit insert_code action.
+            if (data.insert_code) {
+                insertCodeFromAssistant(data.insert_code);
                 changed = true;
             }
             if (changed) autoSave();
@@ -1697,18 +1787,22 @@
                 hideTyping();
 
                 if (resp.status === 401 || data.error === 'LoginRequired') {
-                    appendMessage('assistant', 'Сессия истекла. Выйдите и войдите снова через https://anticus.tech/bio-notebook/ — без входа чат не работает.');
+                    appendMessage('assistant', 'Сессия истекла. Войдите снова - без входа чат не работает.');
+                    return;
+                }
+                if (data.error === 'PlanRequired' || data.ok === false) {
+                    appendMessage('assistant', data.reply || data.error || 'ИИ недоступен на текущем тарифе.');
                     return;
                 }
                 if (!resp.ok) {
-                    appendMessage('assistant', data.error || data.detail || `Ошибка сервера (${resp.status}).`);
+                    appendMessage('assistant', data.reply || data.error || data.detail || `Ошибка сервера (${resp.status}).`);
                     return;
                 }
 
                 const notebookChanged = applyAssistantNotebookActions(data);
                 let replyText = data.reply || '';
                 if (!notebookChanged && assistantClaimsNotebookEdit(replyText)) {
-                    replyText += '\n\n⚠️ В блокнот ничего не попало — ассистент не вернул [INSERT_CODE] / [EDIT_CODE_CELL]. Нажмите «Добавь таблицу» ещё раз или попросите явно обернуть код в теги.';
+                    replyText += '\n\n⚠️ В блокнот ничего не попало - ассистент не вернул [INSERT_CODE] / [EDIT_CODE_CELL]. Нажмите «Добавь таблицу» ещё раз или попросите явно обернуть код в теги.';
                 }
                 if (notebookChanged || replyText) {
                     appendMessage('assistant', replyText || 'Обновил блокнот.');
@@ -1766,12 +1860,27 @@
         // ── Editor caret / contenteditable helpers ──
         let savedEditorRange = null;
 
+        function isEditorMeaningfullyEmpty(editor) {
+            if (!editor) return true;
+            if (editor.querySelector('.code-cell, img, audio, video, table, .anchored-drawing, .assistant-html-block')) {
+                return false;
+            }
+            const text = (editor.innerText || '').replace(/\u00a0/g, ' ').trim();
+            return text.length === 0;
+        }
+
+        function updateEditorEmptyState() {
+            const editor = getNoteEditor();
+            if (!editor) return;
+            editor.classList.toggle('is-empty', isEditorMeaningfullyEmpty(editor));
+        }
+
         function getNoteEditor() {
             return document.getElementById('editor');
         }
 
         function exitEditorOverlayModes() {
-            // "Рисунок" sets contentEditable=false — always restore before other inserts
+            // "Рисунок" sets contentEditable=false - always restore before other inserts
             if (typeof isDrawingMode !== 'undefined' && isDrawingMode && typeof cancelDrawing === 'function') {
                 cancelDrawing();
             }
@@ -1881,7 +1990,7 @@
             autoSave();
         }
 
-        // Save caret when clicking toolbar (do NOT preventDefault — it can swallow click)
+        // Save caret when clicking toolbar (do NOT preventDefault - it can swallow click)
         document.querySelector('.workspace-toolbar')?.addEventListener('mousedown', (e) => {
             if (e.target.closest('button, .tool-btn')) saveEditorSelection();
         });
@@ -1999,14 +2108,14 @@
                     imgEl.onerror = () => reject(new Error('Изображение не загрузилось'));
                 });
             }
-            const canvas = document.createElement('canvas');
-            canvas.width = imgEl.naturalWidth || imgEl.width;
-            canvas.height = imgEl.naturalHeight || imgEl.height;
+                const canvas = document.createElement('canvas');
+                canvas.width = imgEl.naturalWidth || imgEl.width;
+                canvas.height = imgEl.naturalHeight || imgEl.height;
             if (!canvas.width || !canvas.height) {
                 throw new Error('Нулевой размер изображения');
             }
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(imgEl, 0, 0);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imgEl, 0, 0);
             try {
                 return canvas.toDataURL('image/jpeg', 0.88);
             } catch (err) {
@@ -2024,9 +2133,51 @@
             }
         }
 
+        function requestOCRTool() {
+            if (activeImg && activeImg.isConnected) {
+                runOCR();
+                return;
+            }
+            const imgs = document.querySelectorAll('#editor img');
+            if (imgs.length === 1) {
+                activeImg = imgs[0];
+                runOCR();
+                return;
+            }
+            if (imgs.length > 1) {
+                alert('Выберите фото в записи (клик по изображению) или загрузите новое для OCR.');
+            }
+            document.getElementById('ocrUpload')?.click();
+        }
+
+        async function uploadImageForOCR(input) {
+            if (!input.files || !input.files[0]) return;
+            try {
+                await uploadImage(input);
+                const imgs = document.querySelectorAll('#editor img');
+                activeImg = imgs[imgs.length - 1] || null;
+                if (activeImg) await runOCR();
+            } catch (e) {
+                appendMessage('assistant', 'Не удалось загрузить фото для OCR.');
+            }
+        }
+
         async function runOCR() {
-            if (!activeImg) return;
-            appendMessage('assistant', 'Анализирую изображение...');
+            if (!activeImg) {
+                requestOCRTool();
+                return;
+            }
+            const statusId = 'ocr-status-' + Date.now();
+            appendMessage('assistant', 'Анализирую изображение...', { id: statusId });
+
+            function replaceOcrStatus(msg) {
+                const el = document.getElementById(statusId);
+                if (el) {
+                    setMessageContent(el, 'assistant', msg);
+                    return;
+                }
+                appendMessage('assistant', msg);
+            }
 
             try {
                 const base64 = await imageToDataUrl(activeImg);
@@ -2044,34 +2195,34 @@
                 }
                 const text = (data && data.text) ? String(data.text) : '';
                 if (!resp.ok && !text) {
-                    appendMessage('assistant', 'OCR не удался (HTTP ' + resp.status + ').');
+                    replaceOcrStatus('OCR не удался (HTTP ' + resp.status + ').');
                     return;
                 }
                 if (!text || text === 'Текст не найден.') {
-                    appendMessage('assistant', text || 'Текст на изображении не найден.');
+                    replaceOcrStatus(text || 'Текст на изображении не найден.');
                     return;
                 }
-
+                
                 const textNode = document.createElement('p');
                 textNode.style.cssText = 'background:rgba(100,206,251,0.08);padding:1rem;border-radius:8px;margin-top:1rem;border:1px solid rgba(100,206,251,0.2);';
                 const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
                 textNode.innerHTML = `<strong>Результат OCR:</strong><br>${safeText}`;
                 activeImg.after(textNode);
-                appendMessage('assistant', 'Готово! Текст добавлен в заметки под изображением.');
+                replaceOcrStatus('Готово! Текст добавлен в заметки под изображением.');
                 autoSave();
             } catch (e) {
                 const msg = (e && e.message) ? e.message : 'Ошибка при распознавании изображения.';
-                appendMessage('assistant', msg);
+                replaceOcrStatus(msg);
             }
         }
-        // Sketch pad (compact modal — not full-note overlay)
+        // Sketch pad (compact modal - not full-note overlay)
         const mainCanvas = document.getElementById('sketchCanvas');
         const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
         const drawingControls = document.getElementById('drawingControls');
         const sketchModal = document.getElementById('sketchpadModal');
         const sketchBackdrop = document.getElementById('sketchpadBackdrop');
         const editor = document.getElementById('editor');
-
+        
         let isDrawingMode = false;
         let isDrawing = false;
         let drawingInsertRange = null;
@@ -2119,7 +2270,7 @@
             sketchModal.classList.add('open');
             if (sketchBackdrop) sketchBackdrop.classList.add('open');
             document.body.style.overflow = 'hidden';
-
+            
             try {
                 if (savedEditorRange) {
                     drawingInsertRange = savedEditorRange.cloneRange();
@@ -2135,12 +2286,12 @@
             }
 
             requestAnimationFrame(() => {
-                syncDrawingCanvasSize();
+            syncDrawingCanvasSize();
                 clearDrawing();
-                mainCtx.strokeStyle = '#00A3FF';
+            mainCtx.strokeStyle = '#00A3FF';
                 mainCtx.lineWidth = 3;
-                mainCtx.lineCap = 'round';
-                mainCtx.lineJoin = 'round';
+            mainCtx.lineCap = 'round';
+            mainCtx.lineJoin = 'round';
             });
         }
 
@@ -2234,18 +2385,38 @@
             }
         }
 
-        async function downloadDocx() {
+        async function downloadExport(kind) {
+            const map = {
+                docx: { path: 'export_docx', ext: 'docx', label: 'DOCX' },
+                pdf: { path: 'export_pdf', ext: 'pdf', label: 'PDF' },
+                pptx: { path: 'export_pptx', ext: 'pptx', label: 'PPTX' },
+            };
+            const conf = map[kind] || map.docx;
             try {
-                const resp = await fetch(`{{ base_path }}/api/node/export_docx?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`);
+                await new Promise((resolve) => {
+                    try { autoSave(); } catch (e) {}
+                    setTimeout(resolve, 400);
+                });
+                const resp = await fetch(
+                    `{{ base_path }}/api/node/${conf.path}?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`,
+                    { credentials: 'same-origin' }
+                );
                 if (!resp.ok) {
-                    alert('Не удалось сформировать DOCX');
+                    let detail = '';
+                    try { detail = (await resp.json()).error || ''; } catch (e) {}
+                    if (kind === 'pptx' && resp.status === 403) {
+                        alert(detail || 'PPTX — в тарифе Pro. На Free доступны DOCX и PDF.');
                     return;
                 }
+                    alert(`Не удалось сформировать ${conf.label}` + (detail ? `: ${detail}` : ''));
+                    return;
+                }
+                if (window.bnGoal) window.bnGoal('bn_first_export', { format: conf.ext });
                 const blob = await resp.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `node_${node_id}.docx`;
+                a.download = `node_${node_id}.${conf.ext}`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -2254,6 +2425,15 @@
                 alert('Ошибка скачивания');
             }
         }
+        function downloadDocx() { return downloadExport('docx'); }
+        function requestCustomExportTemplate() {
+            const q = new URLSearchParams({
+                user: {{ user|tojson }},
+                exp_id: exp_id,
+                node_id: node_id,
+            });
+            location.href = '{{ base_path }}/export-template?' + q.toString();
+        }
         // Code Cell Logic
         function requestMediaTool(kind) {
             try { saveEditorSelection(); } catch (e) {}
@@ -2261,7 +2441,7 @@
             else if (kind === 'audio') toggleRecording();
             else if (kind === 'draw') openSketchpad();
         }
-        window.requestMediaTool = requestMediaTool;
+            window.requestMediaTool = requestMediaTool;
 
         function upgradeLegacyCodeCells() {
             document.querySelectorAll('.code-cell').forEach(cell => {
@@ -2405,7 +2585,7 @@
                     </div>
                     <textarea
                         class="code-editor"
-                        placeholder="Введите Python-код…"
+                        placeholder="Пишите Python-код здесь…"
                         oninput="autoExpand(this)"
                     ></textarea>
                     <div class="code-actions">
@@ -2423,8 +2603,9 @@
             const cell = wrap.firstElementChild;
             const area = cell.querySelector('.code-editor');
             if (area) {
-                area.value = initialCode || 'print("Hello Bio-Notebook!")';
+                area.value = initialCode != null ? initialCode : '';
                 refreshCodeHighlight(area);
+                autoExpand(area);
             }
             return { cell, cellId };
         }
@@ -2440,25 +2621,26 @@
                 editor.appendChild(cell);
                 editor.appendChild(textAfter);
             } else {
-                restoreEditorSelection();
-                const sel = window.getSelection();
-                let inserted = false;
-                if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
-                    try {
-                        const range = sel.getRangeAt(0);
-                        range.deleteContents();
-                        range.insertNode(textAfter);
-                        range.insertNode(cell);
-                        inserted = true;
-                    } catch (e) { inserted = false; }
-                }
-                if (!inserted) {
-                    editor.appendChild(cell);
-                    editor.appendChild(textAfter);
+            restoreEditorSelection();
+            const sel = window.getSelection();
+            let inserted = false;
+            if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+                try {
+                    const range = sel.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(textAfter);
+                    range.insertNode(cell);
+                    inserted = true;
+                } catch (e) { inserted = false; }
+            }
+            if (!inserted) {
+                editor.appendChild(cell);
+                editor.appendChild(textAfter);
                 }
             }
 
             if (!opts.skipCaret) placeCaretInElement(textAfter);
+            updateEditorEmptyState();
             return textAfter;
         }
 
@@ -2466,6 +2648,7 @@
             exitEditorOverlayModes();
             const { cell, cellId } = buildCodeCellElement(code);
             mountCodeCell(cell, { appendToEnd: true, skipCaret: true });
+            updateEditorEmptyState();
             setTimeout(() => {
                 const newArea = document.querySelector(`#${cellId} .code-editor`);
                 if (newArea) {
@@ -2493,8 +2676,9 @@
 
         function addCodeCell() {
             exitEditorOverlayModes();
-            const { cell, cellId } = buildCodeCellElement('print("Hello Bio-Notebook!")');
+            const { cell, cellId } = buildCodeCellElement('');
             mountCodeCell(cell);
+            updateEditorEmptyState();
             autoSave();
             setTimeout(() => {
                 const newArea = document.querySelector(`#${cellId} .code-editor`);
@@ -2510,6 +2694,7 @@
                 cell.remove();
                 if (parent === getNoteEditor()) ensureEditableTail();
                 placeCaretAtEditableTail();
+                updateEditorEmptyState();
                 autoSave();
             }
         }
@@ -2691,22 +2876,102 @@
             }
         });
 
-        // --- Time travel (стрелки + подпись «Ветки»; список снимков в UI убран) ---
+        // --- Time travel / version history ---
         let currentVersions = [];
         let timeOffset = 0;
 
-        async function travelTime(direction) {
+        function formatVersionWhen(iso) {
             try {
-                const resp = await fetch(`{{ base_path }}/api/node/version/list?exp_id=${exp_id}&node_id=${node_id}`);
+                return new Date(iso).toLocaleString('ru-RU');
+            } catch (e) {
+                return iso || '';
+            }
+        }
+
+        async function fetchVersions() {
+            const resp = await fetch(
+                `{{ base_path }}/api/node/version/list?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`,
+                { credentials: 'same-origin' }
+            );
                 const data = await resp.json();
                 currentVersions = data.versions || [];
+            return currentVersions;
+        }
 
+        async function toggleVersionPanel(force) {
+            const panel = document.getElementById('versionPanel');
+            if (!panel) return;
+            const open = force === false ? false : (force === true ? true : panel.hasAttribute('hidden'));
+            if (!open) {
+                panel.setAttribute('hidden', '');
+                return;
+            }
+            panel.removeAttribute('hidden');
+            const list = document.getElementById('versionPanelList');
+            if (list) list.textContent = 'Загрузка…';
+            try {
+                const versions = await fetchVersions();
+                if (!list) return;
+                if (!versions.length) {
+                    list.textContent = 'Пока нет снимков. Отредактируйте заметку и подождите автосохранение.';
+                    return;
+                }
+                list.innerHTML = versions.map((v, idx) => {
+                    const author = (v.author || '').trim() || 'без автора';
+                    const msg = (v.message || 'Снимок').replace(/[<>&]/g, '');
+                    return `<button type="button" class="version-item" data-version-idx="${idx}">
+                        <span class="version-item-msg">${msg}</span>
+                        <span class="version-item-meta">${formatVersionWhen(v.created_at)} · ${author}</span>
+                    </button>`;
+                }).join('');
+                list.querySelectorAll('.version-item').forEach((btn) => {
+                    btn.addEventListener('click', async () => {
+                        const idx = Number(btn.getAttribute('data-version-idx'));
+                        const version = currentVersions[idx];
+                        if (!version) return;
+                        timeOffset = idx + 1;
+                        await applyVersionToUI(version);
+                        showVersionIndicator(version);
+                        panel.setAttribute('hidden', '');
+                    });
+                });
+            } catch (e) {
+                if (list) list.textContent = 'Не удалось загрузить историю.';
+                console.error(e);
+            }
+        }
+
+        function showVersionIndicator(version, prefix) {
+            const author = (version.author || '').trim();
+            const indicator = document.createElement('div');
+            indicator.id = 'time-travel-indicator';
+            indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; font-size: 0.8rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;';
+            const head = prefix || (version.message || 'снимок');
+            indicator.innerText = `${head} · ${formatVersionWhen(version.created_at)}${author ? ' · ' + author : ''}`;
+            const old = document.getElementById('time-travel-indicator');
+            if (old) old.remove();
+            document.body.appendChild(indicator);
+            setTimeout(() => { indicator.style.opacity = '0.7'; }, 2000);
+        }
+
+        let travelBusy = false;
+
+        async function travelTime(direction) {
+            if (travelBusy) return;
+            travelBusy = true;
+            try {
+                await fetchVersions();
                 if (currentVersions.length === 0) {
-                    alert('Нет сохранённых снимков для этого узла.');
+                    alert('Нет сохранённых снимков для этого этапа. Отредактируйте текст - снимок появится после автосохранения.');
                     return;
                 }
 
+                // From live (0): first «назад» skips the newest snapshot (usually = current text).
+                if (timeOffset === 0 && direction > 0) {
+                    timeOffset = currentVersions.length >= 2 ? 2 : 1;
+                } else {
                 timeOffset += direction;
+                }
                 if (timeOffset < 0) timeOffset = 0;
                 if (timeOffset > currentVersions.length) timeOffset = currentVersions.length;
 
@@ -2717,33 +2982,40 @@
 
                 const version = currentVersions[timeOffset - 1];
                 await applyVersionToUI(version);
-
-                const indicator = document.createElement('div');
-                indicator.id = 'time-travel-indicator';
-                indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; font-size: 0.8rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;';
-                indicator.innerText = `ПРОСМОТР ВЕРСИИ: ${version.message} (${new Date(version.created_at).toLocaleString('ru-RU')})`;
-                const old = document.getElementById('time-travel-indicator');
-                if (old) old.remove();
-                document.body.appendChild(indicator);
-                setTimeout(() => { indicator.style.opacity = '0.7'; }, 2000);
+                const n = currentVersions.length;
+                const idx = timeOffset;
+                showVersionIndicator(version, `версия ${idx} из ${n}`);
             } catch (e) {
                 console.error('Time travel error', e);
+            } finally {
+                travelBusy = false;
             }
         }
 
         async function applyVersionToUI(version) {
-            const r = await fetch(`{{ base_path }}/api/node/version/${version.id}`);
+            const r = await fetch(`{{ base_path }}/api/node/version/${version.id}`, { credentials: 'same-origin' });
             if (!r.ok) return;
             const data = await r.json();
             const editor = document.getElementById('editor');
             editor.innerHTML = data.html_snapshot || '';
             document.querySelectorAll('.code-editor').forEach(autoExpand);
             upgradeLegacyCodeCells();
+            updateEditorEmptyState();
         }
+
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('versionPanel');
+            const btn = document.getElementById('versionHistoryBtn');
+            if (!panel || panel.hasAttribute('hidden')) return;
+            if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+            panel.setAttribute('hidden', '');
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             upgradeLegacyCodeCells();
             initAssistantMarkdown();
+            ensureEditableTail();
+            updateEditorEmptyState();
             if (!initLucideIcons()) {
                 const t0 = Date.now();
                 const waitLucide = setInterval(() => {
@@ -2754,6 +3026,7 @@
         // Also run soon in case DOMContentLoaded already fired
         setTimeout(upgradeLegacyCodeCells, 50);
         setTimeout(initAssistantMarkdown, 50);
+        setTimeout(updateEditorEmptyState, 60);
         if (document.readyState !== 'loading') {
             setTimeout(() => { if (!initLucideIcons()) { /* defer script still loading */ } }, 0);
         }

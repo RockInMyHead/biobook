@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Приглашение в проект | Bio-Notebook</title>
+    <title>Приглашение в проект | Lab-Journal</title>
     <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
     <link rel="icon" type="image/svg+xml" href="{{ base_path }}/static/favicon.svg">
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
@@ -55,12 +55,12 @@
             <input type="hidden" id="inviteCode" value="{{ code }}">
 
             <div>
-                <label class="block text-sm font-medium text-white/70 mb-1.5">Ваш логин в Bio-Notebook</label>
+                <label class="block text-sm font-medium text-white/70 mb-1.5">Ваш логин в Lab-Journal</label>
                 <input id="loginField" class="form-input" placeholder="Введите ваш логин" required autocomplete="off">
             </div>
             <div>
                 <label class="block text-sm font-medium text-white/70 mb-1.5">Пароль</label>
-                <input id="passwordField" type="password" class="form-input" placeholder="Ваш пароль" required autocomplete="current-password">
+                <input id="passwordField" type="password" class="form-input ym-disable-keys" placeholder="Ваш пароль" required autocomplete="current-password">
             </div>
 
             <button type="submit" class="w-full bg-[#64CEFB] hover:bg-[#4bbdf2] text-white font-bold py-3.5 rounded-full transition-colors mt-4 text-sm">
@@ -103,7 +103,7 @@
                 });
 
                 if (loginRes.status === 303 || loginRes.status === 302) {
-                    // Login OK — now accept invite
+                    // Login OK - now accept invite
                     const acceptRes = await fetch('{{ base_path }}/api/invite/' + code + '/accept', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

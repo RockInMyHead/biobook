@@ -1,0 +1,62 @@
+<div id="cookieBanner" class="bn-cookie-banner" style="position:fixed;bottom:0;left:0;right:0;z-index:200;transform:translateY(100%);opacity:0;transition:all .5s ease-out;">
+    <div style="margin:0 auto;max-width:80rem;padding:0 1rem 1rem;">
+        <div style="border-radius:1rem;padding:1.15rem 1.25rem;display:flex;flex-wrap:wrap;align-items:center;gap:1rem;background:rgba(10,10,20,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 40px rgba(0,0,0,.35);">
+            <div style="flex:1 1 14rem;min-width:0;">
+                <div style="font-weight:600;font-size:.875rem;margin-bottom:.25rem;color:#fff;font-family:'Space Grotesk',sans-serif;">Мы используем cookies</div>
+                <p style="margin:0;font-size:.75rem;line-height:1.5;color:rgba(255,255,255,.5);">
+                    Нужны для входа, корректной работы сервиса и аналитики (Яндекс Метрика). Согласие сохраняется на год.
+                </p>
+            </div>
+            <button type="button" onclick="acceptCookies()" style="font-weight:700;padding:.65rem 1.75rem;border-radius:999px;background:#64CEFB;color:#fff;border:none;cursor:pointer;font-size:.875rem;white-space:nowrap;flex:none;">
+                Принять
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    const KEY = 'biobook-cookie-consent';
+    const DATE_KEY = 'biobook-cookie-date';
+    const DAYS = 365;
+    function readCookie(name) {
+        const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+    function writeCookie(name, value, days) {
+        document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=' + Math.floor(days * 86400) + '; SameSite=Lax';
+    }
+    function hasValidConsent() {
+        let consent = '', ts = 0;
+        try {
+            consent = localStorage.getItem(KEY) || '';
+            ts = parseInt(localStorage.getItem(DATE_KEY) || '0', 10) || 0;
+        } catch (e) {}
+        if (consent !== 'accepted') {
+            consent = readCookie(KEY);
+            ts = parseInt(readCookie(DATE_KEY) || '0', 10) || 0;
+        }
+        if (consent !== 'accepted' || !ts) return false;
+        const daysSince = (Date.now() - ts) / 86400000;
+        return daysSince >= 0 && daysSince < DAYS;
+    }
+    const banner = document.getElementById('cookieBanner');
+    if (!banner) return;
+    if (hasValidConsent()) return;
+    requestAnimationFrame(function () {
+        banner.style.transform = 'translateY(0)';
+        banner.style.opacity = '1';
+    });
+    window.acceptCookies = function acceptCookies() {
+        const now = String(Date.now());
+        try {
+            localStorage.setItem(KEY, 'accepted');
+            localStorage.setItem(DATE_KEY, now);
+        } catch (e) {}
+        writeCookie(KEY, 'accepted', DAYS);
+        writeCookie(DATE_KEY, now, DAYS);
+        banner.style.transform = 'translateY(100%)';
+        banner.style.opacity = '0';
+        setTimeout(function () { banner.style.display = 'none'; }, 500);
+    };
+})();
+</script>

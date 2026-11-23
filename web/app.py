@@ -5,6 +5,7 @@ import time
 import hmac
 import secrets
 import threading
+import io
 from urllib.parse import quote, urlencode, urlparse, parse_qs, unquote_plus
 import base64
 import re
@@ -215,7 +216,7 @@ async def _ocr_via_vision_model(image_data_url: str, model: str) -> str:
         "Authorization": f"Bearer {OCR_API_KEY}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://anticus.tech",
-        "X-Title": "Antikus Bio-Notebook OCR",
+        "X-Title": "Antikus Lab-Journal OCR",
     }
     async with ai_http_client(timeout=120) as client:
         resp = await client.post(OCR_API_URL, headers=headers, json=payload)
@@ -279,11 +280,20 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "admin123")
 LAB_ADMIN_PATH = (os.environ.get("LAB_ADMIN_PATH", "/lab-admin") or "/lab-admin").rstrip("/")
 if not LAB_ADMIN_PATH.startswith("/"):
     LAB_ADMIN_PATH = "/" + LAB_ADMIN_PATH
-SITE_ORIGIN = os.environ.get("SITE_ORIGIN", "https://anticus.tech").rstrip("/")
+SITE_ORIGIN = os.environ.get("SITE_ORIGIN", "https://labjournal.tech").rstrip("/")
 YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID", "")
 YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET", "")
 OAUTH_STATE_SECRET = os.environ.get("OAUTH_STATE_SECRET", ADMIN_KEY)
 LEGAL_BASE_URL = os.environ.get("LEGAL_BASE_URL", SITE_ORIGIN).rstrip("/")
+# Legacy hosts that should 301 to SITE_ORIGIN (same app / same VM).
+LEGACY_HOSTS = {
+    h.strip().lower()
+    for h in os.environ.get(
+        "LEGACY_HOSTS",
+        "bionotebook.ru,www.bionotebook.ru,www.labjournal.tech",
+    ).split(",")
+    if h.strip()
+}
 SESSION_COOKIE = "biobook_sid"
 SESSION_DAYS = 30
 SESSION_SECRET = os.environ.get("SESSION_SECRET") or OAUTH_STATE_SECRET
@@ -347,7 +357,13 @@ def redirect_to_dashboard(username: str) -> RedirectResponse:
 
 
 def path_is_public(path: str) -> bool:
-    if path in ("/", "/favicon.ico"):
+    if path in (
+        "/",
+        "/index.html",
+        "/favicon.ico",
+        "/yandex_bd93356772fa18fd.html",
+        "/llms.txt",
+    ):
         return True
     if path.startswith("/static"):
         return True
@@ -359,14 +375,21 @@ def path_is_public(path: str) -> bool:
         return True
     if path.startswith("/invite"):
         return True
-    if path in ("/login", "/register", "/logout"):
+    if path in ("/login", "/register", "/logout", "/login/", "/register/", "/logout/"):
         return True
     if path == "/guides" or path.startswith("/guides/"):
         return True
     for slug in MARKETING_PAGES:
         if path in (f"/{slug}", f"/{slug}/"):
             return True
-    if path == "/sitemap-guides.xml":
+    for slug in LEGAL_PAGES:
+        if path in (f"/{slug}", f"/{slug}/", f"/legal/{slug}", f"/legal/{slug}/"):
+            return True
+    if path in ("/rekvizity", "/rekvizity/"):
+        return True
+    if path == "/legal" or path.startswith("/legal/"):
+        return True
+    if path in ("/sitemap-guides.xml", "/sitemap.xml", "/robots.txt", "/llms.txt"):
         return True
     if path == "/api/labos-lead":
         return True
@@ -447,6 +470,64 @@ def upload_public_url(fname: str) -> str:
     return f"{BASE_PATH}/static/uploads/{fname}"
 
 
+AVATAR_MAX_BYTES = 5 * 1024 * 1024
+AVATAR_ALLOWED_EXT = {"jpg", "jpeg", "png", "webp", "gif"}
+
+
+def avatar_src(url: str | None) -> str:
+    """Public URL for stored avatar (local upload or absolute https)."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("http://") or raw.startswith("https://") or raw.startswith("data:"):
+        return raw
+    if raw.startswith("/static/uploads/"):
+        return f"{BASE_PATH}{raw}" if BASE_PATH else raw
+    if BASE_PATH and raw.startswith(f"{BASE_PATH}/static/uploads/"):
+        return raw
+    if "/" not in raw and "." in raw:
+        return upload_public_url(raw)
+    return raw
+
+
+def _avatar_local_path(stored: str) -> str | None:
+    """Return filesystem path if avatar is a local upload we own."""
+    raw = (stored or "").strip()
+    if not raw or raw.startswith("http://") or raw.startswith("https://"):
+        return None
+    if BASE_PATH and raw.startswith(BASE_PATH + "/"):
+        raw = raw[len(BASE_PATH):]
+    if raw.startswith("/static/uploads/"):
+        fname = raw.rsplit("/", 1)[-1]
+    elif "/" not in raw and "\\" not in raw:
+        fname = raw
+    else:
+        return None
+    if not fname.startswith("avatar_") or ".." in fname:
+        return None
+    path = os.path.abspath(os.path.join(UPLOADS_DIR, fname))
+    root = os.path.abspath(UPLOADS_DIR)
+    if not path.startswith(root + os.sep):
+        return None
+    return path
+
+
+def _delete_local_avatar(stored: str) -> None:
+    path = _avatar_local_path(stored)
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def yandex_avatar_url(default_avatar_id: str | None) -> str:
+    aid = (default_avatar_id or "").strip()
+    if not aid or aid in ("0/0-0", "0"):
+        return ""
+    return f"https://avatars.yandex.net/get-yapic/{aid}/islands-200"
+
+
 def normalize_upload_urls(html: str) -> str:
     """Rewrite legacy upload paths so images load under BASE_PATH (e.g. /bio-notebook)."""
     if not html:
@@ -492,6 +573,7 @@ class UserDB(Base):
     is_banned = Column(String, default="false")
     yandex_id = Column(String, default="")
     display_name = Column(String, default="")
+    avatar_url = Column(String, default="")  # /static/uploads/... or https:// (e.g. Yandex)
     auth_provider = Column(String, default="password")
     agree_marketing = Column(String, default="false")
     plan = Column(String, default="free")  # free | student | corp
@@ -526,6 +608,7 @@ class NodeVersionDB(Base):
     html_snapshot = Column(Text, default="")
     created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
     message = Column(String, default="")
+    author = Column(String, default="")
 
 class ProjectDB(Base):
     __tablename__ = "projects"
@@ -737,6 +820,8 @@ class ServiceVisitDB(Base):
     utm_medium = Column(String(255), default="")
     utm_campaign = Column(String(255), default="")
     utm_term = Column(String(255), default="")
+    user_agent = Column(String(512), default="")
+    is_bot = Column(String(8), default="0", index=True)  # "1" | "0"
     created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
 
 
@@ -750,6 +835,18 @@ class LabosLeadDB(Base):
     message = Column(Text, default="")
     created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
     ip = Column(String(64), default="")
+
+
+class ExportTemplateDB(Base):
+    """Пользовательский шаблон экспорта (DOCX/PDF/PPTX) — визуальный бланк."""
+    __tablename__ = "export_templates"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4())[:10])
+    user_id = Column(String, ForeignKey("users.username"), index=True)
+    name = Column(String, default="Шаблон кафедры")
+    kind = Column(String, default="docx")  # docx | pdf | pptx
+    html = Column(Text, default="")
+    created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
+    updated_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
 
 
 Base.metadata.create_all(bind=engine)
@@ -832,10 +929,12 @@ for table, column, col_type in [
     ("users", "is_banned", "VARCHAR DEFAULT 'false'"),
     ("users", "yandex_id", "VARCHAR DEFAULT ''"),
     ("users", "display_name", "VARCHAR DEFAULT ''"),
+    ("users", "avatar_url", "VARCHAR DEFAULT ''"),
     ("users", "auth_provider", "VARCHAR DEFAULT 'password'"),
     ("users", "agree_marketing", "VARCHAR DEFAULT 'false'"),
     ("users", "plan", "VARCHAR DEFAULT 'free'"),
     ("users", "plan_expires_at", "VARCHAR DEFAULT ''"),
+    ("node_versions", "author", "VARCHAR DEFAULT ''"),
     ("service_visits", "referrer", "VARCHAR DEFAULT ''"),
     ("service_visits", "referrer_host", "VARCHAR DEFAULT ''"),
     ("service_visits", "source", "VARCHAR DEFAULT ''"),
@@ -844,6 +943,8 @@ for table, column, col_type in [
     ("service_visits", "utm_medium", "VARCHAR DEFAULT ''"),
     ("service_visits", "utm_campaign", "VARCHAR DEFAULT ''"),
     ("service_visits", "utm_term", "VARCHAR DEFAULT ''"),
+    ("service_visits", "user_agent", "VARCHAR DEFAULT ''"),
+    ("service_visits", "is_bot", "VARCHAR DEFAULT '0'"),
 ]:
     try:
         with engine.begin() as conn:
@@ -1005,7 +1106,7 @@ def _tg_handle_update(update: dict) -> None:
     if text.startswith("/start") or is_new:
         _tg_send_to(
             str(chat_id),
-            "✅ <b>Bio-Notebook</b>: алерты подключены.\n"
+            "✅ <b>Lab-Journal</b>: алерты подключены.\n"
             "Сюда приходят регистрации, заявки LabOS, ошибки сервера и сбои DeepSeek/AI.",
         )
         if is_new:
@@ -1060,7 +1161,7 @@ def start_tg_poller() -> None:
             return
         ai_ok = bool(AI_API_KEY and AI_API_URL and AI_CHAT_MODEL)
         tg_notify(
-            "🟢 <b>Bio-Notebook</b> перезапущен\n"
+            "🟢 <b>Lab-Journal</b> перезапущен\n"
             f"Алерты: OK · чатов: {len(chats)}\n"
             f"AI: {'настроен' if ai_ok else 'не настроен (AI_API_* пусты)'}"
         )
@@ -1085,6 +1186,8 @@ PLAN_LABELS = {
 }
 
 WELCOME_TRIAL_DAYS = 30
+STORAGE_LIMIT_FREE_BYTES = 1 * 1024 * 1024 * 1024  # 1 GB
+STORAGE_LIMIT_PRO_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB
 
 
 def _parse_iso_dt(value: str) -> datetime.datetime | None:
@@ -1097,10 +1200,11 @@ def _parse_iso_dt(value: str) -> datetime.datetime | None:
 
 
 def grant_welcome_trial(user: UserDB) -> None:
-    """New accounts: 1 month of «Студент» without payment."""
-    until = datetime.datetime.now() + datetime.timedelta(days=WELCOME_TRIAL_DAYS)
-    user.plan = "student"
-    user.plan_expires_at = until.isoformat(timespec="seconds")
+    """New signups get Pro for WELCOME_TRIAL_DAYS (default 30), then sync drops to Free."""
+    days = max(1, int(WELCOME_TRIAL_DAYS or 30))
+    end = datetime.datetime.now() + datetime.timedelta(days=days)
+    user.plan = "pro"
+    user.plan_expires_at = end.replace(microsecond=0).isoformat()
 
 
 def sync_user_plan_effective(user: UserDB, db: Session) -> str:
@@ -1113,17 +1217,96 @@ def sync_user_plan_effective(user: UserDB, db: Session) -> str:
         end = _parse_iso_dt(expires)
         if end and datetime.datetime.now() >= end:
             user.plan = "free"
+            user.plan_expires_at = ""
             db.commit()
             return "free"
     return plan
 
 
+def plan_allows_ai(plan: str) -> bool:
+    return (plan or "free").strip() in ("student", "pro", "corp", "labos")
+
+
+def storage_limit_bytes(plan: str) -> int:
+    return STORAGE_LIMIT_PRO_BYTES if plan_allows_ai(plan) else STORAGE_LIMIT_FREE_BYTES
+
+
+def _dir_size_bytes(path: str) -> int:
+    total = 0
+    if not path or not os.path.isdir(path):
+        return 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(root, name))
+            except OSError:
+                pass
+    return total
+
+
+def _user_storage_bytes(username: str, db: Session) -> int:
+    """Approx disk use: notebooks dir + upload files referenced in the user's notes."""
+    total = _dir_size_bytes(os.path.join(NOTEBOOKS_BASE, username))
+    exp_ids = [
+        row.id for row in db.query(ExperimentDB).filter(ExperimentDB.user_id == username).all()
+    ]
+    seen: set[str] = set()
+    if exp_ids:
+        notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id.in_(exp_ids)).all()
+        for note in notes:
+            html = (note.notes_html or "") + " " + (note.annotation_url or "")
+            for m in re.finditer(r"/static/uploads/([A-Za-z0-9._-]+)", html):
+                fname = m.group(1)
+                if fname in seen:
+                    continue
+                seen.add(fname)
+                path = os.path.join(UPLOADS_DIR, fname)
+                try:
+                    if os.path.isfile(path):
+                        total += os.path.getsize(path)
+                except OSError:
+                    pass
+    return total
+
+
+def format_bytes_ru(n: int) -> str:
+    n = max(0, int(n or 0))
+    for unit, div in (("ГБ", 1024 ** 3), ("МБ", 1024 ** 2), ("КБ", 1024)):
+        if n >= div:
+            val = n / div
+            return f"{val:.1f} {unit}" if val < 10 else f"{val:.0f} {unit}"
+    return f"{n} Б"
+
+
+def lab_report_template_levels() -> list:
+    """Student-friendly lab report stages (not «root/node»)."""
+    return [
+        [{"id": "goal", "title": "1. Цель работы", "content": "Сформулируйте цель лабораторной работы."}],
+        [{"id": "materials", "title": "2. Материалы и оборудование", "content": "Перечислите реактивы, приборы и ПО."}],
+        [{"id": "procedure", "title": "3. Ход работы", "content": "Опишите шаги эксперимента по порядку."}],
+        [{"id": "results", "title": "4. Результаты", "content": "Запишите наблюдения, таблицы и фото."}],
+        [{"id": "conclusion", "title": "5. Выводы", "content": "Сформулируйте выводы и сравните с целью."}],
+    ]
+
+
+def blank_lab_levels() -> list:
+    return [[{"id": "start", "title": "Запись", "content": "Начните запись лабораторной работы."}]]
+
+
 def _plan_context(request: Request):
     plan = getattr(request.state, "user_plan", None) or "free"
+    expires = (getattr(request.state, "plan_expires_at", None) or "").strip()
+    label = PLAN_LABELS.get(plan, "Free")
+    if plan != "free" and expires:
+        end = _parse_iso_dt(expires)
+        if end and end > datetime.datetime.now():
+            label = f"{label} · до {end.strftime('%d.%m.%Y')}"
     return {
         "user_plan": plan,
-        "plan_label": PLAN_LABELS.get(plan, "Бесплатный"),
+        "plan_label": label,
+        "plan_expires_at": expires,
         "graph_enabled": EXPERIMENT_GRAPH_ENABLED,
+        "user_avatar_url": avatar_src(getattr(request.state, "user_avatar_url", "") or ""),
     }
 
 
@@ -1131,7 +1314,9 @@ templates = Jinja2Templates(directory="templates", context_processors=[_plan_con
 templates.env.globals["base_path"] = BASE_PATH
 templates.env.globals["lab_admin_path"] = LAB_ADMIN_PATH
 templates.env.globals["site_origin"] = SITE_ORIGIN
+templates.env.globals["legal_base_url"] = LEGAL_BASE_URL
 templates.env.filters["fix_uploads"] = normalize_upload_urls
+templates.env.filters["avatar_src"] = avatar_src
 
 
 def _format_ru_date(iso: str) -> str:
@@ -1165,6 +1350,73 @@ app.add_middleware(BasePathMiddleware, base_path=BASE_PATH)
 WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 GUIDE_CONTENT_DIR = os.path.join(WEB_DIR, "content", "guides")
 MARKETING_CONTENT_DIR = os.path.join(WEB_DIR, "content", "pages")
+LEGAL_CONTENT_DIR = os.path.join(WEB_DIR, "content", "legal")
+
+LEGAL_PAGES = {
+    "public-offer": {
+        "slug": "public-offer",
+        "h1": "Публичная оферта",
+        "seo_title": "Публичная оферта",
+        "description": "Публичная оферта на использование сервиса Lab-Journal (labjournal.tech).",
+        "updated": "18 ноября 2026 г.",
+        "file": "public-offer.html",
+    },
+    "privacy": {
+        "slug": "privacy",
+        "h1": "Политика конфиденциальности",
+        "seo_title": "Политика конфиденциальности",
+        "description": "Политика обработки персональных данных пользователей Lab-Journal.",
+        "updated": "14 ноября 2026 г.",
+        "file": "privacy.html",
+    },
+    "consent-personal-data": {
+        "slug": "consent-personal-data",
+        "h1": "Согласие на обработку персональных данных",
+        "seo_title": "Согласие на обработку персональных данных",
+        "description": "Согласие на обработку персональных данных при регистрации в Lab-Journal.",
+        "updated": "14 ноября 2026 г.",
+        "file": "consent-personal-data.html",
+    },
+    "consent-mailing": {
+        "slug": "consent-mailing",
+        "h1": "Согласие на рассылку",
+        "seo_title": "Согласие на рекламно-информационную рассылку",
+        "description": "Согласие на получение рекламно-информационной рассылки Lab-Journal.",
+        "updated": "14 ноября 2026 г.",
+        "file": "consent-mailing.html",
+    },
+    "requisites": {
+        "slug": "requisites",
+        "h1": "Реквизиты ООО «Антикусь»",
+        "seo_title": "Реквизиты ООО «Антикусь»",
+        "description": "Реквизиты ООО «Антикусь»: ОГРН, ИНН, КПП и контакты оператора Lab-Journal.",
+        "updated": "20 ноября 2026 г.",
+        "file": "requisites.html",
+    },
+}
+
+
+def _load_legal_body_html(slug: str) -> str:
+    meta = LEGAL_PAGES.get(slug) or {}
+    fname = meta.get("file") or f"{slug}.html"
+    path = os.path.join(LEGAL_CONTENT_DIR, fname)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def _legal_page_resolved(slug: str):
+    meta = LEGAL_PAGES.get(slug)
+    if not meta:
+        return None
+    page = dict(meta)
+    body = _load_legal_body_html(slug).strip()
+    if not body:
+        return None
+    page["body_html"] = body
+    return page
 
 
 def _request_inner_path(request: Request) -> str:
@@ -1176,6 +1428,27 @@ def _request_inner_path(request: Request) -> str:
     return path
 
 
+_BOT_UA_NEEDLES = (
+    "bot", "crawl", "spider", "slurp", "fetcher", "scanner",
+    "facebookexternalhit", "preview", "lighthouse", "pagespeed",
+    "pingdom", "uptimerobot", "python-requests", "python-urllib",
+    "curl/", "wget/", "httpclient", "scrapy", "httpx", "aiohttp",
+    "semrush", "ahrefs", "mj12", "dotbot", "petalbot", "bytespider",
+    "yandexbot", "googlebot", "bingbot", "duckduckbot", "baiduspider",
+    "applebot", "chatgpt", "gptbot", "claudebot", "ccbot", "anthropic",
+    "headless", "phantomjs", "selenium", "puppeteer", "playwright",
+    "monitoring", "statuscake", "siteaudit", "linkchecker",
+    "go-http-client", "java/", "libwww", "okhttp",
+)
+
+
+def _is_bot_user_agent(ua: str) -> bool:
+    u = (ua or "").strip().lower()
+    if not u or len(u) < 12:
+        return True
+    return any(n in u for n in _BOT_UA_NEEDLES)
+
+
 def _should_track_service_visit(inner_path: str, method: str) -> bool:
     if method.upper() != "GET":
         return False
@@ -1185,13 +1458,29 @@ def _should_track_service_visit(inner_path: str, method: str) -> bool:
         return False
     if inner_path.startswith(LAB_ADMIN_PATH) or inner_path.startswith("/admin"):
         return False
-    if inner_path in ("/favicon.ico", "/sitemap-guides.xml", "/robots.txt"):
+    if inner_path in (
+        "/favicon.ico",
+        "/sitemap-guides.xml",
+        "/sitemap.xml",
+        "/robots.txt",
+        "/llms.txt",
+    ):
         return False
+    # tech / legal noise often hit by auditors — still track, but analytics can filter
     return True
 
 
 def _own_visit_hosts() -> set[str]:
-    hosts = {"bionotebook.ru", "www.bionotebook.ru", "anticus.tech", "www.anticus.tech", "176.109.103.209"}
+    hosts = {
+        "labjournal.tech",
+        "www.labjournal.tech",
+        "bionotebook.ru",
+        "www.bionotebook.ru",
+        "anticus.tech",
+        "www.anticus.tech",
+        "176.109.103.209",
+    }
+    hosts.update(LEGACY_HOSTS)
     for raw in (SITE_ORIGIN, LEGAL_BASE_URL):
         try:
             host = (urlparse(raw or "").hostname or "").lower().strip(".")
@@ -1305,8 +1594,13 @@ def _record_service_visit(
     *,
     referer: str = "",
     request_url: str = "",
+    user_agent: str = "",
+    is_bot: bool = False,
 ) -> None:
     if not visitor_id:
+        return
+    # Do not persist obvious bots — keeps uniques honest
+    if is_bot:
         return
     attr = _parse_visit_attribution(referer, request_url)
     db = SessionLocal()
@@ -1323,6 +1617,8 @@ def _record_service_visit(
                 utm_medium=attr["utm_medium"],
                 utm_campaign=attr["utm_campaign"],
                 utm_term=attr["utm_term"],
+                user_agent=(user_agent or "")[:512],
+                is_bot="0",
                 created_at=datetime.datetime.now().isoformat(),
             )
         )
@@ -1347,7 +1643,161 @@ def _parse_service_visit_day(raw: str) -> datetime.date | None:
         return None
 
 
-def _service_visit_daily_series(db: Session, days: int = 30) -> list[dict]:
+_NOISE_PATH_PREFIXES = (
+    "/privacy",
+    "/public-offer",
+    "/consent-",
+    "/requisites",
+    "/rekvizity",
+    "/legal/",
+    "/terms",
+    "/cookie",
+)
+_PRODUCT_PATH_PREFIXES = (
+    "/",
+    "/login",
+    "/register",
+    "/cabinet",
+    "/ai",
+    "/guides",
+    "/pricing",
+    "/about",
+    "/experiments",
+    "/projects",
+    "/inventory",
+    "/equipment",
+    "/friends",
+    "/support",
+    "/planner",
+    "/lab",
+)
+
+
+def _is_noise_path(path: str) -> bool:
+    p = (path or "/").strip() or "/"
+    return any(p == pref or p.startswith(pref) for pref in _NOISE_PATH_PREFIXES if pref != "/")
+
+
+def _is_product_path(path: str) -> bool:
+    p = (path or "/").strip() or "/"
+    if _is_noise_path(p):
+        return False
+    if p == "/":
+        return True
+    return any(p == pref or p.startswith(pref + "/") or p.startswith(pref + "?") for pref in _PRODUCT_PATH_PREFIXES if pref != "/")
+
+
+def _classify_visitor_quality(hits: list[dict]) -> str:
+    """bot | noise | bounce | human | engaged — for legacy + live rows."""
+    if not hits:
+        return "noise"
+    for h in hits:
+        ua = (h.get("user_agent") or "").strip()
+        if h.get("is_bot") == "1" or (ua and _is_bot_user_agent(ua)):
+            return "bot"
+    paths = [(h.get("path") or "/") for h in hits]
+    n = len(hits)
+    if all(_is_noise_path(p) for p in paths):
+        return "noise"
+    if n >= 2:
+        return "engaged"
+    # single hit
+    path = paths[0]
+    source = (hits[0].get("source") or "").strip().lower()
+    referrer = (hits[0].get("referrer") or "").strip()
+    if _is_noise_path(path):
+        return "noise"
+    # lone homepage / empty direct with no product signal → bounce (often scanners)
+    if path == "/" and not referrer and source in ("", "прямой заход", "direct", "прямой"):
+        return "bounce"
+    if _is_product_path(path) or referrer or source not in ("", "прямой заход", "direct", "прямой"):
+        return "human"
+    return "bounce"
+
+
+def _quality_passes(q: str, mode: str) -> bool:
+    """mode: raw | human | engaged"""
+    if mode == "raw":
+        return True
+    if mode == "engaged":
+        return q == "engaged"
+    # human = people-ish: human + engaged (exclude bot/noise/bounce)
+    return q in ("human", "engaged")
+
+
+def _load_visit_rows(db: Session, since: str | None = None) -> list:
+    q = db.query(
+        ServiceVisitDB.visitor_id,
+        ServiceVisitDB.path,
+        ServiceVisitDB.source,
+        ServiceVisitDB.referrer,
+        ServiceVisitDB.referrer_host,
+        ServiceVisitDB.search_query,
+        ServiceVisitDB.utm_campaign,
+        ServiceVisitDB.user_agent,
+        ServiceVisitDB.is_bot,
+        ServiceVisitDB.created_at,
+    )
+    if since:
+        q = q.filter(ServiceVisitDB.created_at >= since)
+    return q.all()
+
+
+def _group_visits_by_visitor(rows) -> dict[str, list[dict]]:
+    by: dict[str, list[dict]] = {}
+    for r in rows:
+        vid = r.visitor_id or ""
+        by.setdefault(vid, []).append(
+            {
+                "path": r.path or "/",
+                "source": r.source or "",
+                "referrer": r.referrer or "",
+                "referrer_host": r.referrer_host or "",
+                "search_query": r.search_query or "",
+                "utm_campaign": r.utm_campaign or "",
+                "user_agent": getattr(r, "user_agent", None) or "",
+                "is_bot": getattr(r, "is_bot", None) or "0",
+                "created_at": r.created_at or "",
+            }
+        )
+    return by
+
+
+def _service_visit_top_filtered(
+    by_visitor: dict[str, list[dict]],
+    field: str,
+    *,
+    mode: str = "human",
+    limit: int = 20,
+    exclude_empty: bool = True,
+) -> list[dict]:
+    tallies: dict[str, dict] = {}
+    for vid, hits in by_visitor.items():
+        q = _classify_visitor_quality(hits)
+        if not _quality_passes(q, mode):
+            continue
+        # first-touch attribution
+        label = (hits[0].get(field) or "").strip()
+        if exclude_empty and not label:
+            continue
+        if not label:
+            label = "—"
+        slot = tallies.setdefault(label, {"visits": 0, "visitors": set()})
+        slot["visits"] += len(hits)
+        slot["visitors"].add(vid)
+    ranked = sorted(tallies.items(), key=lambda kv: (-kv[1]["visits"], kv[0]))[:limit]
+    return [
+        {"label": label, "visits": int(data["visits"]), "visitors": len(data["visitors"])}
+        for label, data in ranked
+    ]
+
+
+def _service_visit_daily_series_filtered(
+    by_visitor: dict[str, list[dict]],
+    *,
+    days: int = 30,
+    mode: str = "human",
+) -> list[dict]:
     now = datetime.datetime.now()
     start_date = (now - datetime.timedelta(days=days - 1)).date()
     buckets: dict[str, dict] = {}
@@ -1356,21 +1806,19 @@ def _service_visit_daily_series(db: Session, days: int = 30) -> list[dict]:
         key = d.isoformat()
         buckets[key] = {"date": key, "visits": 0, "visitors": set()}
 
-    since = datetime.datetime.combine(start_date, datetime.time.min).isoformat()
-    rows = (
-        db.query(ServiceVisitDB.visitor_id, ServiceVisitDB.created_at)
-        .filter(ServiceVisitDB.created_at >= since)
-        .all()
-    )
-    for visitor_id, created_at in rows:
-        day = _parse_service_visit_day(created_at or "")
-        if not day:
+    for vid, hits in by_visitor.items():
+        q = _classify_visitor_quality(hits)
+        if not _quality_passes(q, mode):
             continue
-        key = day.isoformat()
-        if key not in buckets:
-            continue
-        buckets[key]["visits"] += 1
-        buckets[key]["visitors"].add(visitor_id)
+        for h in hits:
+            day = _parse_service_visit_day(h.get("created_at") or "")
+            if not day:
+                continue
+            key = day.isoformat()
+            if key not in buckets:
+                continue
+            buckets[key]["visits"] += 1
+            buckets[key]["visitors"].add(vid)
 
     return [
         {
@@ -1382,79 +1830,109 @@ def _service_visit_daily_series(db: Session, days: int = 30) -> list[dict]:
     ]
 
 
-def _service_visit_top(
-    db: Session,
-    column,
-    *,
-    days: int | None = None,
-    limit: int = 20,
-    exclude_empty: bool = True,
-) -> list[dict]:
-    q = db.query(
-        column.label("label"),
-        func.count(ServiceVisitDB.id).label("visits"),
-        func.count(distinct(ServiceVisitDB.visitor_id)).label("visitors"),
-    )
-    if days is not None:
-        since = (datetime.datetime.now() - datetime.timedelta(days=days)).isoformat()
-        q = q.filter(ServiceVisitDB.created_at >= since)
-    if exclude_empty:
-        q = q.filter(column.isnot(None)).filter(column != "")
-    rows = (
-        q.group_by(column)
-        .order_by(func.count(ServiceVisitDB.id).desc())
-        .limit(limit)
-        .all()
-    )
-    out = []
-    for row in rows:
-        label = (row.label or "").strip()
-        if not label and exclude_empty:
+def _count_period(by_visitor: dict[str, list[dict]], mode: str, since_iso: str | None) -> tuple[int, int]:
+    """Returns (unique_visitors, pageviews) for quality mode and optional since filter."""
+    uniques = 0
+    views = 0
+    for vid, hits in by_visitor.items():
+        q = _classify_visitor_quality(hits)
+        if not _quality_passes(q, mode):
             continue
-        out.append(
-            {
-                "label": label or "—",
-                "visits": int(row.visits or 0),
-                "visitors": int(row.visitors or 0),
-            }
-        )
-    return out
+        if since_iso:
+            filtered = [h for h in hits if (h.get("created_at") or "") >= since_iso]
+            if not filtered:
+                continue
+            views += len(filtered)
+        else:
+            views += len(hits)
+        uniques += 1
+    return uniques, views
 
 
 def _service_visit_analytics(db: Session) -> dict:
-    total_views = db.query(func.count(ServiceVisitDB.id)).scalar() or 0
-    unique_total = db.query(func.count(distinct(ServiceVisitDB.visitor_id))).scalar() or 0
     now = datetime.datetime.now()
+    all_rows = _load_visit_rows(db)
+    by_all = _group_visits_by_visitor(all_rows)
 
-    def unique_since(days: int) -> int:
-        since = (now - datetime.timedelta(days=days)).isoformat()
-        return (
-            db.query(func.count(distinct(ServiceVisitDB.visitor_id)))
-            .filter(ServiceVisitDB.created_at >= since)
-            .scalar()
-            or 0
-        )
+    quality_counts = {"bot": 0, "noise": 0, "bounce": 0, "human": 0, "engaged": 0}
+    for hits in by_all.values():
+        quality_counts[_classify_visitor_quality(hits)] += 1
 
-    def views_since(days: int) -> int:
+    since_30 = (now - datetime.timedelta(days=30)).isoformat()
+    by_30 = _group_visits_by_visitor([r for r in all_rows if (r.created_at or "") >= since_30])
+
+    def period_bundle(mode: str) -> dict:
+        u_tot, v_tot = _count_period(by_all, mode, None)
+        out = {
+            "visitors_unique_total": u_tot,
+            "visits_total": v_tot,
+        }
+        for days, key_u, key_v in (
+            (1, "visitors_unique_24h", "visits_24h"),
+            (7, "visitors_unique_7d", "visits_7d"),
+            (30, "visitors_unique_30d", "visits_30d"),
+        ):
+            since = (now - datetime.timedelta(days=days)).isoformat()
+            by_window = _group_visits_by_visitor([r for r in all_rows if (r.created_at or "") >= since])
+            u, v = _count_period(by_window, mode, None)
+            out[key_u] = u
+            out[key_v] = v
+        return out
+
+    def mode_payload(mode: str, base: dict) -> dict:
+        return {
+            **base,
+            "visits_daily": _service_visit_daily_series_filtered(by_all, days=30, mode=mode),
+            "visit_sources": _service_visit_top_filtered(by_all, "source", mode=mode, limit=20),
+            "visit_sources_30d": _service_visit_top_filtered(by_30, "source", mode=mode, limit=20),
+            "visit_queries": _service_visit_top_filtered(by_all, "search_query", mode=mode, limit=30),
+            "visit_queries_30d": _service_visit_top_filtered(by_30, "search_query", mode=mode, limit=30),
+            "visit_referrers": _service_visit_top_filtered(by_all, "referrer_host", mode=mode, limit=20),
+            "visit_campaigns": _service_visit_top_filtered(by_all, "utm_campaign", mode=mode, limit=15),
+        }
+
+    human = period_bundle("human")
+    engaged = period_bundle("engaged")
+    raw_true = period_bundle("raw")
+
+    regs_total = db.query(func.count(UserDB.username)).scalar() or 0
+
+    def regs_since(days: int) -> int:
         since = (now - datetime.timedelta(days=days)).isoformat()
-        return db.query(func.count(ServiceVisitDB.id)).filter(ServiceVisitDB.created_at >= since).scalar() or 0
+        try:
+            return (
+                db.query(func.count(AuditLogDB.id))
+                .filter(AuditLogDB.action == "register")
+                .filter(AuditLogDB.created_at >= since)
+                .scalar()
+                or 0
+            )
+        except Exception:
+            return 0
+
+    human_u = max(int(human["visitors_unique_total"] or 0), 1)
+    conversion_pct = round(100.0 * float(regs_total) / float(human_u), 2)
+    human_full = mode_payload("human", human)
 
     return {
-        "visitors_unique_total": int(unique_total),
-        "visitors_unique_24h": unique_since(1),
-        "visitors_unique_7d": unique_since(7),
-        "visitors_unique_30d": unique_since(30),
-        "visits_total": int(total_views),
-        "visits_24h": views_since(1),
-        "visits_7d": views_since(7),
-        "visits_30d": views_since(30),
-        "visits_daily": _service_visit_daily_series(db, 30),
-        "visit_sources": _service_visit_top(db, ServiceVisitDB.source, limit=20),
-        "visit_sources_30d": _service_visit_top(db, ServiceVisitDB.source, days=30, limit=20),
-        "visit_queries": _service_visit_top(db, ServiceVisitDB.search_query, limit=30),
-        "visit_queries_30d": _service_visit_top(db, ServiceVisitDB.search_query, days=30, limit=30),
-        "visit_referrers": _service_visit_top(db, ServiceVisitDB.referrer_host, limit=20),
-        "visit_campaigns": _service_visit_top(db, ServiceVisitDB.utm_campaign, limit=15),
+        **human_full,
+        "visit_filter": "human",
+        "visit_modes": {
+            "human": human_full,
+            "engaged": mode_payload("engaged", engaged),
+            "raw": mode_payload("raw", raw_true),
+        },
+        "visit_quality": quality_counts,
+        "visit_raw": raw_true,
+        "registrations_total": int(regs_total),
+        "registrations_24h": int(regs_since(1)),
+        "registrations_7d": int(regs_since(7)),
+        "registrations_30d": int(regs_since(30)),
+        "conversion_pct": conversion_pct,
+        "visit_filter_note": (
+            "Люди = без ботов, юр.шума и одиночных прямых заходов на /. "
+            "Вовлечённые = 2+ просмотра. Сырые = всё из БД (вкл. сканеры)."
+        ),
     }
 
 
@@ -1468,8 +1946,11 @@ async def service_visit_middleware(request: Request, call_next):
         new_visitor = True
     referer = (request.headers.get("referer") or request.headers.get("referrer") or "").strip()
     request_url = str(request.url)
+    user_agent = (request.headers.get("user-agent") or "").strip()
+    is_bot = _is_bot_user_agent(user_agent)
+    was_head = bool(getattr(request.state, "biobook_was_head", False) or request.scope.get("biobook_was_head"))
     response = await call_next(request)
-    if new_visitor:
+    if new_visitor and not is_bot:
         response.set_cookie(
             VISITOR_COOKIE,
             visitor_id,
@@ -1478,12 +1959,14 @@ async def service_visit_middleware(request: Request, call_next):
             samesite="lax",
             secure=COOKIE_SECURE,
         )
-    if _should_track_service_visit(inner, request.method):
+    if (not was_head) and (not is_bot) and _should_track_service_visit(inner, request.method):
         _record_service_visit(
             visitor_id,
             inner,
             referer=referer,
             request_url=request_url,
+            user_agent=user_agent,
+            is_bot=False,
         )
     return response
 
@@ -1491,10 +1974,27 @@ async def service_visit_middleware(request: Request, call_next):
 @app.middleware("http")
 async def head_requests_middleware(request: Request, call_next):
     if request.method.upper() == "HEAD":
+        request.state.biobook_was_head = True
+        request.scope["biobook_was_head"] = True
         request.scope["method"] = "GET"
         response = await call_next(request)
         headers = {k: v for k, v in response.headers.items()}
         return Response(status_code=response.status_code, headers=headers)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def canonical_host_redirect_middleware(request: Request, call_next):
+    """301 legacy / www hosts → SITE_ORIGIN (labjournal.tech)."""
+    if request.method.upper() not in ("GET", "HEAD"):
+        return await call_next(request)
+    host = (request.headers.get("host") or "").split(":")[0].lower().strip(".")
+    canonical_host = (urlparse(SITE_ORIGIN).hostname or "").lower().strip(".")
+    if host and canonical_host and host != canonical_host and host in LEGACY_HOSTS:
+        target = f"{SITE_ORIGIN}{request.url.path}"
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return RedirectResponse(url=target, status_code=301)
     return await call_next(request)
 
 
@@ -1530,6 +2030,18 @@ async def canonical_slash_redirect_middleware(request: Request, call_next):
             if request.url.query:
                 target = f"{target}?{request.url.query}"
             return RedirectResponse(url=target, status_code=301)
+    for slug in LEGAL_PAGES:
+        if inner == f"/{slug}/":
+            target = f"{BASE_PATH}/{slug}"
+            if request.url.query:
+                target = f"{target}?{request.url.query}"
+            return RedirectResponse(url=target, status_code=301)
+    # Auth pages: trailing slash → canonical without slash
+    if inner in ("/login/", "/register/", "/logout/"):
+        target = f"{BASE_PATH}{inner.rstrip('/')}"
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return RedirectResponse(url=target, status_code=301)
     return await call_next(request)
 
 
@@ -1544,17 +2056,20 @@ def path_seo_indexable(path: str) -> bool:
     for slug in MARKETING_PAGES:
         if path in (f"/{slug}", f"/{slug}/"):
             return True
+    for slug in LEGAL_PAGES:
+        if path in (f"/{slug}", f"/{slug}/", f"/legal/{slug}", f"/legal/{slug}/"):
+            return True
     return False
 
 _NOT_FOUND_HTML = (
     '<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">'
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
     '<meta name="robots" content="noindex">'
-    "<title>Страница не найдена · Bio-Notebook</title>"
+    "<title>Страница не найдена · Lab-Journal</title>"
     "<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;"
     "background:#05070a;color:#e6edf3;font-family:system-ui,sans-serif;text-align:center;padding:1.5rem}"
     "a{color:#64CEFB}</style></head><body><main><h1>404 — страница не найдена</h1>"
-    '<p>Такой страницы нет. <a href="{home}/">На главную Bio-Notebook</a></p></main></body></html>'
+    '<p>Такой страницы нет. <a href="{home}/">На главную Lab-Journal</a></p></main></body></html>'
 )
 
 
@@ -1588,6 +2103,7 @@ async def session_auth_middleware(request: Request, call_next):
     """
     request.state.auth_user = get_session_username(request)
     request.state.user_plan = "free"
+    request.state.user_avatar_url = ""
     path = request.url.path or "/"
 
     # Normalize path if somehow still prefixed (middleware order can vary)
@@ -1621,7 +2137,9 @@ async def session_auth_middleware(request: Request, call_next):
         q["user"] = session_user
         return RedirectResponse(str(request.url.replace(query=urlencode(q))), status_code=302)
 
-    if not session_user and not _route_exists(path, request.method):
+    # Public paths (incl. legal trailing-slash variants) must reach slash-redirect /
+    # route handlers even when Starlette has no exact match for the raw path.
+    if not session_user and not path_is_public(path) and not _route_exists(path, request.method):
         resp = _not_found_response(path)
         resp.headers["X-Robots-Tag"] = "noindex, nofollow"
         return resp
@@ -1645,18 +2163,44 @@ async def session_auth_middleware(request: Request, call_next):
                 plan = sync_user_plan_effective(u, db)
                 request.state.user_plan = plan
                 request.state.plan_expires_at = (getattr(u, "plan_expires_at", None) or "").strip()
+                request.state.user_avatar_url = (getattr(u, "avatar_url", None) or "").strip()
         except Exception:
             request.state.user_plan = "free"
         finally:
             db.close()
 
     response = await call_next(request)
+    if path in ("/robots.txt", "/sitemap.xml", "/sitemap-guides.xml", "/llms.txt"):
+        return response
     if (
         not path_seo_indexable(path)
         and (not path.startswith("/static") or path.startswith("/static/uploads/"))
     ):
         response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
     return response
+
+
+@app.middleware("http")
+async def legacy_bio_notebook_path_redirect_middleware(request: Request, call_next):
+    """When site runs at apex (BASE_PATH empty), 301 /bio-notebook/* → /*.
+
+    Registered after session_auth so it runs outermost: session_auth otherwise
+    404s unknown paths before this redirect can fire.
+    """
+    if request.method.upper() not in ("GET", "HEAD"):
+        return await call_next(request)
+    if BASE_PATH:
+        return await call_next(request)
+    path = request.url.path or "/"
+    if path == "/bio-notebook" or path.startswith("/bio-notebook/"):
+        rest = path[len("/bio-notebook") :] or "/"
+        if not rest.startswith("/"):
+            rest = "/" + rest
+        target = rest
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return RedirectResponse(url=target, status_code=301)
+    return await call_next(request)
 
 
 @app.exception_handler(404)
@@ -1724,7 +2268,7 @@ FAQ_LANDING: list[dict[str, str]] = [
         "answer": "Нет — тариф Free доступен без карты.",
     },
     {
-        "question": "Чем Bio-Notebook отличается от Word?",
+        "question": "Чем Lab-Journal отличается от Word?",
         "answer": (
             "Структура по эксперименту, OCR, версии и ИИ по вашим записям — сравнение."
         ),
@@ -1736,21 +2280,21 @@ FAQ_LANDING: list[dict[str, str]] = [
     {
         "question": "Что входит в OCR и ИИ-агент?",
         "answer": (
-            "OCR распознаёт рукопись и фото приборов в узле эксперимента. "
+            "OCR распознаёт рукопись и фото приборов на этапе эксперимента. "
             "ИИ-агент доступен на тарифе Pro: отчёты, проверка расчётов и презентации по вашим записям."
         ),
     },
     {
         "question": "Как экспортировать отчёт?",
         "answer": (
-            "Соберите узлы эксперимента в журнале и выгрузите отчёт в DOCX или PDF из кабинета — "
+            "Соберите этапы эксперимента в журнале и выгрузите отчёт в DOCX или PDF из кабинета — "
             "перед сдачей сверьте оформление с методичкой кафедры."
         ),
     },
     {
         "question": "Подойдёт ли для кафедры?",
         "answer": (
-            "Да: Free и Pro — публичные тарифы на лендинге; для кафедры или лаборатории — LabOS, "
+            "Да: Free и Pro — публичные тарифы; для кафедры или лаборатории — LabOS, "
             "условия обсуждаем по заявке."
         ),
         "answer_html": (
@@ -1784,10 +2328,11 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "h1": "Как оформить отчёт по лабораторной работе",
         "seo_title": "Отчёт по лабораторной работе: структура, пример и шаблон",
         "title": "Как оформить отчёт по лабораторной работе",
-        "description": "Структура отчёта: титульный лист, ход работы, таблицы и выводы. Шаблон DOCX и выгрузка из журнала Bio-Notebook. Методичка кафедры важнее универсального образца.",
+        "description": "Структура отчёта: титульный лист, ход работы, таблицы и выводы. Шаблон DOCX и выгрузка из журнала Lab-Journal. Методичка кафедры важнее универсального образца.",
         "published": "2026-11-10",
-        "updated": "2026-11-11",
-        "author": "Команда Bio-Notebook",
+        "updated": "2026-11-18",
+        "author": "Команда Lab-Journal",
+        "hero_image": "guide-otchet-hero.jpg",
         "body_html": "",
     },
     "kak-vesti-laboratornyy-zhurnal": {
@@ -1797,10 +2342,10 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "kicker": "// Практика записей",
         "seo_title": "Как вести лабораторный журнал: правила записей и пример",
         "title": "Как вести лабораторный журнал",
-        "description": "Что писать в лабораторном журнале каждый раз, как исправлять записи, пример таблицы и перенос рукописи в электронный журнал Bio-Notebook.",
+        "description": "Что писать в лабораторном журнале каждый раз, как исправлять записи, пример таблицы и перенос рукописи в электронный журнал Lab-Journal.",
         "published": "2026-11-11",
-        "updated": "2026-11-11",
-        "author": "Команда Bio-Notebook",
+        "updated": "2026-11-13",
+        "author": "Команда Lab-Journal",
         "hero_image": "guide-vesti-hero.jpg",
         "mid_image": "guide-vesti-paper-digital.jpg",
         "mid_image_caption": "Бумага удобна у стенда; электронный журнал — для поиска, OCR и экспорта отчёта.",
@@ -1812,10 +2357,11 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "h1": "Как написать вывод к лабораторной работе",
         "seo_title": "Вывод лабораторной работы: как написать и примеры",
         "title": "Как написать вывод к лабораторной работе",
-        "description": "Структура вывода: цель, результат с единицами, погрешность. Шаблон фразы и учебные примеры для вуза; как проверить расчёты перед выводом в Bio-Notebook.",
+        "description": "Структура вывода: цель, результат с единицами, погрешность. Шаблон фразы и учебные примеры для вуза; как проверить расчёты перед выводом в Lab-Journal.",
         "published": "2026-11-11",
         "updated": "2026-11-11",
-        "author": "Команда Bio-Notebook",
+        "author": "Команда Lab-Journal",
+        "hero_image": "guide-otchet-hero.jpg",
         "body_html": "",
     },
     "oformlenie-laboratornoy-raboty-trebovaniya-primer": {
@@ -1827,8 +2373,8 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "title": "Оформление лабораторной работы: требования и пример",
         "description": "Оформление лабораторной по практике вузов РФ: ГОСТ 7.32-2017 и ГОСТ 2.105-2019 как ориентиры, поля, шрифт, титульный лист, таблицы, рисунки, чек-лист и учебный пример.",
         "published": "2026-11-12",
-        "updated": "2026-11-12",
-        "author": "Команда Bio-Notebook",
+        "updated": "2026-11-18",
+        "author": "Команда Lab-Journal",
         "hero_image": "guide-oformlenie-hero.jpg",
         "mid_image": "",
         "body_html": "",
@@ -1843,7 +2389,7 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "description": "Что писать в журнале лабораторных работ и как оформить тетрадь по практике вузов РФ: шапка, таблицы, исправления, отличие от отчёта, учебный пример страницы.",
         "published": "2026-11-12",
         "updated": "2026-11-12",
-        "author": "Команда Bio-Notebook",
+        "author": "Команда Lab-Journal",
         "hero_image": "guide-zhurnal-lab-rabot-hero.jpg",
         "body_html": "",
     },
@@ -1851,13 +2397,14 @@ GUIDE_ARTICLES: dict[str, dict] = {
         "slug": "oformlenie-laboratornogo-zhurnala-gost-kafedra",
         "h1": "Оформление лабораторного журнала",
         "h1_em": "по ГОСТ и требованиям кафедры",
+        "h1_em_plain": True,
         "kicker": "// Журнал и кафедра",
         "seo_title": "Оформление лабораторного журнала по ГОСТ и требованиям кафедры",
         "title": "Оформление лабораторного журнала по ГОСТ и требованиям кафедры",
         "description": "Научпоп-гайд: зачем лабораторный журнал, миф про ГОСТ на тетрадь, требования кафедры, чем журнал отличается от отчёта, шаблон страницы и чек-лист допуска.",
         "published": "2026-11-12",
         "updated": "2026-11-12",
-        "author": "Команда Bio-Notebook",
+        "author": "Команда Lab-Journal",
         "hero_image": "guide-zhurnal-gost-hero.jpg",
         "body_html": "",
     },
@@ -1868,9 +2415,9 @@ MARKETING_PAGES: dict[str, dict] = {
         "slug": "sravnenie-elektronnyh-laboratornyh-zhurnalov",
         "h1": "Какой электронный лабораторный журнал выбрать",
         "seo_title": "Электронные лабораторные журналы: сравнение для вуза и лаборатории",
-        "description": "Сравнение бумажного журнала, Word, Bio-Notebook и корпоративных ELN без «лучшего» рейтинга. Для студента, кафедры и лаборатории — честные плюсы и минусы.",
+        "description": "Сравнение бумажного журнала, Word, Lab-Journal и корпоративных ELN без «лучшего» рейтинга. Для студента, кафедры и лаборатории — честные плюсы и минусы.",
         "published": "2026-11-11",
-        "updated": "2026-11-11",
+        "updated": "2026-11-13",
         "body_file": "sravnenie-eln-body.html",
     },
 }
@@ -1884,30 +2431,100 @@ async def favicon_ico():
     return FileResponse(path, media_type="image/x-icon" if path.endswith(".ico") else "image/png")
 
 
-@app.get("/sitemap-guides.xml", response_class=Response)
-async def sitemap_guides_xml():
-    """Фрагмент URL статей для включения в общий sitemap хоста."""
-    lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    base = f"{SITE_ORIGIN}{BASE_PATH}"
-    static_urls = [
-        (f"{base}/", "2026-11-12"),
-        (f"{base}/guides/", "2026-11-12"),
+def _build_sitemap_xml() -> str:
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
-    for loc, lastmod in static_urls:
+    base = f"{SITE_ORIGIN}{BASE_PATH}"
+    guide_dates = [
+        (art.get("updated") or art.get("published") or "")
+        for art in GUIDE_ARTICLES.values()
+        if _load_guide_body_html(art["slug"]).strip()
+    ]
+    guides_hub_lastmod = max(guide_dates) if guide_dates else "2026-11-13"
+    for loc, lastmod in (
+        (f"{base}/", "2026-11-19"),
+        (f"{base}/guides/", guides_hub_lastmod),
+    ):
         lines.append(f"  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>")
     for art in GUIDE_ARTICLES.values():
         if not _load_guide_body_html(art["slug"]).strip():
             continue
         loc = f"{base}/guides/{art['slug']}/"
-        lines.append(f"  <url><loc>{loc}</loc><lastmod>{art.get('updated', art['published'])}</lastmod></url>")
+        lines.append(
+            f"  <url><loc>{loc}</loc><lastmod>{art.get('updated', art['published'])}</lastmod></url>"
+        )
     for page in MARKETING_PAGES.values():
-        body = _load_marketing_body_html(page)
-        if not body.strip():
+        if not _load_marketing_body_html(page).strip():
             continue
         loc = f"{base}/{page['slug']}/"
-        lines.append(f"  <url><loc>{loc}</loc><lastmod>{page.get('updated', page['published'])}</lastmod></url>")
+        lines.append(
+            f"  <url><loc>{loc}</loc><lastmod>{page.get('updated', page['published'])}</lastmod></url>"
+        )
+    for slug in LEGAL_PAGES:
+        if slug == "public-offer":
+            legal_mod = "2026-11-18"
+        elif slug == "requisites":
+            legal_mod = "2026-11-20"
+        else:
+            legal_mod = "2026-11-14"
+        lines.append(f"  <url><loc>{LEGAL_BASE_URL}/{slug}</loc><lastmod>{legal_mod}</lastmod></url>")
     lines.append("</urlset>")
-    return Response(content="\n".join(lines), media_type="application/xml")
+    return "\n".join(lines)
+
+
+@app.get("/robots.txt", response_class=Response)
+async def robots_txt():
+    sitemap_url = f"{SITE_ORIGIN}{BASE_PATH}/sitemap.xml" if BASE_PATH else f"{SITE_ORIGIN}/sitemap.xml"
+    llms_url = f"{SITE_ORIGIN}{BASE_PATH}/llms.txt" if BASE_PATH else f"{SITE_ORIGIN}/llms.txt"
+    body = (
+        "User-agent: *\n"
+        "Disallow: /api/\n"
+        "Disallow: /auth/\n"
+        "Disallow: /admin\n"
+        f"Disallow: {LAB_ADMIN_PATH}\n"
+        "Disallow: /login\n"
+        "Disallow: /register\n"
+        "Disallow: /dashboard\n"
+        "Disallow: /ai-chat\n"
+        "Disallow: /account\n"
+        "Disallow: /experiment/\n"
+        "Disallow: /friends\n"
+        "Disallow: /chat\n"
+        "Disallow: /share/\n"
+        "Disallow: /invite\n"
+        "Disallow: /equipment\n"
+        "Disallow: /projects\n"
+        "Disallow: /materials\n"
+        "Disallow: /consumables\n"
+        "Disallow: /static/uploads/\n"
+        "Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid\n"
+        "\n"
+        f"Sitemap: {sitemap_url}\n"
+        f"# LLM context: {llms_url}\n"
+    )
+    return Response(content=body, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/llms.txt", response_class=Response)
+async def llms_txt():
+    path = os.path.join(WEB_DIR, "llms.txt")
+    try:
+        with open(path, encoding="utf-8") as f:
+            body = f.read()
+    except OSError:
+        body = (
+            "# Lab-Journal\n\n"
+            "> Электронный лабораторный журнал. Канон: https://labjournal.tech\n"
+        )
+    return Response(content=body, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/sitemap.xml", response_class=Response)
+@app.get("/sitemap-guides.xml", response_class=Response)
+async def sitemap_xml():
+    return Response(content=_build_sitemap_xml(), media_type="application/xml")
 
 
 def _load_marketing_body_html(page: dict) -> str:
@@ -1916,7 +2533,7 @@ def _load_marketing_body_html(page: dict) -> str:
     if not os.path.isfile(path):
         return ""
     with open(path, encoding="utf-8") as f:
-        return f.read().strip()
+        return _rewrite_guide_internal_links(f.read().strip())
 
 
 def _marketing_page_resolved(slug: str) -> dict | None:
@@ -1940,7 +2557,7 @@ def _marketing_page_json_ld(page: dict) -> str:
                 "@type": "BreadcrumbList",
                 "itemListElement": [
                     {"@type": "ListItem", "position": 1, "name": "Главная", "item": f"{SITE_ORIGIN}/"},
-                    {"@type": "ListItem", "position": 2, "name": "Bio-Notebook", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Lab-Journal", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
                     {"@type": "ListItem", "position": 3, "name": headline, "item": page_url},
                 ],
             },
@@ -2036,7 +2653,7 @@ def _guide_article_json_ld(article: dict) -> str:
                 "@id": f"{page_url}#breadcrumb",
                 "itemListElement": [
                     {"@type": "ListItem", "position": 1, "name": "Главная", "item": f"{SITE_ORIGIN}/"},
-                    {"@type": "ListItem", "position": 2, "name": "Bio-Notebook", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Lab-Journal", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
                     {"@type": "ListItem", "position": 3, "name": "Статьи", "item": f"{SITE_ORIGIN}{BASE_PATH}/guides/"},
                     {"@type": "ListItem", "position": 4, "name": headline, "item": page_url},
                 ],
@@ -2062,8 +2679,16 @@ def _guide_article_json_ld(article: dict) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+def _guides_hub_lastmod(articles: list[dict] | None = None) -> str:
+    arts = articles if articles is not None else list(GUIDE_ARTICLES.values())
+    dates = [(a.get("updated") or a.get("published") or "") for a in arts]
+    dates = [d for d in dates if d]
+    return max(dates) if dates else "2026-11-13"
+
+
 def _guides_hub_json_ld(articles: list[dict]) -> str:
     page_url = f"{SITE_ORIGIN}{BASE_PATH}/guides/"
+    hub_mod = _guides_hub_lastmod(articles)
     items = [
         {
             "@type": "ListItem",
@@ -2081,7 +2706,7 @@ def _guides_hub_json_ld(articles: list[dict]) -> str:
                 "@id": f"{page_url}#breadcrumb",
                 "itemListElement": [
                     {"@type": "ListItem", "position": 1, "name": "Главная", "item": f"{SITE_ORIGIN}/"},
-                    {"@type": "ListItem", "position": 2, "name": "Bio-Notebook", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Lab-Journal", "item": f"{SITE_ORIGIN}{BASE_PATH}/"},
                     {"@type": "ListItem", "position": 3, "name": "Статьи", "item": page_url},
                 ],
             },
@@ -2090,6 +2715,7 @@ def _guides_hub_json_ld(articles: list[dict]) -> str:
                 "@id": f"{page_url}#webpage",
                 "url": page_url,
                 "name": "Статьи: отчёты, лабораторный журнал, протоколы",
+                "dateModified": hub_mod,
                 "isPartOf": {"@id": f"{SITE_ORIGIN}/#website"},
                 "breadcrumb": {"@id": f"{page_url}#breadcrumb"},
                 "mainEntity": {"@id": f"{page_url}#itemlist"},
@@ -2104,16 +2730,58 @@ def _guides_hub_json_ld(articles: list[dict]) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+@app.get("/legal/{slug}")
+@app.get("/legal/{slug}/")
+async def legal_alias_redirect(slug: str):
+    key = (slug or "").strip("/")
+    if key not in LEGAL_PAGES:
+        return _not_found_response(f"/legal/{slug}")
+    target = f"{BASE_PATH}/{key}" if BASE_PATH else f"/{key}"
+    return RedirectResponse(url=target, status_code=301)
+
+
+@app.get("/public-offer", response_class=HTMLResponse)
+@app.get("/public-offer/", response_class=HTMLResponse)
+@app.get("/privacy", response_class=HTMLResponse)
+@app.get("/privacy/", response_class=HTMLResponse)
+@app.get("/consent-personal-data", response_class=HTMLResponse)
+@app.get("/consent-personal-data/", response_class=HTMLResponse)
+@app.get("/consent-mailing", response_class=HTMLResponse)
+@app.get("/consent-mailing/", response_class=HTMLResponse)
+@app.get("/requisites", response_class=HTMLResponse)
+@app.get("/requisites/", response_class=HTMLResponse)
+@app.get("/rekvizity", response_class=HTMLResponse)
+@app.get("/rekvizity/", response_class=HTMLResponse)
+async def legal_document_page(request: Request):
+    slug = (_request_inner_path(request) or "/").strip("/")
+    if slug == "rekvizity":
+        target = f"{BASE_PATH}/requisites" if BASE_PATH else "/requisites"
+        return RedirectResponse(url=target, status_code=301)
+    page = _legal_page_resolved(slug)
+    if not page:
+        return _not_found_response(f"/{slug}")
+    return templates.TemplateResponse(
+        request,
+        "legal_page.html",
+        {
+            "page": page,
+            "legal_base_url": LEGAL_BASE_URL,
+        },
+    )
+
+
 @app.get("/guides", response_class=HTMLResponse)
 @app.get("/guides/", response_class=HTMLResponse)
 async def guides_index(request: Request):
     articles = sorted(GUIDE_ARTICLES.values(), key=lambda a: a["published"], reverse=True)
+    hub_updated = _guides_hub_lastmod(articles)
     return templates.TemplateResponse(
         request,
         "guides_index.html",
         {
             "articles": articles,
             "guides_json_ld": _guides_hub_json_ld(articles),
+            "hub_updated": hub_updated,
         },
     )
 
@@ -2164,7 +2832,13 @@ async def api_labos_lead(request: Request, db: Session = Depends(get_db)):
     email = str(payload.get("email") or "").strip()[:320]
     org = str(payload.get("org") or "").strip()[:300]
     message = str(payload.get("message") or "").strip()[:4000]
+    consent = payload.get("consent_personal_data") in (True, "true", "1", 1, "on", "yes")
 
+    if not consent:
+        return JSONResponse(
+            {"ok": False, "error": "Нужно согласие на обработку персональных данных"},
+            status_code=400,
+        )
     if len(name) < 2:
         return JSONResponse({"ok": False, "error": "Укажите имя"}, status_code=400)
     if "@" not in email or "." not in email.split("@")[-1]:
@@ -2208,6 +2882,18 @@ async def api_tg_webhook(request: Request):
 
 
 # ── Auth ──
+
+@app.get("/index.html", include_in_schema=False)
+async def index_html_redirect():
+    """Close A8 tail: old anticus links to …/index.html → apex home."""
+    return RedirectResponse(url=f"{BASE_PATH}/", status_code=301)
+
+
+@app.get("/yandex_bd93356772fa18fd.html", include_in_schema=False)
+async def yandex_webmaster_verification():
+    path = os.path.join(WEB_DIR, "yandex_bd93356772fa18fd.html")
+    return FileResponse(path, media_type="text/html; charset=utf-8")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = None):
@@ -2305,6 +2991,7 @@ async def register(
         auth_provider="password",
         agree_marketing="true" if agree_marketing else "false",
         plan="free",
+        plan_expires_at="",
     )
     grant_welcome_trial(new_user)
     db.add(new_user)
@@ -2318,17 +3005,22 @@ async def register(
     ip = request.client.host if request else ""
     audit_log(
         db, final_username, "register", "user", final_username,
-        details=f"welcome_trial_{WELCOME_TRIAL_DAYS}d", ip=ip,
+        details=f"plan_pro;welcome_trial_{WELCOME_TRIAL_DAYS}d",
+        ip=ip,
     )
     tg_notify(
         "🆕 <b>Регистрация</b>\n"
         f"Логин: <code>{_tg_escape(final_username)}</code>\n"
         f"Email: {_tg_escape(email)}\n"
         f"Способ: пароль\n"
-        f"Trial: {WELCOME_TRIAL_DAYS}д\n"
+        f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
         f"IP: {_tg_escape(ip)}"
     )
-    return redirect_to_dashboard(final_username)
+    resp = RedirectResponse(
+        url=f"{BASE_PATH}/dashboard?user={final_username}&bn_signup=1&bn_method=email&bn_plan=pro",
+        status_code=302,
+    )
+    return attach_session_cookie(resp, final_username)
 
 
 @app.get("/logout")
@@ -2415,6 +3107,8 @@ async def auth_yandex_callback(
     if not yandex_id:
         return RedirectResponse(url=f"{BASE_PATH}/login?error=YandexAuthFailed", status_code=302)
 
+    ya_avatar = yandex_avatar_url(yandex_user.get("default_avatar_id"))
+
     user = db.query(UserDB).filter(UserDB.yandex_id == yandex_id).first()
     if not user and email:
         user = db.query(UserDB).filter(UserDB.email == email).first()
@@ -2424,10 +3118,14 @@ async def auth_yandex_callback(
                 user.display_name = display_name
             if user.auth_provider != "yandex":
                 user.auth_provider = "yandex" if not user.password else user.auth_provider
+            if ya_avatar and not (user.avatar_url or "").strip():
+                user.avatar_url = ya_avatar
 
+    is_new_yandex_user = False
     if not user:
         if state_data.get("mode") == "login":
             return RedirectResponse(url=f"{BASE_PATH}/login?error=YandexAccountNotFound", status_code=302)
+        is_new_yandex_user = True
         base_username = sanitize_username(login_name, f"ya_{yandex_id[:8]}")
         username = unique_username(db, base_username)
         user = UserDB(
@@ -2436,9 +3134,11 @@ async def auth_yandex_callback(
             password="",
             yandex_id=yandex_id,
             display_name=display_name,
+            avatar_url=ya_avatar,
             auth_provider="yandex",
             agree_marketing="true" if state_data.get("marketing") else "false",
             plan="free",
+            plan_expires_at="",
         )
         grant_welcome_trial(user)
         db.add(user)
@@ -2449,7 +3149,7 @@ async def auth_yandex_callback(
         db.commit()
         audit_log(
             db, username, "register", "user", username,
-            details=f"yandex_oauth;welcome_trial_{WELCOME_TRIAL_DAYS}d",
+            details=f"yandex_oauth;plan_pro;welcome_trial_{WELCOME_TRIAL_DAYS}d",
             ip=request.client.host if request.client else "",
         )
         tg_notify(
@@ -2458,7 +3158,7 @@ async def auth_yandex_callback(
             f"Email: {_tg_escape(email) or '—'}\n"
             f"Имя: {_tg_escape(display_name) or '—'}\n"
             f"Способ: Яндекс\n"
-            f"Trial: {WELCOME_TRIAL_DAYS}д\n"
+            f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
             f"IP: {_tg_escape(request.client.host if request.client else '')}"
         )
 
@@ -2468,9 +3168,38 @@ async def auth_yandex_callback(
     user.last_login = datetime.datetime.now().isoformat()
     db.commit()
     audit_log(db, user.username, "login", "user", user.username, details="yandex_oauth", ip=request.client.host if request.client else "")
+    if is_new_yandex_user:
+        resp = RedirectResponse(
+            url=f"{BASE_PATH}/dashboard?user={user.username}&bn_signup=1&bn_method=yandex_id&bn_plan=pro",
+            status_code=302,
+        )
+        return attach_session_cookie(resp, user.username)
     return redirect_to_dashboard(user.username)
 
 # ── Dashboard ──
+
+@app.get("/ai-chat", response_class=HTMLResponse)
+async def ai_chat_page(request: Request, user: str = "", db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    username = session_user or (user or "").strip()
+    if not username:
+        return RedirectResponse(url=f"{BASE_PATH}/login?error=LoginRequired", status_code=302)
+    if session_user and user and user != session_user:
+        return RedirectResponse(url=f"{BASE_PATH}/ai-chat?user={session_user}", status_code=302)
+    u = db.query(UserDB).filter(UserDB.username == username).first()
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    return templates.TemplateResponse(
+        request,
+        "ai_chat.html",
+        {
+            "user": username,
+            "active_page": "ai_chat",
+            "user_plan": plan,
+            "ai_enabled": plan_allows_ai(plan),
+            "lab_planner_enabled": LAB_PLANNER_ENABLED,
+        },
+    )
+
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str, db: Session = Depends(get_db)):
@@ -2486,6 +3215,10 @@ async def dashboard(request: Request, user: str, db: Session = Depends(get_db)):
         (FriendDB.user_id == user) | (FriendDB.friend_id == user),
     ).all()
 
+    u = db.query(UserDB).filter(UserDB.username == user).first()
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    show_onboarding = len(user_exps) == 0
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -2496,6 +3229,9 @@ async def dashboard(request: Request, user: str, db: Session = Depends(get_db)):
             "friend_rels": friend_rels,
             "active_page": "dashboard",
             "lab_planner_enabled": LAB_PLANNER_ENABLED,
+            "show_onboarding": show_onboarding,
+            "user_plan": plan,
+            "ai_enabled": plan_allows_ai(plan),
         },
     )
 
@@ -2553,23 +3289,33 @@ async def projects_page(request: Request, user: str, project: str = None, db: Se
 # ── Reagents page ──
 
 @app.get("/reagents", response_class=HTMLResponse)
-async def reagents_page(request: Request, user: str, db: Session = Depends(get_db)):
+async def reagents_page(request: Request, user: str, tab: str = "", db: Session = Depends(get_db)):
     reagents = db.query(ReagentDB).filter(ReagentDB.user_id == user).all()
+    consumables = db.query(ConsumableDB).filter(ConsumableDB.user_id == user).all()
     low_reagents = sum(1 for r in reagents if parse_amount(r.amount) <= parse_amount(r.min_amount))
+    low_consumables = sum(1 for c in consumables if parse_amount(c.amount) <= parse_amount(c.min_amount))
+    materials_tab = "consumables" if (tab or "").lower() == "consumables" else "reagents"
     return templates.TemplateResponse(
-        request, "reagents.html",
-        {"user": user, "reagents": reagents, "low_reagents": low_reagents, "active_page": "reagents"},
+        request,
+        "materials.html",
+        {
+            "user": user,
+            "reagents": reagents,
+            "consumables": consumables,
+            "low_reagents": low_reagents,
+            "low_consumables": low_consumables,
+            "materials_tab": materials_tab,
+            "active_page": "reagents",
+        },
     )
 
-# ── Consumables page ──
+# ── Consumables page (merged into /reagents tabs) ──
 
 @app.get("/consumables", response_class=HTMLResponse)
-async def consumables_page(request: Request, user: str, db: Session = Depends(get_db)):
-    consumables = db.query(ConsumableDB).filter(ConsumableDB.user_id == user).all()
-    low_consumables = sum(1 for c in consumables if parse_amount(c.amount) <= parse_amount(c.min_amount))
-    return templates.TemplateResponse(
-        request, "consumables.html",
-        {"user": user, "consumables": consumables, "low_consumables": low_consumables, "active_page": "consumables"},
+async def consumables_page(request: Request, user: str):
+    return RedirectResponse(
+        url=f"{BASE_PATH}/reagents?user={user}&tab=consumables",
+        status_code=302,
     )
 
 # ── Experiments ──
@@ -2577,6 +3323,7 @@ async def consumables_page(request: Request, user: str, db: Session = Depends(ge
 @app.post("/create_experiment")
 async def create_experiment(
     user: str = Form(...), name: str = Form(...), description: str = Form(...),
+    template: str = Form("lab"),
     db: Session = Depends(get_db)
 ):
     exp_id = str(uuid.uuid4())[:8]
@@ -2586,21 +3333,43 @@ async def create_experiment(
 
     notebook_content = {
         "cells": [{"cell_type": "markdown", "id": "intro", "metadata": {},
-                    "source": [f"# Эксперимент: {name}\n", f"**Описание:** {description}\n"]}],
+                    "source": [f"# Лабораторная: {name}\n", f"**Описание:** {description}\n"]}],
         "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}},
         "nbformat": 4, "nbformat_minor": 5
     }
     with open(os.path.join(exp_dir, "experiment.ipynb"), "w") as f:
         json.dump(notebook_content, f)
 
+    tpl = (template or "lab").strip().lower()
+    levels = lab_report_template_levels() if tpl != "blank" else blank_lab_levels()
     new_exp = ExperimentDB(
         id=exp_id, user_id=user, name=name, description=description,
-        levels=[[{"id": "root", "title": "Начало исследования", "content": "Инициализация среды."}]]
+        levels=levels,
     )
     db.add(new_exp)
+    # Seed starter note text for first stage
+    first = levels[0][0] if levels and levels[0] else None
+    if first:
+        db.add(NodeNotesDB(
+            id=str(uuid.uuid4())[:8],
+            exp_id=exp_id,
+            node_id=first["id"],
+            notes_html=(
+                f"<h2>{_html.escape(first.get('title') or '')}</h2>"
+                f"<p>{_html.escape(first.get('content') or '')}</p>"
+                "<p><em>Подсказка: добавьте фото кнопкой «Фото», распознайте текст кнопкой «OCR», "
+                "экспортируйте отчёт в DOCX/PDF.</em></p>"
+            ),
+            chat_history=[],
+        ))
     db.commit()
-    audit_log(db, user, "create", "experiment", exp_id, json.dumps({"name": name}))
-    return RedirectResponse(url=f"{BASE_PATH}/dashboard?user={user}", status_code=302)
+    audit_log(db, user, "create", "experiment", exp_id, json.dumps({"name": name, "template": tpl}))
+    if first:
+        return RedirectResponse(
+            url=f"{BASE_PATH}/experiment/{user}/{exp_id}/node/{first['id']}",
+            status_code=302,
+        )
+    return RedirectResponse(url=f"{BASE_PATH}/experiment/{user}/{exp_id}", status_code=302)
 
 @app.get("/experiment/{user}/{exp_id}", response_class=HTMLResponse)
 async def experiment_detail(request: Request, user: str, exp_id: str, viewing_user: str = None, db: Session = Depends(get_db)):
@@ -3038,7 +3807,7 @@ async def pricing_page(request: Request, user: str = "", db: Session = Depends(g
             "period": "навсегда",
             "desc": "Журнал без ИИ-агента — старт без карты",
             "features": [
-                "Эксперименты и узлы",
+                "Эксперименты и этапы",
                 "OCR и голосовой ввод",
                 "Отчёты DOCX / PDF",
                 "Без ИИ-агента",
@@ -3051,7 +3820,7 @@ async def pricing_page(request: Request, user: str = "", db: Session = Depends(g
             "name": "Pro",
             "price": "319 ₽",
             "period": "в месяц",
-            "desc": "Агент и все возможности Bio-Notebook",
+            "desc": "Агент и все возможности Lab-Journal",
             "features": [
                 "Всё из Free",
                 "ИИ-агент по вашим записям",
@@ -3182,6 +3951,17 @@ async def user_profile(request: Request, username: str, user: str, db: Session =
     )
 
 
+def _accepted_friend_usernames(db: Session, user: str) -> list[str]:
+    friends = db.query(FriendDB).filter(
+        (FriendDB.user_id == user) | (FriendDB.friend_id == user),
+        FriendDB.status == "accepted",
+    ).all()
+    names = []
+    for f in friends:
+        names.append(f.friend_id if f.user_id == user else f.user_id)
+    return sorted(set(names))
+
+
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request, user: str, db: Session = Depends(get_db)):
     """Full-page chat with friends."""
@@ -3191,6 +3971,7 @@ async def chat_page(request: Request, user: str, db: Session = Depends(get_db)):
             "user": user,
             "start_chat": "",
             "active_page": "chat",
+            "friend_usernames": _accepted_friend_usernames(db, user),
         },
     )
 
@@ -3204,8 +3985,147 @@ async def chat_with_user(request: Request, user: str, username: str, db: Session
             "user": user,
             "start_chat": username,
             "active_page": "chat",
+            "friend_usernames": _accepted_friend_usernames(db, user),
         },
     )
+
+
+@app.get("/account", response_class=HTMLResponse)
+async def account_settings(request: Request, db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    if not session_user:
+        return RedirectResponse(url=f"{BASE_PATH}/login?error=LoginRequired", status_code=302)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first()
+    if not u:
+        return RedirectResponse(url=f"{BASE_PATH}/login?error=UserNotFound", status_code=302)
+    plan = sync_user_plan_effective(u, db)
+    used = _user_storage_bytes(session_user, db)
+    limit = storage_limit_bytes(plan)
+    return templates.TemplateResponse(
+        request,
+        "account.html",
+        {
+            "user": session_user,
+            "profile": u,
+            "active_page": "account",
+            "user_plan": plan,
+            "plan_label": PLAN_LABELS.get(plan, "Free"),
+            "plan_expires_at": (u.plan_expires_at or "").strip(),
+            "storage_used": used,
+            "storage_limit": limit,
+            "storage_used_label": format_bytes_ru(used),
+            "storage_limit_label": format_bytes_ru(limit),
+            "storage_pct": min(100, int(round(100 * used / limit))) if limit else 0,
+            "can_change_password": bool((u.password or "").strip()) and (u.auth_provider or "password") != "yandex",
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@app.post("/account/password")
+async def account_change_password(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    new_password2: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    session_user = get_session_username(request)
+    if not session_user:
+        return RedirectResponse(url=f"{BASE_PATH}/login?error=LoginRequired", status_code=302)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first()
+    if not u or not (u.password or "").strip():
+        return RedirectResponse(url=f"{BASE_PATH}/account?error=NoPassword", status_code=302)
+    if len(new_password or "") < 6:
+        return RedirectResponse(url=f"{BASE_PATH}/account?error=WeakPassword", status_code=302)
+    if new_password != new_password2:
+        return RedirectResponse(url=f"{BASE_PATH}/account?error=PasswordMismatch", status_code=302)
+    if not verify_password(u.password, current_password or ""):
+        return RedirectResponse(url=f"{BASE_PATH}/account?error=WrongPassword", status_code=302)
+    u.password = hash_password(new_password)
+    db.commit()
+    audit_log(db, session_user, "password_change", "user", session_user, details="")
+    return RedirectResponse(url=f"{BASE_PATH}/account?msg=PasswordChanged", status_code=302)
+
+
+@app.post("/api/profile/avatar")
+async def upload_profile_avatar(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    session_user = get_session_username(request)
+    if not session_user:
+        return JSONResponse({"ok": False, "error": "LoginRequired"}, status_code=401)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first()
+    if not u:
+        return JSONResponse({"ok": False, "error": "UserNotFound"}, status_code=404)
+
+    raw_name = (file.filename or "photo.jpg").strip()
+    ext = raw_name.rsplit(".", 1)[-1].lower() if "." in raw_name else ""
+    ctype = (file.content_type or "").lower()
+    if ext not in AVATAR_ALLOWED_EXT and ctype not in (
+        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+    ):
+        return JSONResponse(
+            {"ok": False, "error": "Нужен файл JPG, PNG, WebP или GIF"},
+            status_code=400,
+        )
+    if ext not in AVATAR_ALLOWED_EXT:
+        ext = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
+               "image/webp": "webp", "image/gif": "gif"}.get(ctype, "jpg")
+    if ext == "jpeg":
+        ext = "jpg"
+
+    data = await file.read(AVATAR_MAX_BYTES + 1)
+    if not data:
+        return JSONResponse({"ok": False, "error": "Пустой файл"}, status_code=400)
+    if len(data) > AVATAR_MAX_BYTES:
+        return JSONResponse({"ok": False, "error": "Файл больше 5 МБ"}, status_code=400)
+
+    # light magic-byte check
+    head = data[:16]
+    ok_magic = (
+        head.startswith(b"\xff\xd8\xff")
+        or head.startswith(b"\x89PNG\r\n\x1a\n")
+        or head.startswith(b"GIF87a")
+        or head.startswith(b"GIF89a")
+        or (len(head) >= 12 and head[0:4] == b"RIFF" and head[8:12] == b"WEBP")
+    )
+    if not ok_magic:
+        return JSONResponse({"ok": False, "error": "Файл не похож на изображение"}, status_code=400)
+
+    safe_user = re.sub(r"[^a-zA-Z0-9_-]", "_", session_user)[:40] or "user"
+    fname = f"avatar_{safe_user}_{uuid.uuid4().hex[:10]}.{ext}"
+    path = os.path.join(UPLOADS_DIR, fname)
+    with open(path, "wb") as f:
+        f.write(data)
+
+    old = (u.avatar_url or "").strip()
+    u.avatar_url = f"/static/uploads/{fname}"
+    db.commit()
+    _delete_local_avatar(old)
+    audit_log(db, session_user, "avatar_upload", "user", session_user, details=fname)
+    return JSONResponse({"ok": True, "url": avatar_src(u.avatar_url)})
+
+
+@app.delete("/api/profile/avatar")
+async def delete_profile_avatar(request: Request, db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    if not session_user:
+        return JSONResponse({"ok": False, "error": "LoginRequired"}, status_code=401)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first()
+    if not u:
+        return JSONResponse({"ok": False, "error": "UserNotFound"}, status_code=404)
+    old = (u.avatar_url or "").strip()
+    if not old:
+        return JSONResponse({"ok": True, "url": ""})
+    u.avatar_url = ""
+    db.commit()
+    _delete_local_avatar(old)
+    audit_log(db, session_user, "avatar_delete", "user", session_user, details="")
+    return JSONResponse({"ok": True, "url": ""})
 
 
 @app.post("/api/friends/request")
@@ -3389,13 +4309,13 @@ async def get_chat_messages(chat_id: str, request: Request, db: Session = Depend
     ).order_by(FriendMessageDB.created_at.asc()).all()
     return JSONResponse({
         "messages": [
-            {
-                "id": m.id,
-                "sender": m.sender,
-                "content": m.content,
-                "created_at": m.created_at,
-            }
-            for m in msgs
+        {
+            "id": m.id,
+            "sender": m.sender,
+            "content": m.content,
+            "created_at": m.created_at,
+        }
+        for m in msgs
         ],
         "my_last_read_at": _chat_last_read_at(chat, user),
         "peer_last_read_at": _chat_peer_last_read_at(chat, user),
@@ -3770,6 +4690,47 @@ async def node_detail(request: Request, user: str, exp_id: str, node_id: str, db
 
 # ── API: save notes ──
 
+def _version_author_label(request: Request, db: Session) -> str:
+    username = get_session_username(request) or ""
+    if not username:
+        return ""
+    user = db.query(UserDB).filter(UserDB.username == username).first()
+    display = ((user.display_name if user else "") or "").strip()
+    return display or username
+
+
+def _maybe_create_node_version(
+    db: Session,
+    *,
+    exp_id: str,
+    node_id: str,
+    html: str,
+    author: str = "",
+    message: str = "Автосохранение",
+    force: bool = False,
+) -> NodeVersionDB | None:
+    """Persist a snapshot when content changed (autosave is already debounced in UI)."""
+    latest = (
+        db.query(NodeVersionDB)
+        .filter(NodeVersionDB.exp_id == exp_id, NodeVersionDB.node_id == node_id)
+        .order_by(NodeVersionDB.created_at.desc())
+        .first()
+    )
+    if latest and (latest.html_snapshot or "") == (html or "") and not force:
+        return None
+    if latest and (latest.html_snapshot or "") == (html or "") and force:
+        return None
+    version = NodeVersionDB(
+        exp_id=exp_id,
+        node_id=node_id,
+        html_snapshot=html or "",
+        message=message,
+        author=author or "",
+    )
+    db.add(version)
+    return version
+
+
 @app.post("/api/node/save")
 async def save_node_notes(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
@@ -3783,55 +4744,742 @@ async def save_node_notes(request: Request, db: Session = Depends(get_db)):
         notes.notes_html = html
         if annotation_url:
             notes.annotation_url = annotation_url
+        version = _maybe_create_node_version(
+            db,
+            exp_id=exp_id,
+            node_id=node_id,
+            html=html,
+            author=_version_author_label(request, db),
+            message="Автосохранение",
+        )
         db.commit()
-        return JSONResponse({"ok": True})
+        payload = {"ok": True}
+        if version:
+            payload["version_id"] = version.id
+        return JSONResponse(payload)
     return JSONResponse({"ok": False}, status_code=404)
 
-# ── API: export node to DOCX ──
+# ── Export helpers (DOCX / PDF / PPTX) ──
 
-def _html_to_text_for_docx(s: str) -> str:
-    if not s:
-        return ""
-    # Keep basic line breaks before stripping tags
-    s = re.sub(r"(?i)<br\\s*/?>", "\n", s)
-    s = re.sub(r"(?i)</p\\s*>", "\n\n", s)
-    s = re.sub(r"(?i)</div\\s*>", "\n", s)
-    s = re.sub(r"(?i)</li\\s*>", "\n", s)
-    s = re.sub(r"<[^>]+>", "", s)
-    s = _html.unescape(s)
-    # Normalize whitespace/newlines
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    s = re.sub(r"\n{3,}", "\n\n", s)
-    return s.strip()
-
-@app.get("/api/node/export_docx")
-async def export_node_docx(exp_id: str, node_id: str, db: Session = Depends(get_db)):
+def _export_meta(db: Session, exp_id: str, node_id: str) -> dict:
+    exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id).first()
+    node = _find_node(exp, node_id) if exp else None
+    title = ((node or {}).get("title") if isinstance(node, dict) else None) or f"Узел {node_id}"
+    author = ""
+    if exp and exp.user_id:
+        user = db.query(UserDB).filter(UserDB.username == exp.user_id).first()
+        author = ((user.display_name if user else "") or "").strip() or exp.user_id
     notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id, NodeNotesDB.node_id == node_id).first()
-    text = _html_to_text_for_docx((notes.notes_html if notes else "") or "")
+    return {
+        "title": title,
+        "author": author,
+        "experiment": (exp.name if exp else "") or "",
+        "html": (notes.notes_html if notes else "") or "",
+        "date": datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
+    }
 
+
+def _resolve_export_image_path(src: str) -> str | None:
+    if not src:
+        return None
+    src = _html.unescape(src.strip())
+    if src.startswith("data:image/"):
+        try:
+            header, b64 = src.split(",", 1)
+            ext = "png"
+            if "jpeg" in header or "jpg" in header:
+                ext = "jpg"
+            elif "gif" in header:
+                ext = "gif"
+            elif "webp" in header:
+                ext = "webp"
+            raw = base64.b64decode(b64)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
+            tmp.write(raw)
+            tmp.close()
+            return tmp.name
+        except Exception:
+            return None
+    path = urlparse(src).path if "://" in src else src
+    path = unquote_plus(path)
+    markers = ("/static/uploads/", "/uploads/")
+    fname = ""
+    for marker in markers:
+        if marker in path:
+            fname = path.split(marker, 1)[1]
+            break
+    if not fname:
+        fname = os.path.basename(path)
+    fname = os.path.basename(fname.split("?")[0])
+    if not fname or ".." in fname:
+        return None
+    full = os.path.join(UPLOADS_DIR, fname)
+    return full if os.path.isfile(full) else None
+
+
+def _parse_html_export_blocks(html: str) -> list[dict]:
+    """Turn notebook HTML into structured blocks for exporters."""
+    from html.parser import HTMLParser
+
+    class _Parser(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.blocks: list[dict] = []
+            self._buf: list[str] = []
+            self._skip = 0
+            self._heading: int | None = None
+            self._in_li = False
+            self._in_pre = False
+            self._list_items: list[str] = []
+
+        def _flush_text(self, force_para: bool = False):
+            text = "".join(self._buf)
+            self._buf = []
+            if self._heading is not None:
+                cleaned = re.sub(r"\s+", " ", text).strip()
+                if cleaned:
+                    self.blocks.append({"type": f"h{self._heading}", "text": cleaned})
+                self._heading = None
+                return
+            if self._in_li:
+                return
+            if self._in_pre:
+                return
+            cleaned = re.sub(r"[ \t]+\n", "\n", text)
+            cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+            if cleaned or force_para:
+                if cleaned:
+                    self.blocks.append({"type": "p", "text": cleaned})
+
+        def handle_starttag(self, tag, attrs):
+            tag = tag.lower()
+            attrs_d = {k.lower(): (v or "") for k, v in attrs}
+            if tag in ("script", "style", "button", "svg"):
+                self._skip += 1
+                return
+            if self._skip:
+                return
+            if tag in ("h1", "h2", "h3", "h4"):
+                self._flush_text()
+                self._heading = int(tag[1])
+                return
+            if tag == "img":
+                self._flush_text()
+                src = attrs_d.get("src", "")
+                alt = attrs_d.get("alt", "")
+                path = _resolve_export_image_path(src)
+                if path:
+                    self.blocks.append({"type": "img", "path": path, "alt": alt})
+                elif alt:
+                    self.blocks.append({"type": "p", "text": f"[Изображение: {alt}]"})
+                return
+            if tag == "br":
+                self._buf.append("\n")
+                return
+            if tag in ("p", "div", "section", "article", "tr"):
+                self._flush_text()
+                return
+            if tag in ("ul", "ol"):
+                self._flush_text()
+                self._list_items = []
+                return
+            if tag == "li":
+                self._flush_text()
+                self._in_li = True
+                self._buf = []
+                return
+            if tag in ("pre", "code") and not self._in_pre:
+                # only treat standalone pre/code-cell bodies as code blocks
+                if tag == "pre" or attrs_d.get("class", "").find("code") >= 0:
+                    self._flush_text()
+                    self._in_pre = True
+                    self._buf = []
+                return
+            if tag == "hr":
+                self._flush_text()
+                self.blocks.append({"type": "p", "text": "— — —"})
+
+        def handle_endtag(self, tag):
+            tag = tag.lower()
+            if tag in ("script", "style", "button", "svg"):
+                self._skip = max(0, self._skip - 1)
+                return
+            if self._skip:
+                return
+            if tag in ("h1", "h2", "h3", "h4"):
+                self._flush_text()
+                return
+            if tag in ("p", "div", "section", "article", "tr"):
+                self._flush_text(force_para=False)
+                return
+            if tag == "li":
+                text = re.sub(r"\s+", " ", "".join(self._buf)).strip()
+                self._buf = []
+                self._in_li = False
+                if text:
+                    self._list_items.append(text)
+                return
+            if tag in ("ul", "ol"):
+                for item in self._list_items:
+                    self.blocks.append({"type": "li", "text": item})
+                self._list_items = []
+                return
+            if tag in ("pre", "code") and self._in_pre:
+                code = "".join(self._buf).strip("\n")
+                self._buf = []
+                self._in_pre = False
+                if code:
+                    self.blocks.append({"type": "code", "text": code})
+                return
+
+        def handle_data(self, data):
+            if self._skip:
+                return
+            self._buf.append(data)
+
+        def close(self):
+            self._flush_text()
+            super().close()
+
+    parser = _Parser()
     try:
-        from docx import Document  # type: ignore
+        parser.feed(html or "")
+        parser.close()
     except Exception:
-        return JSONResponse({"ok": False, "error": "DOCX export unavailable (python-docx not installed)."}, status_code=501)
+        text = re.sub(r"(?i)<br\s*/?>", "\n", html or "")
+        text = re.sub(r"(?i)</p\s*>", "\n\n", text)
+        text = re.sub(r"<[^>]+>", "", text)
+        text = _html.unescape(text).strip()
+        return [{"type": "p", "text": text}] if text else []
+    return parser.blocks
+
+
+def _build_docx_bytes(meta: dict) -> bytes:
+    from docx import Document  # type: ignore
+    from docx.shared import Cm, Pt, RGBColor  # type: ignore
+    from docx.enum.text import WD_ALIGN_PARAGRAPH  # type: ignore
 
     doc = Document()
-    if text:
-        for block in text.split("\n\n"):
-            doc.add_paragraph(block)
+    title = doc.add_heading(meta["title"], level=0)
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    meta_line = " · ".join(
+        part for part in (
+            f"Автор: {meta['author']}" if meta.get("author") else "",
+            f"Дата: {meta.get('date') or ''}",
+            f"Эксперимент: {meta['experiment']}" if meta.get("experiment") else "",
+        ) if part
+    )
+    if meta_line:
+        p = doc.add_paragraph(meta_line)
+        for run in p.runs:
+            run.font.size = Pt(10)
+            run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+
+    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    if not blocks:
+        doc.add_paragraph("(пусто)")
+    for block in blocks:
+        kind = block.get("type")
+        if kind in ("h1", "h2", "h3", "h4"):
+            level = int(kind[1])
+            doc.add_heading(block.get("text") or "", level=min(level, 3))
+        elif kind == "li":
+            doc.add_paragraph(block.get("text") or "", style="List Bullet")
+        elif kind == "code":
+            p = doc.add_paragraph()
+            run = p.add_run(block.get("text") or "")
+            run.font.name = "Courier New"
+            run.font.size = Pt(9)
+        elif kind == "img":
+            path = block.get("path")
+            try:
+                doc.add_picture(path, width=Cm(14))
+                alt = (block.get("alt") or "").strip()
+                if alt:
+                    cap = doc.add_paragraph(alt)
+                    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for run in cap.runs:
+                        run.font.size = Pt(9)
+                        run.font.italic = True
+            except Exception:
+                doc.add_paragraph(f"[Не удалось вставить изображение: {os.path.basename(path or '')}]")
     else:
-        doc.add_paragraph("")
+            text = block.get("text") or ""
+            for part in text.split("\n\n"):
+                part = part.strip()
+                if part:
+                    doc.add_paragraph(part)
 
     buf = io.BytesIO()
     doc.save(buf)
-    buf.seek(0)
+    return buf.getvalue()
 
-    fname = f"node_{node_id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+
+def _build_pdf_bytes(meta: dict) -> bytes:
+    from reportlab.lib.pagesizes import A4  # type: ignore
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
+    from reportlab.lib.units import cm  # type: ignore
+    from reportlab.platypus import (  # type: ignore
+        SimpleDocTemplate, Paragraph, Spacer, Image, Preformatted, ListFlowable, ListItem,
+    )
+    from reportlab.pdfbase import pdfmetrics  # type: ignore
+    from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
+    from reportlab.lib.enums import TA_LEFT  # type: ignore
+
+    font_name = "Helvetica"
+    font_bold = "Helvetica-Bold"
+    for cand in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+    ):
+        if os.path.isfile(cand):
+            try:
+                pdfmetrics.registerFont(TTFont("ExportSans", cand))
+                bold_cand = cand.replace("Regular", "Bold").replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
+                if os.path.isfile(bold_cand):
+                    pdfmetrics.registerFont(TTFont("ExportSans-Bold", bold_cand))
+                    font_bold = "ExportSans-Bold"
+                else:
+                    font_bold = "ExportSans"
+                font_name = "ExportSans"
+                break
+            except Exception:
+                pass
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="ExportTitle", fontName=font_bold, fontSize=18, leading=22, spaceAfter=8, alignment=TA_LEFT))
+    styles.add(ParagraphStyle(name="ExportMeta", fontName=font_name, fontSize=9, leading=12, textColor="#555555", spaceAfter=14))
+    styles.add(ParagraphStyle(name="ExportH1", fontName=font_bold, fontSize=14, leading=18, spaceBefore=10, spaceAfter=6))
+    styles.add(ParagraphStyle(name="ExportH2", fontName=font_bold, fontSize=12, leading=16, spaceBefore=8, spaceAfter=4))
+    styles.add(ParagraphStyle(name="ExportBody", fontName=font_name, fontSize=10, leading=14, spaceAfter=6))
+    styles.add(ParagraphStyle(name="ExportCode", fontName="Courier", fontSize=8, leading=10, spaceAfter=8))
+
+    def esc(s: str) -> str:
+        return _html.escape(s or "").replace("\n", "<br/>")
+
+    story = [Paragraph(esc(meta["title"]), styles["ExportTitle"])]
+    meta_line = " · ".join(
+        part for part in (
+            f"Автор: {meta['author']}" if meta.get("author") else "",
+            f"Дата: {meta.get('date') or ''}",
+            f"Эксперимент: {meta['experiment']}" if meta.get("experiment") else "",
+        ) if part
+    )
+    if meta_line:
+        story.append(Paragraph(esc(meta_line), styles["ExportMeta"]))
+
+    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    if not blocks:
+        story.append(Paragraph("(пусто)", styles["ExportBody"]))
+    for block in blocks:
+        kind = block.get("type")
+        if kind == "h1":
+            story.append(Paragraph(esc(block.get("text")), styles["ExportH1"]))
+        elif kind in ("h2", "h3", "h4"):
+            story.append(Paragraph(esc(block.get("text")), styles["ExportH2"]))
+        elif kind == "li":
+            story.append(Paragraph("• " + esc(block.get("text")), styles["ExportBody"]))
+        elif kind == "code":
+            story.append(Preformatted(block.get("text") or "", styles["ExportCode"]))
+        elif kind == "img":
+            path = block.get("path")
+            try:
+                from reportlab.lib.utils import ImageReader  # type: ignore
+                ir = ImageReader(path)
+                iw, ih = float(ir.getSize()[0] or 1), float(ir.getSize()[1] or 1)
+                # Fit inside page frame (A4 − margins). Tall phone photos
+                # previously blew past frame height → "Flowable ... too large".
+                max_w = float(doc.width)
+                max_h = float(doc.height) * 0.92
+                scale = min(max_w / iw, max_h / ih, 1.0)
+                img = Image(path, width=iw * scale, height=ih * scale)
+                img.hAlign = "LEFT"
+                story.append(img)
+                story.append(Spacer(1, 6))
+            except Exception:
+                story.append(Paragraph(esc(f"[Изображение: {os.path.basename(path or '')}]"), styles["ExportBody"]))
+        else:
+            text = (block.get("text") or "").strip()
+            if text:
+                story.append(Paragraph(esc(text).replace("\n", "<br/>"), styles["ExportBody"]))
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _build_pptx_bytes(meta: dict) -> bytes:
+    from pptx import Presentation  # type: ignore
+    from pptx.util import Inches, Pt  # type: ignore
+
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+
+    # Title slide
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    slide.shapes.title.text = meta.get("title") or "Lab-Journal"
+    subtitle = " · ".join(
+        part for part in (
+            meta.get("author") or "",
+            meta.get("date") or "",
+            meta.get("experiment") or "",
+        ) if part
+    )
+    if slide.placeholders and len(slide.placeholders) > 1:
+        slide.placeholders[1].text = subtitle or "Экспорт из Lab-Journal"
+
+    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    # Group into slides by headings; pack paragraphs
+    slides_spec: list[dict] = []
+    current = {"title": "Содержание", "items": []}
+    for block in blocks:
+        kind = block.get("type")
+        if kind in ("h1", "h2"):
+            if current["items"] or (current["title"] != "Содержание" and not slides_spec):
+                slides_spec.append(current)
+            current = {"title": block.get("text") or "Раздел", "items": []}
+        elif kind == "img":
+            current["items"].append(block)
+        else:
+            text = (block.get("text") or "").strip()
+            if text:
+                prefix = "• " if kind == "li" else ""
+                current["items"].append({"type": "text", "text": prefix + text})
+    if current["items"] or not slides_spec:
+        slides_spec.append(current)
+
+    for spec in slides_spec:
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank-ish title only
+        # title box
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.3), Inches(0.8))
+        tf = title_box.text_frame
+        tf.text = spec["title"]
+        tf.paragraphs[0].font.size = Pt(28)
+        tf.paragraphs[0].font.bold = True
+
+        y = 1.2
+        for item in spec["items"]:
+            if y > 6.5:
+                break
+            if item.get("type") == "img":
+                path = item.get("path")
+                try:
+                    slide.shapes.add_picture(path, Inches(0.8), Inches(y), width=Inches(8))
+                    y += 3.2
+                except Exception:
+                    box = slide.shapes.add_textbox(Inches(0.6), Inches(y), Inches(12), Inches(0.4))
+                    box.text_frame.text = f"[Изображение: {os.path.basename(path or '')}]"
+                    y += 0.5
+            else:
+                box = slide.shapes.add_textbox(Inches(0.6), Inches(y), Inches(12), Inches(0.9))
+                p = box.text_frame.paragraphs[0]
+                p.text = item.get("text") or ""
+                p.font.size = Pt(16)
+                y += 0.55
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
+
+
+def _export_filename(prefix: str, node_id: str, ext: str) -> str:
+    safe = re.sub(r"[^\w.-]+", "_", str(node_id))[:40]
+    return f"{prefix}_{safe}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+
+
+@app.get("/api/node/export_docx")
+async def export_node_docx(exp_id: str, node_id: str, db: Session = Depends(get_db)):
+    meta = _export_meta(db, exp_id, node_id)
+    try:
+        data = _build_docx_bytes(meta)
+    except ImportError:
+        return JSONResponse({"ok": False, "error": "DOCX export unavailable (python-docx not installed)."}, status_code=501)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"DOCX export failed: {e}"}, status_code=500)
+
+    buf = io.BytesIO(data)
+    fname = _export_filename("node", node_id, "docx")
     headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers=headers,
     )
+
+
+@app.get("/api/node/export_pdf")
+async def export_node_pdf(exp_id: str, node_id: str, db: Session = Depends(get_db)):
+    meta = _export_meta(db, exp_id, node_id)
+    try:
+        data = _build_pdf_bytes(meta)
+    except ImportError:
+        return JSONResponse({"ok": False, "error": "PDF export unavailable (reportlab not installed)."}, status_code=501)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"PDF export failed: {e}"}, status_code=500)
+
+    buf = io.BytesIO(data)
+    fname = _export_filename("node", node_id, "pdf")
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    return StreamingResponse(buf, media_type="application/pdf", headers=headers)
+
+
+@app.get("/api/node/export_pptx")
+async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first() if session_user else None
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    if not plan_allows_ai(plan):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "PPTX — в тарифе Pro. На Free доступны DOCX и PDF.",
+                "upgrade": True,
+            },
+            status_code=403,
+        )
+    meta = _export_meta(db, exp_id, node_id)
+    try:
+        data = _build_pptx_bytes(meta)
+    except ImportError:
+        return JSONResponse({"ok": False, "error": "PPTX export unavailable (python-pptx not installed)."}, status_code=501)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"PPTX export failed: {e}"}, status_code=500)
+
+    buf = io.BytesIO(data)
+    fname = _export_filename("node", node_id, "pptx")
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers=headers,
+    )
+
+
+def _tpl_field(key: str, label: str) -> str:
+    return (
+        f'<span class="tpl-field" data-field="{key}" contenteditable="false">{label}</span>'
+    )
+
+
+_DEFAULT_EXPORT_TEMPLATE_HTML = f"""
+<p style="text-align:center;margin:0 0 0.35em;font-size:13pt;line-height:1.35;">Министерство науки и высшего образования РФ</p>
+<p style="text-align:center;margin:0 0 0.35em;font-size:13pt;line-height:1.35;"><strong>{_tpl_field("university", "Вуз")}</strong></p>
+<p style="text-align:center;margin:0 0 1.6em;font-size:12pt;color:#444;">Факультет / кафедра: {_tpl_field("faculty", "Кафедра")}</p>
+<p style="text-align:center;margin:2.2em 0 0.4em;font-size:16pt;"><strong>ОТЧЁТ</strong></p>
+<p style="text-align:center;margin:0 0 2em;font-size:14pt;">по лабораторной работе</p>
+<p style="text-align:center;margin:0 0 0.5em;font-size:13pt;">«{_tpl_field("title", "Тема работы")}»</p>
+<p style="margin:2.5em 0 0.4em;">Дисциплина: {_tpl_field("discipline", "Дисциплина")}</p>
+<p style="margin:0 0 0.4em;">Студент: {_tpl_field("student", "Студент")} &nbsp;&nbsp; Группа: {_tpl_field("group", "Группа")}</p>
+<p style="margin:0 0 2.5em;">Преподаватель: {_tpl_field("teacher", "Преподаватель")}</p>
+<p style="text-align:center;margin-top:4em;">{_tpl_field("city", "Город")}, {_tpl_field("year", "Год")}</p>
+<hr style="margin:2.5em 0;border:none;border-top:1px solid #ccc;">
+<h2>1. Цель работы</h2>
+<p>{_tpl_field("goal", "Цель")}</p>
+<h2>2. Оборудование и материалы</h2>
+<p>{_tpl_field("materials", "Материалы")}</p>
+<h2>3. Ход работы</h2>
+<p>{_tpl_field("procedure", "Ход работы")}</p>
+<h2>4. Результаты</h2>
+<p>{_tpl_field("results", "Результаты")}</p>
+<h2>5. Выводы</h2>
+<p>{_tpl_field("conclusion", "Выводы")}</p>
+""".strip()
+
+
+def _require_session_user(request: Request, user: str = "") -> str | None:
+    session_user = get_session_username(request)
+    username = session_user or (user or "").strip()
+    return username or None
+
+
+@app.get("/export-template", response_class=HTMLResponse)
+async def export_template_page(
+    request: Request,
+    user: str = "",
+    tpl_id: str = "",
+    exp_id: str = "",
+    node_id: str = "",
+    db: Session = Depends(get_db),
+):
+    username = _require_session_user(request, user)
+    if not username:
+        return RedirectResponse(url=f"{BASE_PATH}/login?error=LoginRequired", status_code=302)
+    if get_session_username(request) and user and user != get_session_username(request):
+        q = f"user={get_session_username(request)}"
+        if tpl_id:
+            q += f"&tpl_id={tpl_id}"
+        if exp_id:
+            q += f"&exp_id={exp_id}"
+        if node_id:
+            q += f"&node_id={node_id}"
+        return RedirectResponse(url=f"{BASE_PATH}/export-template?{q}", status_code=302)
+
+    templates_list = (
+        db.query(ExportTemplateDB)
+        .filter(ExportTemplateDB.user_id == username)
+        .order_by(ExportTemplateDB.updated_at.desc())
+        .all()
+    )
+    current = None
+    if tpl_id:
+        current = (
+            db.query(ExportTemplateDB)
+            .filter(ExportTemplateDB.id == tpl_id, ExportTemplateDB.user_id == username)
+            .first()
+        )
+    if not current and templates_list:
+        current = templates_list[0]
+    if not current:
+        now = datetime.datetime.now().isoformat()
+        current = ExportTemplateDB(
+            id=str(uuid.uuid4())[:10],
+            user_id=username,
+            name="Шаблон кафедры",
+            kind="docx",
+            html=_DEFAULT_EXPORT_TEMPLATE_HTML,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(current)
+        db.commit()
+        db.refresh(current)
+        templates_list = [current]
+
+    back_url = ""
+    if exp_id and node_id:
+        back_url = f"{BASE_PATH}/experiment/{username}/{exp_id}/node/{node_id}"
+
+    return templates.TemplateResponse(
+        request,
+        "export_template.html",
+        {
+            "user": username,
+            "active_page": "export_template",
+            "tpl": current,
+            "templates_list": templates_list,
+            "exp_id": exp_id,
+            "node_id": node_id,
+            "back_url": back_url,
+        },
+    )
+
+
+@app.get("/api/export-template/list")
+async def api_export_template_list(request: Request, db: Session = Depends(get_db)):
+    username = get_session_username(request)
+    if not username:
+        return JSONResponse({"ok": False, "error": "login"}, status_code=401)
+    rows = (
+        db.query(ExportTemplateDB)
+        .filter(ExportTemplateDB.user_id == username)
+        .order_by(ExportTemplateDB.updated_at.desc())
+        .all()
+    )
+    return {
+        "ok": True,
+        "items": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "kind": r.kind,
+                "updated_at": r.updated_at,
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.post("/api/export-template/save")
+async def api_export_template_save(request: Request, db: Session = Depends(get_db)):
+    username = get_session_username(request)
+    if not username:
+        return JSONResponse({"ok": False, "error": "login"}, status_code=401)
+    body = await request.json()
+    tpl_id = (body.get("id") or "").strip()
+    name = (body.get("name") or "Шаблон кафедры").strip()[:120]
+    kind = (body.get("kind") or "docx").strip().lower()
+    if kind not in ("docx", "pdf", "pptx"):
+        kind = "docx"
+    html = body.get("html") or ""
+    now = datetime.datetime.now().isoformat()
+
+    row = None
+    if tpl_id:
+        row = (
+            db.query(ExportTemplateDB)
+            .filter(ExportTemplateDB.id == tpl_id, ExportTemplateDB.user_id == username)
+            .first()
+        )
+    if row:
+        row.name = name
+        row.kind = kind
+        row.html = html
+        row.updated_at = now
+    else:
+        row = ExportTemplateDB(
+            id=str(uuid.uuid4())[:10],
+            user_id=username,
+            name=name,
+            kind=kind,
+            html=html or _DEFAULT_EXPORT_TEMPLATE_HTML,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"ok": True, "id": row.id, "updated_at": row.updated_at}
+
+
+@app.post("/api/export-template/create")
+async def api_export_template_create(request: Request, db: Session = Depends(get_db)):
+    username = get_session_username(request)
+    if not username:
+        return JSONResponse({"ok": False, "error": "login"}, status_code=401)
+    body = await request.json()
+    name = (body.get("name") or "Новый шаблон").strip()[:120]
+    kind = (body.get("kind") or "docx").strip().lower()
+    if kind not in ("docx", "pdf", "pptx"):
+        kind = "docx"
+    now = datetime.datetime.now().isoformat()
+    row = ExportTemplateDB(
+        id=str(uuid.uuid4())[:10],
+        user_id=username,
+        name=name,
+        kind=kind,
+        html=_DEFAULT_EXPORT_TEMPLATE_HTML,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"ok": True, "id": row.id}
+
+
+@app.post("/api/export-template/delete")
+async def api_export_template_delete(request: Request, db: Session = Depends(get_db)):
+    username = get_session_username(request)
+    if not username:
+        return JSONResponse({"ok": False, "error": "login"}, status_code=401)
+    body = await request.json()
+    tpl_id = (body.get("id") or "").strip()
+    row = (
+        db.query(ExportTemplateDB)
+        .filter(ExportTemplateDB.id == tpl_id, ExportTemplateDB.user_id == username)
+        .first()
+    )
+    if not row:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 # ── API: Versioning (Git-like branches) ──
 
@@ -3840,14 +5488,28 @@ async def create_version(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     exp_id = body.get("exp_id")
     node_id = body.get("node_id")
-    message = body.get("message", "Commit")
+    message = body.get("message", "Снимок")
     
     notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id, NodeNotesDB.node_id == node_id).first()
     if notes:
-        version = NodeVersionDB(
-            exp_id=exp_id, node_id=node_id, html_snapshot=notes.notes_html, message=message
+        version = _maybe_create_node_version(
+            db,
+            exp_id=exp_id,
+            node_id=node_id,
+            html=notes.notes_html or "",
+            author=_version_author_label(request, db),
+            message=message or "Снимок",
+            force=True,
         )
-        db.add(version)
+        if not version:
+            # identical content — still acknowledge latest
+            latest = (
+                db.query(NodeVersionDB)
+                .filter(NodeVersionDB.exp_id == exp_id, NodeVersionDB.node_id == node_id)
+                .order_by(NodeVersionDB.created_at.desc())
+                .first()
+            )
+            return JSONResponse({"ok": True, "version_id": latest.id if latest else None, "unchanged": True})
         db.commit()
         return JSONResponse({"ok": True, "version_id": version.id})
     return JSONResponse({"ok": False})
@@ -3855,7 +5517,17 @@ async def create_version(request: Request, db: Session = Depends(get_db)):
 @app.get("/api/node/version/list")
 async def list_versions(exp_id: str, node_id: str, db: Session = Depends(get_db)):
     versions = db.query(NodeVersionDB).filter(NodeVersionDB.exp_id == exp_id, NodeVersionDB.node_id == node_id).order_by(NodeVersionDB.created_at.desc()).all()
-    return JSONResponse({"versions": [{"id": v.id, "created_at": v.created_at, "message": v.message} for v in versions]})
+    return JSONResponse({
+        "versions": [
+            {
+                "id": v.id,
+                "created_at": v.created_at,
+                "message": v.message,
+                "author": getattr(v, "author", "") or "",
+            }
+            for v in versions
+        ]
+    })
 
 @app.get("/api/node/version/{version_id}")
 async def get_version_snapshot(version_id: str, db: Session = Depends(get_db)):
@@ -3987,8 +5659,12 @@ def _strip_code_fences(code: str) -> str:
     code = (code or "").strip()
     m = re.match(r"^```(?:python|py|bash|r)?\s*\n(.*?)```$", code, re.DOTALL | re.IGNORECASE)
     if m:
-        return m.group(1).strip()
-    return code
+        code = m.group(1).strip()
+    # Models sometimes leak HTML into code (e.g. </br>, <br/>).
+    code = re.sub(r"(?i)</?\s*br\s*/?\s*>", "\n", code)
+    code = re.sub(r"(?i)</?\s*(?:p|div|span|html|body)\s*>", "", code)
+    code = _html.unescape(code)
+    return code.strip()
 
 
 def _extract_tag_block(reply: str, open_tag: str, close_tag: str) -> tuple[str | None, str]:
@@ -4015,15 +5691,17 @@ def _extract_python_fences(text: str) -> list[str]:
 
 
 def _user_wants_notebook_change(user_message: str) -> bool:
+    """True only when the user explicitly asks to put code/HTML into the notebook."""
     u = (user_message or "").lower()
     if not u:
         return False
-    keys = (
-        "таблиц", "блокнот", "ячей", "notebook", "insert_code", "csv",
-        "статистик", "добав", "встав", "код", "анализ", "p-value", "p value",
-        "сводн", "to_csv", "run",
+    explicit = (
+        "insert_code", "[insert_code]", "edit_code_cell", "append_document",
+        "вставь код", "вставить код", "добавь код", "добавить код",
+        "добавь ячейк", "вставь ячейк", "в блокнот код", "ячейку кода",
+        "добавь таблиц", "вставь таблиц", "edit_document",
     )
-    return any(k in u for k in keys)
+    return any(k in u for k in explicit)
 
 
 def _parse_assistant_notebook_actions(msg: str, user_message: str = "") -> tuple[str, dict]:
@@ -4060,6 +5738,10 @@ def _parse_assistant_notebook_actions(msg: str, user_message: str = "") -> tuple
     insert_inner, reply = _extract_tag_block(reply, "[INSERT_CODE]", "[/INSERT_CODE]")
     if insert_inner is not None:
         actions["insert_code"] = _strip_code_fences(insert_inner)
+
+    # Drop notebook mutations unless the user explicitly asked for them.
+    if actions and not _user_wants_notebook_change(user_message):
+        actions = {}
 
     if not actions and _user_wants_notebook_change(user_message):
         blocks = _extract_python_fences(reply)
@@ -4106,6 +5788,24 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
     html_context = body.get("html_context", "")
     notebook_context = body.get("notebook_context") or []
 
+    session_user = get_session_username(request)
+    if not session_user:
+        return JSONResponse({"ok": False, "error": "LoginRequired", "reply": "Войдите в аккаунт."}, status_code=401)
+    u = db.query(UserDB).filter(UserDB.username == session_user).first()
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    if not plan_allows_ai(plan):
+        pricing = f"{BASE_PATH}/pricing" if BASE_PATH else "/pricing"
+        pricing_hash = f"{BASE_PATH}/#ceny" if BASE_PATH else "/#ceny"
+        return JSONResponse({
+            "ok": False,
+            "error": "PlanRequired",
+            "reply": (
+                "ИИ-ассистент доступен на тарифе Pro (319 ₽/мес). Сейчас у вас Free — без ИИ.\n\n"
+                f"[Подключить Pro — 319 ₽/мес]({pricing_hash}) · [Все тарифы]({pricing})"
+            ),
+            "pricing_url": pricing_hash,
+        })
+
     notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id, NodeNotesDB.node_id == node_id).first()
     if not notes:
         notes = NodeNotesDB(
@@ -4132,25 +5832,32 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
         if cut is not None:
             history = history[:cut]
 
-    system_prompt = (
-        "Ты — ассистент-учёный для биоинформатики и работаешь с лабораторным блокнотом пользователя. "
-        "Блокнот содержит текстовые заметки и Python-ячейки кода.\n\n"
-        "ВАЖНО — куда писать ответ:\n"
-        "1) Если пользователь просит написать/добавить/вставить код, скрипт, пайплайн, анализ — "
-        "НЕ выводи длинный код в чат. Оберни только Python-код в [INSERT_CODE]...[/INSERT_CODE].\n"
-        "2) Если нужно изменить существующую ячейку N (нумерация с 1) — "
-        "используй [EDIT_CODE_CELL:N]...[/EDIT_CODE_CELL].\n"
-        "3) Если нужно изменить весь текст заметки — ПОЛНЫЙ HTML в [EDIT_DOCUMENT]...[/EDIT_DOCUMENT].\n"
-        "4) Если нужно ДОБАВИТЬ HTML-таблицу/блок в конец заметки (не затирая код-ячейки) — "
-        "[APPEND_DOCUMENT]...[/APPEND_DOCUMENT] с фрагментом HTML (<table>…</table> и т.п.).\n"
-        "5) В чате пиши кратко (1–2 предложения): что сделал. НЕ пиши «добавил в блокнот», если не использовал теги из п.1–4.\n"
-        "6) Внутри тегов INSERT_CODE и EDIT_CODE_CELL не используй markdown-ограждения ```.\n"
-        "7) Запросы про таблицы, статистику (n, mean, SD, SEM, median, min/max), тесты (p-value), CSV — "
-        "это код: INSERT_CODE или EDIT_CODE_CELL. Код должен: посчитать таблицы, "
-        "сохранить summary_stats.csv и test_results.csv (или аналогичные имена), "
-        "вывести обе через print(df.to_string(index=False)).\n"
-        "8) Если пользователь просит «в блокнот», «в ячейку», «добавь таблицу» — обязательно INSERT_CODE, EDIT_CODE_CELL или APPEND_DOCUMENT."
+    notebook_empty = not any(
+        isinstance(c, dict) and (c.get("code") or "").strip()
+        for c in (notebook_context or [])
     )
+    system_prompt = (
+        "Ты — ассистент-учёный для биологии и лабораторного журнала. "
+        "Блокнот содержит текстовые заметки и опционально Python-ячейки.\n\n"
+        "ГЛАВНОЕ ПРАВИЛО ПРО КОД:\n"
+        "По умолчанию отвечай ТОЛЬКО в чате: кратко, по делу, без вставки в блокнот. "
+        "НЕ используй [INSERT_CODE], [EDIT_CODE_CELL], [EDIT_DOCUMENT], [APPEND_DOCUMENT], "
+        "пока пользователь ЯВНО не попросит вставить/добавить/изменить код или текст в блокноте "
+        "(формулировки вроде «вставь код», «добавь ячейку», «добавь таблицу в блокнот»).\n"
+        "Вопросы, объяснения, советы, проверка текста, «что дальше», приветствия — только текст в чате, без тегов.\n\n"
+        "Если пользователь ЯВНО просит изменить блокнот:\n"
+        "1) Новый Python-код — [INSERT_CODE]...[/INSERT_CODE] (без markdown ``` и без HTML-тегов).\n"
+        "2) Правка ячейки N — [EDIT_CODE_CELL:N]...[/EDIT_CODE_CELL].\n"
+        "3) Замена всей заметки — [EDIT_DOCUMENT]...[/EDIT_DOCUMENT].\n"
+        "4) Добавить HTML в конец заметки — [APPEND_DOCUMENT]...[/APPEND_DOCUMENT].\n"
+        "5) В чате после тегов - 1 предложение, что сделал.\n"
+        "6) Экспорт PDF/DOCX/PPTX - кнопками в панели; не пиши скрипты экспорта без явной просьбы."
+    )
+    if notebook_empty:
+        system_prompt += (
+            "\nБлокнот сейчас без ячеек кода. Не вставляй стартовый шаблон сам: "
+            "предложи текстом, что можно сделать, и жди явной просьбы вставить код."
+        )
     system_prompt += f"\n\nТекущие ячейки кода:\n{_format_notebook_context(notebook_context)}"
     if html_context:
         trimmed_html = html_context if len(html_context) <= 12000 else html_context[:12000] + "\n<!-- ... -->"
@@ -4235,20 +5942,78 @@ async def clear_chat_history(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"ok": True})
 
 import sys
-import io
-from contextlib import redirect_stdout
-
-# Per-experiment kernel states (shared variables like in Jupyter)
-kernels = {}
+import asyncio
+# Per-user kernel locks (execution moved to isolated subprocess — see kernel_worker.py)
 _kernel_exec_locks: dict[str, threading.Lock] = {}
 _KERNEL_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+_KERNEL_WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kernel_worker.py")
+_KERNEL_TIMEOUT_SEC = 20
+_KERNEL_SECRET_ENV_KEYS = (
+    "AI_API_KEY",
+    "AI_API_URL",
+    "AI_CHAT_MODEL",
+    "AI_CODE_MODEL",
+    "AI_HTTP_PROXY",
+    "OCR_API_KEY",
+    "OCR_API_URL",
+    "OCR_VISION_MODEL",
+    "OCR_VISION_MODELS",
+    "TG_BOT_TOKEN",
+    "TG_CHAT_ID",
+    "TG_HTTP_PROXY",
+    "YANDEX_CLIENT_ID",
+    "YANDEX_CLIENT_SECRET",
+    "OAUTH_STATE_SECRET",
+    "SESSION_SECRET",
+    "ADMIN_KEY",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+)
 
 
-def _kernel_output_dir(exp_id: str) -> str:
+def _kernel_user_hash(username: str) -> str:
+    return hashlib.sha256((username or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _kernel_output_dir(username: str, exp_id: str) -> str:
+    """Per-user private output dir (mode 0700). Same host UID still needs mount ns for /tmp."""
     safe = re.sub(r"[^\w.\-]", "", (exp_id or "default"))[:80] or "default"
-    path = os.path.join(KERNEL_OUTPUT_ROOT, safe)
-    os.makedirs(path, exist_ok=True)
+    path = os.path.join(KERNEL_OUTPUT_ROOT, _kernel_user_hash(username), safe)
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
     return path
+
+
+def _kernel_scrubbed_env(out_dir: str) -> dict[str, str]:
+    """Minimal env for user code — no API secrets / tokens / proxies."""
+    path = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
+    env = {
+        "PATH": path,
+        "HOME": out_dir,
+        "TMPDIR": "/tmp",
+        "TMP": "/tmp",
+        "TEMP": "/tmp",
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8"),
+        "MPLBACKEND": "Agg",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
+    }
+    venv_python = sys.executable
+    env["VIRTUAL_ENV"] = os.path.dirname(os.path.dirname(venv_python))
+    # Defense in depth: never forward known secret keys even if env merge changes later
+    for k in _KERNEL_SECRET_ENV_KEYS:
+        env.pop(k, None)
+    return env
 
 
 def _snapshot_kernel_artifacts(dir_path: str) -> dict[str, float]:
@@ -4279,6 +6044,53 @@ def _kernel_artifacts_changed(dir_path: str, before: dict[str, float]) -> list[s
     return sorted(changed)
 
 
+def _run_kernel_subprocess(code: str, out_dir: str, meta: dict) -> tuple[str, bool]:
+    """Execute user code in an isolated worker (unshare mount + scrubbed env)."""
+    ns_path = os.path.join(out_dir, ".kernel_ns.pkl")
+    payload = json.dumps(
+        {"code": code, "cwd": out_dir, "ns_path": ns_path, "meta": meta},
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    cmd = [sys.executable, _KERNEL_WORKER]
+    # User+mount (+pid) namespace: private /tmp and hide other processes' environ
+    if os.path.isfile("/usr/bin/unshare"):
+        cmd = [
+            "/usr/bin/unshare",
+            "--user",
+            "--map-root-user",
+            "--mount",
+            "--pid",
+            "--fork",
+            "--mount-proc",
+            "--",
+            *cmd,
+        ]
+
+    env = _kernel_scrubbed_env(out_dir)
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=payload,
+            capture_output=True,
+            timeout=_KERNEL_TIMEOUT_SEC,
+            env=env,
+            cwd=out_dir,
+        )
+    except subprocess.TimeoutExpired:
+        return f"Превышено время выполнения ({_KERNEL_TIMEOUT_SEC} с).", True
+    except Exception as e:
+        return f"Sandbox error: {e}", True
+
+    raw = proc.stdout or b""
+    try:
+        data = json.loads(raw.decode("utf-8", "replace") or "{}")
+        return str(data.get("output") or ""), bool(data.get("error"))
+    except Exception:
+        err = (proc.stderr or b"").decode("utf-8", "replace")
+        return err or f"Worker failed (exit {proc.returncode})", True
+
+
 COMPUTE_UNITS = {
     "rtx4090": {"id": "rtx4090", "name": "RTX 4090", "vram": "24 GB"},
     "tesla_a100": {"id": "tesla_a100", "name": "Tesla A100", "vram": "80 GB"},
@@ -4286,54 +6098,58 @@ COMPUTE_UNITS = {
 }
 
 @app.post("/api/kernel/execute")
-async def execute_code(request: Request):
+async def execute_code(request: Request, db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    if not session_user:
+        return JSONResponse({"output": "LoginRequired", "error": True, "images": []}, status_code=401)
+
     body = await request.json()
-    exp_id = body.get("exp_id") or "default"
-    code = body.get("code")
+    exp_id = (body.get("exp_id") or "").strip() or "default"
+    code = body.get("code") or ""
+    if not isinstance(code, str):
+        return JSONResponse({"output": "Invalid code", "error": True, "images": []}, status_code=400)
+    if len(code) > 200_000:
+        return JSONResponse({"output": "Code too large", "error": True, "images": []}, status_code=400)
+
+    # Only the experiment owner can run code against its workspace
+    if exp_id != "default":
+        exp = (
+            db.query(ExperimentDB)
+            .filter(ExperimentDB.id == exp_id, ExperimentDB.user_id == session_user)
+            .first()
+        )
+        if not exp:
+            return JSONResponse({"output": "Experiment not found", "error": True, "images": []}, status_code=404)
+
     compute_unit_id = (body.get("compute_unit") or "rtx4090").strip()
     compute_unit = COMPUTE_UNITS.get(compute_unit_id, COMPUTE_UNITS["rtx4090"])
 
-    if exp_id not in kernels:
-        kernels[exp_id] = {"__builtins__": __builtins__}
-
-    # Expose selected accelerator metadata to the notebook namespace
-    kernels[exp_id]["COMPUTE_UNIT"] = compute_unit["name"]
-    kernels[exp_id]["COMPUTE_VRAM"] = compute_unit["vram"]
-    kernels[exp_id]["COMPUTE_UNIT_ID"] = compute_unit["id"]
-
-    out_dir = _kernel_output_dir(exp_id)
-    kernels[exp_id]["KERNEL_OUTPUT_DIR"] = out_dir
-    lock = _kernel_exec_locks.setdefault(exp_id, threading.Lock())
+    out_dir = _kernel_output_dir(session_user, exp_id)
+    lock_key = f"{session_user}:{exp_id}"
+    lock = _kernel_exec_locks.setdefault(lock_key, threading.Lock())
     before_artifacts = _snapshot_kernel_artifacts(out_dir)
 
-    f = io.StringIO()
-    error = None
+    meta = {
+        "COMPUTE_UNIT": compute_unit["name"],
+        "COMPUTE_VRAM": compute_unit["vram"],
+        "COMPUTE_UNIT_ID": compute_unit["id"],
+        "KERNEL_OUTPUT_DIR": out_dir,
+    }
     images: list[dict[str, str]] = []
-    try:
-        os.environ["MPLBACKEND"] = "Agg"
-        with lock:
-            prev_cwd = os.getcwd()
-            try:
-                os.chdir(out_dir)
-                with redirect_stdout(f):
-                    exec(code, kernels[exp_id])
-            finally:
-                os.chdir(prev_cwd)
-        output = f.getvalue()
-        for name in _kernel_artifacts_changed(out_dir, before_artifacts):
-            images.append(
-                {
-                    "name": name,
-                    "url": f"{BASE_PATH}/api/kernel/artifact/{quote(exp_id, safe='')}/{quote(name, safe='')}",
-                }
-            )
-    except Exception as e:
-        output = str(e)
-        error = True
+    with lock:
+        output, error = await asyncio.to_thread(_run_kernel_subprocess, code, out_dir, meta)
+
+    for name in _kernel_artifacts_changed(out_dir, before_artifacts):
+        images.append(
+            {
+                "name": name,
+                "url": f"{BASE_PATH}/api/kernel/artifact/{quote(exp_id, safe='')}/{quote(name, safe='')}",
+            }
+        )
 
     return JSONResponse({
         "output": output,
-        "error": error,
+        "error": error or None,
         "images": images,
         "output_dir": out_dir,
         "compute_unit": compute_unit,
@@ -4341,13 +6157,24 @@ async def execute_code(request: Request):
 
 
 @app.get("/api/kernel/artifact/{exp_id}/{filename}")
-async def kernel_artifact(exp_id: str, filename: str):
+async def kernel_artifact(exp_id: str, filename: str, request: Request, db: Session = Depends(get_db)):
+    session_user = get_session_username(request)
+    if not session_user:
+        return JSONResponse({"error": "LoginRequired"}, status_code=401)
     safe_name = os.path.basename(filename or "")
     if not safe_name or safe_name != filename or ".." in filename:
         return JSONResponse({"error": "Invalid filename"}, status_code=400)
     if os.path.splitext(safe_name)[1].lower() not in _KERNEL_IMAGE_EXTS:
         return JSONResponse({"error": "Unsupported type"}, status_code=400)
-    path = os.path.join(_kernel_output_dir(exp_id), safe_name)
+    if exp_id != "default":
+        exp = (
+            db.query(ExperimentDB)
+            .filter(ExperimentDB.id == exp_id, ExperimentDB.user_id == session_user)
+            .first()
+        )
+        if not exp:
+            return JSONResponse({"error": "Not found"}, status_code=404)
+    path = os.path.join(_kernel_output_dir(session_user, exp_id), safe_name)
     if not os.path.isfile(path):
         return JSONResponse({"error": "Not found"}, status_code=404)
     media = "application/octet-stream"
@@ -4621,7 +6448,7 @@ def _ocr_rapid_from_data_url(image_b64: str) -> str:
         img_path = os.path.join(td, "img.png")
         with open(img_path, "wb") as f:
             f.write(raw)
-        Image.open(img_path).verify()
+            Image.open(img_path).verify()
         ocr = RapidOCR()
         result, _elapsed = ocr(img_path)
         if not result:
@@ -5062,7 +6889,7 @@ def _audit_humanize(row) -> tuple[str, str, str]:
             parts.append("через Яндекс")
         m = re.search(r"welcome_trial_(\d+)d", raw)
         if m:
-            parts.append(f"пробный «Студент» на {m.group(1)} дн.")
+            parts.append(f"пробный Pro на {m.group(1)} дн.")
         return "register", "Зарегистрировался", " · ".join(parts)
     if action == "create" and entity == "experiment":
         name = data.get("name") or data.get("title") or ""
@@ -5582,12 +7409,12 @@ async def admin_support(key: str, db: Session = Depends(get_db)):
 async def admin_logs(key: str, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     if key != ADMIN_KEY:
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
-
+    
     cap = max(1, min(int(limit or 100), 500))
     off = max(0, int(offset or 0))
     all_logs = _fetch_admin_activity(db, limit=cap + off + 200)
     page = all_logs[off : off + cap]
-
+    
     log_levels = {"info": 0, "warning": 0, "error": 0}
     for entry in all_logs:
         lvl = entry.get("level") or "info"
@@ -5627,7 +7454,7 @@ async def admin_analytics(key: str, db: Session = Depends(get_db)):
         key=lambda x: x["experiments"], reverse=True
     )[:20]
     visit_stats = _service_visit_analytics(db)
-
+    
     return JSONResponse({
         "total_users": len(users),
         "total_experiments": len(experiments),
@@ -5981,6 +7808,13 @@ async def planner_chat(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"ok": False, "error": "Войдите в аккаунт"}, status_code=401)
     if session_user and username != session_user:
         return JSONResponse({"ok": False, "error": "Неверный пользователь сессии"}, status_code=403)
+    u = db.query(UserDB).filter(UserDB.username == username).first()
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    if not plan_allows_ai(plan):
+        return JSONResponse({
+            "ok": False,
+            "error": "ИИ-планировщик доступен на тарифе Pro. Сейчас у вас Free.",
+        }, status_code=403)
     if body.get("reset"):
         _PLANNER_STATE[username] = {"history": [], "plan": None}
         return JSONResponse({"ok": True, "type": "chat",
@@ -5999,7 +7833,7 @@ async def planner_chat(request: Request, db: Session = Depends(get_db)):
 
     if want_plan:
         system = (
-            "Ты — ИИ-планировщик лабораторного журнала Bio-Notebook. "
+            "Ты — ИИ-планировщик лабораторного журнала Lab-Journal. "
             "Пользователь описывает эксперимент — составь понятное название и пошаговый протокол (5–9 коротких шагов). "
             "Ответь ТОЛЬКО валидным JSON без пояснений и разметки в формате: "
             "{\"title\": \"Название эксперимента\", \"steps\": [\"Шаг 1\", \"Шаг 2\", ...]}"
@@ -6007,7 +7841,7 @@ async def planner_chat(request: Request, db: Session = Depends(get_db)):
     else:
         plan = state["plan"]
         system = (
-            "Ты — научный ассистент в лабораторном журнале Bio-Notebook. "
+            "Ты — научный ассистент в лабораторном журнале Lab-Journal. "
             f"У пользователя эксперимент «{plan['title']}» с планом: {'; '.join(plan['steps'])}. "
             "Отвечай кратко, по делу, в контексте этого эксперимента. Помогай уточнить протокол, "
             "методику, расчёты или интерпретацию. Если просят новый план — предложи спланировать новый эксперимент."
@@ -6036,6 +7870,218 @@ async def planner_chat(request: Request, db: Session = Depends(get_db)):
     history.append({"role": "assistant", "content": text})
     return JSONResponse({"ok": True, "type": "chat", "text": text})
 
+# ── AI Agent: обычный чат (не планировщик) ──
+
+_AI_AGENT_STATE: dict = {}
+
+_AI_AGENT_SYSTEM = (
+    "Ты — ИИ-агент Lab-Journal: научный ассистент (физика, биология, химия, лабораторная практика).\n"
+    "Отвечай по-русски. Стиль — как у ChatGPT: ясно, структурировано, без воды и канцелярита.\n\n"
+    "ОФОРМЛЕНИЕ ТЕКСТА (Markdown, рендерится в чате):\n"
+    "- Заголовок темы: одна строка `# ...`\n"
+    "- Секции: `## 1. ...`, `## 2. ...` (не пиши # как обычный текст в середине абзаца)\n"
+    "- Списки: `- пункт` или `1. пункт` — короткие строки, не простыни\n"
+    "- Ключевые термины: **жирным**; формулы — KaTeX, не ASCII-костыли\n"
+    "- Между секциями — пустая строка. Не склеивай всё в один абзац.\n"
+    "- Не злоупотребляй заголовками: 2–5 секций достаточно. Без «Введение/Заключение», если не просили.\n"
+    "- Сначала суть (2–4 предложения), потом детали списком или секциями.\n\n"
+    "ФОРМУЛЫ — ТОЛЬКО KaTeX:\n"
+    "- Inline: $E_k=\\tfrac12 m v^2$, блок: $$D=\\frac{k_B T}{6\\pi\\eta r}$$\n"
+    "- ЗАПРЕЩЕНО ASCII-костыли без $: 10^-9, k_BT, √, x^2.\n"
+    "- Не оборачивай формулы в ```.\n\n"
+    "КОГДА ДЕЛАТЬ [[HTML]] (редко!):\n"
+    "- ТОЛЬКО если пользователь просит калькулятор / симуляцию / интерактив / слайдеры / живой график,\n"
+    "  или без интерактива ответ заметно хуже.\n"
+    "- Обычные вопросы, объяснения, формулы, вывод — ОТВЕЧАЙ Markdown+KaTeX БЕЗ [[HTML]].\n"
+    "- Не вставляй HTML «на всякий случай» и не дублируй текст ответа целиком в HTML.\n\n"
+    "ЕСЛИ ДЕЛАЕШЬ [[HTML]]:\n"
+    "[[HTML:Краткий заголовок]]\n"
+    "<div class=\"card\">...</div>\n"
+    "<script>/* интерактив */</script>\n"
+    "[[/HTML]]\n"
+    "В песочнице уже есть KaTeX, auto-render и helper labMath(el, tex, display?).\n"
+    "Живые формулы — ТОЛЬКО так (одной строкой, без переносов внутри tex):\n"
+    "  labMath(out, 's = v_0 t = ' + s.toFixed(3) + '\\\\,\\\\mathrm{м}');\n"
+    "ЗАПРЕЩЕНО:\n"
+    "- клеить число внутрь $...$ через span/textContent (ломает KaTeX);\n"
+    "- писать `$...= ' + n + '\\\\mathrm{м}$` с переносом строки;\n"
+    "- подключать свой CDN KaTeX.\n"
+    "Правила качества:\n"
+    "- Компактный UI, radius 12–16px, акцент #2563eb.\n"
+    "- Один артефакт = одна задача. update()/recalc()/calculate() на input и при загрузке.\n"
+    "- Без fetch/XHR/localStorage/cookie/window.open.\n\n"
+    "Простые чертежи без JS: [[SVG]]...svg...[[/SVG]]\n\n"
+    "Готовый виджет электростатики (если не нужен кастомный HTML):\n"
+    "[[WIDGET:efield]]{\"mode\":\"point\",\"q\":2e-9,\"r\":0.1}[[/WIDGET]]\n"
+    "mode: point|dipole|plane|sphere|cylinder. Дефолты: q=2e-9; d=1e-3; σ=5e-9; R=0.05 Q=1e-8; λ=3e-9; r=0.1.\n\n"
+    "Не навязывай создание эксперимента. Только если ЯВНО просят план в журнал, в конце:\n"
+    "[[PLAN]]{\"title\":\"...\",\"steps\":[\"шаг1\",\"шаг2\"]}[[/PLAN]]"
+)
+
+
+def _strip_plan_marker(text: str) -> tuple[str, dict | None]:
+    """Extract optional [[PLAN]]...[[/PLAN]] from agent reply."""
+    if not text:
+        return "", None
+    start = text.find("[[PLAN]]")
+    end = text.find("[[/PLAN]]")
+    if start == -1 or end == -1 or end <= start:
+        return text.strip(), None
+    raw = text[start + 8:end].strip()
+    clean = (text[:start] + text[end + 9:]).strip()
+    plan = _extract_plan_json(raw)
+    return clean or text.strip(), plan
+
+
+def _normalize_chat_images(raw) -> list[str]:
+    """Validate data-URL images from client (max 4)."""
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for item in raw[:4]:
+        if not isinstance(item, str):
+            continue
+        s = item.strip()
+        if not s.startswith("data:image/") or ";base64," not in s:
+            continue
+        # rough size guard (~6MB base64)
+        if len(s) > 8_000_000:
+            continue
+        out.append(_ocr_prepare_image_data_url(s))
+    return out
+
+
+async def _llm_vision_agent_chat(messages) -> tuple[str | None, str | None]:
+    """Vision chat via OpenRouter (same key/models as OCR)."""
+    if not OCR_API_KEY:
+        return None, "Vision API не настроен (OCR_API_KEY). Нельзя разобрать фото."
+    headers = {
+        "Authorization": f"Bearer {OCR_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": SITE_ORIGIN or "https://labjournal.tech",
+        "X-Title": "Lab-Journal AI Chat",
+    }
+    last_err: str | None = None
+    for model in _ocr_vision_model_candidates():
+        try:
+            async with ai_http_client(timeout=90.0) as client:
+                resp = await client.post(
+                    OCR_API_URL,
+                    headers=headers,
+                    json={"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 4096},
+                )
+                try:
+                    data = resp.json()
+                except Exception:
+                    data = {"error": (resp.text or "")[:300]}
+                if resp.status_code >= 400:
+                    err = ""
+                    if isinstance(data, dict):
+                        err = (
+                            (data.get("error") or {}).get("message")
+                            if isinstance(data.get("error"), dict)
+                            else data.get("error")
+                        ) or str(data.get("message", ""))
+                    msg = f"{model} ({resp.status_code}): {err or 'ошибка API'}"
+                    last_err = msg
+                    if _ocr_should_try_next_model(RuntimeError(msg)):
+                        continue
+                    tg_notify_ai_issue("ai-agent-vision", msg)
+                    return None, msg
+                text = ""
+                if isinstance(data, dict):
+                    text = (
+                        (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+                    ).strip()
+                if not text:
+                    last_err = f"{model}: пустой ответ"
+                    continue
+                return text, None
+        except Exception as e:
+            last_err = format_ai_request_error(e)
+            continue
+    err = last_err or "Vision-модели недоступны."
+    tg_notify_ai_issue("ai-agent-vision", err)
+    return None, err
+
+
+@app.post("/api/ai-agent/chat")
+async def ai_agent_chat(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    session_user = get_session_username(request)
+    username = (body.get("user") or "").strip() or (session_user or "")
+    message = (body.get("message") or "").strip()
+    images = _normalize_chat_images(body.get("images"))
+    if not username:
+        return JSONResponse({"ok": False, "error": "Войдите в аккаунт"}, status_code=401)
+    if session_user and username != session_user:
+        return JSONResponse({"ok": False, "error": "Неверный пользователь сессии"}, status_code=403)
+    u = db.query(UserDB).filter(UserDB.username == username).first()
+    plan = sync_user_plan_effective(u, db) if u else "free"
+    if not plan_allows_ai(plan):
+        return JSONResponse({
+            "ok": False,
+            "error": "ИИ-агент доступен на тарифе Pro. Сейчас у вас Free.",
+        }, status_code=403)
+
+    state = _AI_AGENT_STATE.setdefault(username, {"history": []})
+    if body.get("reset"):
+        state["history"] = []
+        return JSONResponse({
+            "ok": True,
+            "type": "chat",
+            "text": "Новый диалог. Спросите что угодно по лабораторной работе, методике или расчётам.",
+        })
+    if not message and not images:
+        return JSONResponse({"ok": False, "error": "Пустое сообщение"})
+
+    history = state["history"]
+    user_text_for_history = message
+    if images:
+        prefix = f"[прикреплено фото: {len(images)}]"
+        user_text_for_history = f"{prefix}\n{message}".strip() if message else prefix
+
+    if images:
+        # Multimodal turn via vision model; keep prior turns as text only
+        user_parts: list[dict] = []
+        prompt = message or "Посмотри на изображение(я) и ответь по-русски: что видно, что важно, что делать дальше."
+        user_parts.append({"type": "text", "text": prompt})
+        for url in images:
+            user_parts.append({"type": "image_url", "image_url": {"url": url}})
+        msgs = [{"role": "system", "content": _AI_AGENT_SYSTEM + "\nПользователь приложил фото — опирайся на изображение."}]
+        for h in history[-12:]:
+            content = h.get("content")
+            if isinstance(content, str):
+                msgs.append({"role": h["role"], "content": content})
+        msgs.append({"role": "user", "content": user_parts})
+        history.append({"role": "user", "content": user_text_for_history})
+        ai_text, ai_err = await _llm_vision_agent_chat(msgs)
+    else:
+        history.append({"role": "user", "content": message})
+        msgs = [{"role": "system", "content": _AI_AGENT_SYSTEM}] + history[-20:]
+        ai_text, ai_err = await _llm_planner_chat(msgs)
+
+    if not ai_text:
+        text = ai_err or "ИИ-агент временно недоступен. Попробуйте ещё раз через минуту."
+        history.append({"role": "assistant", "content": text})
+        return JSONResponse({"ok": True, "type": "chat", "text": text})
+
+    clean, plan_obj = _strip_plan_marker(ai_text)
+    history.append({"role": "assistant", "content": clean})
+    if len(history) > 40:
+        state["history"] = history[-40:]
+
+    if plan_obj:
+        return JSONResponse({
+            "ok": True,
+            "type": "plan",
+            "title": plan_obj["title"],
+            "steps": plan_obj["steps"],
+            "text": clean,
+        })
+    return JSONResponse({"ok": True, "type": "chat", "text": clean})
+
+
 @app.post("/api/planner/create")
 async def planner_create(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
@@ -6049,7 +8095,7 @@ async def planner_create(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"ok": False, "error": "Нет названия или шагов плана"})
 
     exp_id = str(uuid.uuid4())[:8]
-    levels = [[{"id": "root", "title": "Начало исследования", "content": "Инициализация среды."}]]
+    levels = [[{"id": "start", "title": "План работы", "content": "Краткое описание эксперимента."}]]
     for i, step in enumerate(steps, start=1):
         levels.append([{"id": str(uuid.uuid4())[:8], "title": f"Шаг {i}. {step[:90]}", "content": step}])
 

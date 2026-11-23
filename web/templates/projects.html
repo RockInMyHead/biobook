@@ -11,7 +11,7 @@
         top: 0; left: 0;
         width: 100%; height: 100%;
         background: var(--modal-overlay);
-        z-index: 100;
+        z-index: 10200;
         justify-content: center;
         align-items: center;
         opacity: 0;
@@ -24,8 +24,27 @@
         width: 100%; max-width: 500px;
         max-height: 90vh;
         overflow-y: auto;
+        overflow-x: hidden;
+        box-sizing: border-box;
     }
     .modal.active .modal-content { transform: scale(1); }
+    .task-date-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    @media (max-width: 768px) {
+        .task-date-grid,
+        #taskForm .grid.grid-cols-2 {
+            grid-template-columns: 1fr !important;
+        }
+        #taskForm input[type="date"].form-input {
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+    }
 
     /* Gantt chart */
     .gantt-container {
@@ -354,7 +373,7 @@
                         {% if t.start_date and t.end_date %}
                         <div class="flex items-center gap-1.5 text-[10px] mt-1" style="color: var(--text-muted);">
                             <i data-lucide="calendar" class="w-3 h-3"></i>
-                            {{ t.start_date[:10] }} — {{ t.end_date[:10] }}
+                            {{ t.start_date[:10] }} - {{ t.end_date[:10] }}
                         </div>
                         {% endif %}
                     </div>
@@ -423,7 +442,7 @@
 <!-- Task Modal -->
 <div id="taskModal" class="modal">
     <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-        <button onclick="closeTaskModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+        <button type="button" onclick="closeTaskModal()" class="modal-close absolute top-4 right-4 p-2" style="color: var(--text-muted);" aria-label="Закрыть">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         <div class="mb-6">
@@ -468,7 +487,7 @@
                     <option>Завершено</option>
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="task-date-grid">
                 <div>
                     <label class="block text-sm font-medium mb-1" style="color: var(--text-secondary);">Дата начала</label>
                     <input id="taskStart" type="date" class="form-input" />
@@ -489,7 +508,7 @@
 <!-- Invite Modal -->
 <div id="inviteModal" class="modal">
     <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
-        <button onclick="closeInviteModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+        <button type="button" onclick="closeInviteModal()" class="modal-close absolute top-4 right-4 p-2" style="color: var(--text-muted);" aria-label="Закрыть">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         <div class="mb-6">
@@ -527,7 +546,7 @@
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
     <div>
         <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Проекты</h1>
-        <p class="text-sm" style="color: var(--text-muted);">CRM — задачи, Гант-диаграммы, командная работа</p>
+        <p class="text-sm" style="color: var(--text-muted);">CRM - задачи, Гант-диаграммы, командная работа</p>
     </div>
     <button onclick="openProjectModal()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
         <i data-lucide="plus" class="w-5 h-5"></i>
@@ -796,7 +815,7 @@ async function createProject() {
     const btn = document.getElementById('createProjectBtn');
     const name = document.getElementById('projectName').value.trim();
     if (!name) { showProjectError('Введите название проекта'); return; }
-    if (!USER) { showProjectError('Сессия не найдена — обновите страницу и войдите снова'); return; }
+    if (!USER) { showProjectError('Сессия не найдена - обновите страницу и войдите снова'); return; }
     if (btn) {
         btn.disabled = true;
         btn.textContent = 'Создаём…';
@@ -1020,7 +1039,7 @@ function paintGanttChart(container, tasks) {
         html += '<div class="gantt-row">';
         html += '<div class="gantt-label" title="' + escapeHtml(t.title) + '">' + escapeHtml(t.title) + '</div>';
         html += '<div class="gantt-track">';
-        html += '<div class="gantt-bar priority-' + prioCls + '" style="left:' + leftPct + '%;width:' + widthPct + '%;" title="' + escapeHtml(t.title) + ' — ' + range + '">' + escapeHtml(t.title) + '</div>';
+        html += '<div class="gantt-bar priority-' + prioCls + '" style="left:' + leftPct + '%;width:' + widthPct + '%;" title="' + escapeHtml(t.title) + ' - ' + range + '">' + escapeHtml(t.title) + '</div>';
         html += '</div></div>';
     });
 

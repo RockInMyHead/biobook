@@ -1,6 +1,6 @@
-<header class="pub-header">
+<header class="pub-header" id="pubHeader">
     <nav class="pub-nav" aria-label="Основное">
-        <a class="pub-logo" href="{{ base_path }}/">Bio-Notebook</a>
+        <a class="pub-logo" href="{{ base_path }}/">Lab-Journal</a>
         <div class="pub-links">
             <a href="{{ base_path }}/#ocr">Возможности</a>
             <a href="{{ base_path }}/#ceny">Цены</a>
@@ -8,5 +8,46 @@
             <a href="{{ base_path }}/login">Вход</a>
             <a class="pub-cta" href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
         </div>
+        <button type="button" class="pub-burger" id="pubNavBurger" aria-label="Открыть меню" aria-expanded="false" aria-controls="pubNavPanel">
+            <svg class="pub-burger-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            <svg class="pub-close-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
     </nav>
 </header>
+<div class="pub-panel" id="pubNavPanel" hidden>
+    <a href="{{ base_path }}/#ocr">Возможности</a>
+    <a href="{{ base_path }}/#ceny">Цены</a>
+    <a href="{{ base_path }}/guides/">Статьи</a>
+    <a href="{{ base_path }}/login">Вход</a>
+    <a class="pub-panel-cta" href="{{ base_path }}/login?mode=register">Начать бесплатно</a>
+</div>
+<script>
+(function () {
+    var header = document.getElementById('pubHeader');
+    var burger = document.getElementById('pubNavBurger');
+    var panel = document.getElementById('pubNavPanel');
+    if (!header || !burger || !panel) return;
+    // Keep overlay outside sticky/backdrop stacking context
+    if (panel.parentElement !== document.body) {
+        document.body.appendChild(panel);
+    }
+    function setOpen(open) {
+        header.classList.toggle('is-open', open);
+        document.body.classList.toggle('pub-nav-open', open);
+        document.body.classList.toggle('pub-nav-locked', open);
+        panel.hidden = !open;
+        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+    }
+    burger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setOpen(!document.body.classList.contains('pub-nav-open'));
+    });
+    panel.querySelectorAll('a').forEach(function (a) {
+        a.addEventListener('click', function () { setOpen(false); });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') setOpen(false);
+    });
+})();
+</script>

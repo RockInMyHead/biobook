@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход и регистрация — Bio-Notebook, электронный лабораторный журнал</title>
-    <meta name="description" content="Вход и регистрация в Bio-Notebook — электронный лабораторный журнал: эксперименты, OCR рукописных записей, ИИ-ассистент и отчёты.">
+    <title>Вход и регистрация - Lab-Journal, электронный лабораторный журнал</title>
+    <meta name="description" content="Вход и регистрация в Lab-Journal - электронный лабораторный журнал: эксперименты, OCR рукописных записей, ИИ-ассистент и отчёты.">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="{{ site_origin }}{{ base_path }}/login">
     <meta name="theme-color" content="#05070a">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Bio-Notebook">
+    <meta property="og:site_name" content="Lab-Journal">
     <meta property="og:locale" content="ru_RU">
     <meta property="og:url" content="{{ site_origin }}{{ base_path }}/login">
-    <meta property="og:title" content="Вход в Bio-Notebook — электронный лабораторный журнал">
-    <meta property="og:description" content="Войдите или создайте аккаунт в Bio-Notebook — электронном лабораторном журнале с ИИ и OCR.">
+    <meta property="og:title" content="Вход в Lab-Journal - электронный лабораторный журнал">
+    <meta property="og:description" content="Войдите или создайте аккаунт в Lab-Journal - электронном лабораторном журнале с ИИ и OCR.">
     <meta property="og:image" content="{{ site_origin }}{{ base_path }}/static/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ base_path }}/static/favicon-32.png">
@@ -162,22 +162,6 @@
             .card { padding: 1.9rem 1.4rem 1.6rem; }
         }
 
-        .trial-banner {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.65rem;
-            padding: 0.75rem 0.85rem;
-            margin-bottom: 1rem;
-            border-radius: 0.85rem;
-            background: rgba(14, 116, 144, 0.08);
-            border: 1px solid rgba(14, 116, 144, 0.22);
-            font-size: 0.8rem;
-            line-height: 1.45;
-            color: #0f4c5c;
-        }
-        .trial-banner b { display: block; font-size: 0.85rem; margin-bottom: 0.15rem; color: #0e7490; }
-        .trial-banner.hidden { display: none !important; }
-
         /* Регистрация: всё на один экран без прокрутки */
         .card.register-mode {
             max-width: 520px;
@@ -185,14 +169,6 @@
         }
         .card.register-mode .tabs { margin-bottom: 0.85rem; }
         .card.register-mode .tab { padding: 0.45rem 0; font-size: 0.86rem; }
-        .card.register-mode .trial-banner {
-            margin-bottom: 0.55rem;
-            padding: 0.5rem 0.65rem;
-            font-size: 0.72rem;
-            line-height: 1.35;
-            gap: 0.45rem;
-        }
-        .card.register-mode .trial-banner b { font-size: 0.78rem; margin-bottom: 0.05rem; }
         .card.register-mode .auth-header { padding-bottom: 0.45rem; }
         .card.register-mode .auth-header h1 { font-size: 1.2rem; margin-bottom: 0; }
         .card.register-mode .auth-header p { display: none; }
@@ -216,7 +192,6 @@
         @media (max-height: 720px) {
             .topbar { top: 0.75rem; left: 0.75rem; right: 0.75rem; }
             .wrap { padding-top: 3.5rem; }
-            .card.register-mode .trial-banner span[aria-hidden] { display: none; }
             .card.register-mode { transform: scale(0.94); transform-origin: center center; }
         }
         @media (max-width: 520px) and (max-height: 820px) {
@@ -228,7 +203,7 @@
     <div class="topbar">
         <a class="brand" href="{{ base_path }}/">
             <span class="mark"></span>
-            <b>Bio-Notebook</b>
+            <b>Lab-Journal</b>
         </a>
         <a class="home-link" href="{{ base_path }}/">← На главную</a>
     </div>
@@ -240,22 +215,20 @@
                 <button onclick="setAuthMode('register')" id="tab-register" type="button" class="tab">Регистрация</button>
             </div>
 
-            <div id="trial-banner" class="trial-banner hidden">
-                <span aria-hidden="true">🎁</span>
-                <div>
-                    <b>Free 0&nbsp;₽ · Pro 319&nbsp;₽/мес</b>
-                    OCR, ИИ и безлимит экспериментов. Без карты.
-                </div>
-            </div>
-
             <div class="auth-header">
                 <h1 id="auth-title">С возвращением</h1>
                 <p id="auth-desc">Войдите в лабораторный журнал</p>
+                <div id="plan-pro-banner" class="hidden" style="margin-top:.75rem;padding:.65rem .8rem;border-radius:.75rem;background:rgba(14,116,144,.1);border:1px solid rgba(14,116,144,.25);font-size:.8rem;color:#0e7490;font-weight:600;">
+                    Pro на {{ welcome_trial_days|default(30) }} дней бесплатно сразу после регистрации. Дальше — 319 ₽/мес, если оставите тариф.
+                </div>
+                <div id="welcome-trial-note" class="hidden" style="margin-top:.75rem;padding:.65rem .8rem;border-radius:.75rem;background:rgba(14,116,144,.08);border:1px solid rgba(14,116,144,.18);font-size:.8rem;color:#0e7490;">
+                    Новым аккаунтам — Pro на {{ welcome_trial_days|default(30) }} дней бесплатно (ИИ-агент и презентации).
+                </div>
             </div>
 
             {% if yandex_enabled %}
             <div id="yandex-quick-block" class="hidden">
-                <button type="button" id="btn-yandex-quick" onclick="loginWithYandex({quick:true})" class="btn-yandex" aria-label="Яндекс">
+                <button type="button" id="btn-yandex-quick" data-yandex-login onclick="loginWithYandex({quick:true})" class="btn-yandex" aria-label="Яндекс">
                     <img class="ya-logo" src="{{ base_path }}/static/yandex-id-logo.svg?v=5" width="24" height="24" alt="" decoding="async">
                     <span>Яндекс</span>
                 </button>
@@ -275,15 +248,15 @@
                 <span>
                     {% if error == 'UserNotFound' %}Аккаунт не найден. Проверьте email/логин или зарегистрируйтесь.
                     {% elif error == 'WrongPassword' %}Неверный пароль.
-                    {% elif error == 'UserExists' %}Такой логин уже занят — войдите или укажите другой email.
-                    {% elif error == 'EmailExists' %}Этот email уже зарегистрирован — войдите.
+                    {% elif error == 'UserExists' %}Такой логин уже занят - войдите или укажите другой email.
+                    {% elif error == 'EmailExists' %}Этот email уже зарегистрирован - войдите.
                     {% elif error == 'InvalidEmail' %}Укажите корректный email.
-                    {% elif error == 'WeakPassword' %}Пароль — минимум 6 символов.
+                    {% elif error == 'WeakPassword' %}Пароль - минимум 6 символов.
                     {% elif error == 'NonRussianEmail' %}Укажите корректный email.
                     {% elif error == 'ConsentRequired' %}Примите условия, чтобы продолжить.
                     {% elif error == 'InvalidUsername' %}Логин: 3–32 символа, латиница, цифры, «_», «.», «-».
                     {% elif error == 'UserBanned' %}Аккаунт заблокирован. Обратитесь в поддержку.
-                    {% elif error == 'UseYandexLogin' %}Этот аккаунт привязан к Яндекс ID — войдите через кнопку ниже.
+                    {% elif error == 'UseYandexLogin' %}Этот аккаунт привязан к Яндекс ID - войдите через кнопку ниже.
                     {% elif error == 'YandexAuthFailed' %}Не удалось войти через Яндекс. Попробуйте снова.
                     {% elif error == 'YandexAccountNotFound' %}Аккаунт не найден. Сначала зарегистрируйтесь.
                     {% elif error == 'YandexNotConfigured' %}Вход через Яндекс временно недоступен.
@@ -302,14 +275,14 @@
                         <label class="label" for="username-input" id="login-field-label">Email или логин</label>
                         <div class="input-wrap">
                             <i data-lucide="user" class="field-icon" id="login-field-icon" style="width:15px;height:15px"></i>
-                            <input type="text" id="username-input" name="username" class="form-input" required placeholder="email@mail.ru" autocomplete="username">
+                            <input type="text" id="username-input" name="username" class="form-input ym-disable-keys" required placeholder="email@mail.ru" autocomplete="username">
                         </div>
                     </div>
                     <div class="field hidden" id="email-field-wrap">
                         <label class="label" for="email-input">Email</label>
                         <div class="input-wrap">
                             <i data-lucide="mail" class="field-icon" style="width:15px;height:15px"></i>
-                            <input type="email" id="email-input" name="email" class="form-input" placeholder="email@mail.ru" autocomplete="email">
+                            <input type="email" id="email-input" name="email" class="form-input ym-disable-keys" placeholder="email@mail.ru" autocomplete="email">
                         </div>
                     </div>
                 </div>
@@ -319,7 +292,7 @@
                         <label class="label" for="password-input">Пароль</label>
                         <div class="input-wrap">
                             <i data-lucide="lock" class="field-icon" style="width:15px;height:15px"></i>
-                            <input type="password" id="password-input" name="password" class="form-input" required placeholder="••••••••" autocomplete="current-password" minlength="6">
+                            <input type="password" id="password-input" name="password" class="form-input ym-disable-keys" required placeholder="••••••••" autocomplete="current-password" minlength="6">
                             <button type="button" class="toggle-pass" onclick="togglePassword('password-input', this)" aria-label="Показать пароль">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
@@ -346,14 +319,14 @@
             {% if yandex_enabled %}
             <div id="auth-yandex-block">
                 <div class="divider">или</div>
-                <button type="button" id="btn-yandex" onclick="loginWithYandex()" class="btn-yandex" aria-label="Яндекс">
+                <button type="button" id="btn-yandex" data-yandex-login onclick="loginWithYandex()" class="btn-yandex" aria-label="Яндекс">
                     <img class="ya-logo" src="{{ base_path }}/static/yandex-id-logo.svg?v=5" width="24" height="24" alt="" decoding="async">
                     <span id="btn-yandex-text">Яндекс</span>
                 </button>
             </div>
             {% endif %}
 
-            <p class="foot">Вопросы — на <a href="mailto:anticus.tech@internet.ru">anticus.tech@internet.ru</a></p>
+            <p class="foot">Вопросы - на <a href="mailto:anticus.tech@internet.ru">anticus.tech@internet.ru</a></p>
         </div>
     </div>
 
@@ -428,11 +401,12 @@
             const emailInput = document.getElementById('email-input');
             const passwordInput = document.getElementById('password-input');
             const checks = ['agree_terms', 'agree_marketing'];
-            const trialBanner = document.getElementById('trial-banner');
             hideClientError();
 
+            const trialNote = document.getElementById('welcome-trial-note');
+            const proBanner = document.getElementById('plan-pro-banner');
+            const wantPro = (new URLSearchParams(window.location.search).get('plan') || '').toLowerCase() === 'pro';
             if (mode === 'login') {
-                if (trialBanner) trialBanner.classList.add('hidden');
                 form.action = basePath + '/login';
                 title.innerText = 'С возвращением';
                 desc.innerText = 'Войдите по email или логину';
@@ -452,11 +426,12 @@
                 passwordInput.placeholder = '••••••••';
                 passwordInput.autocomplete = 'current-password';
                 checks.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+                if (trialNote) trialNote.classList.add('hidden');
+                if (proBanner && !wantPro) proBanner.classList.add('hidden');
             } else {
-                if (trialBanner) trialBanner.classList.remove('hidden');
                 form.action = basePath + '/register';
                 title.innerText = 'Создать аккаунт';
-                desc.innerText = 'Email и пароль — логин создадим сами';
+                desc.innerText = 'Email и пароль - логин создадим сами';
                 submitBtn.innerText = 'Зарегистрироваться';
                 tabRegister.classList.add('active');
                 tabLogin.classList.remove('active');
@@ -471,6 +446,13 @@
                 passwordInput.placeholder = 'минимум 6 символов';
                 passwordInput.autocomplete = 'new-password';
                 checks.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+                if (wantPro && proBanner) {
+                    proBanner.classList.remove('hidden');
+                    if (trialNote) trialNote.classList.add('hidden');
+                } else {
+                    if (proBanner) proBanner.classList.add('hidden');
+                    if (trialNote) trialNote.classList.remove('hidden');
+                }
             }
             updateYandexButton();
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -498,13 +480,22 @@
                 const pass = document.getElementById('password-input').value;
                 if (pass.length < 6) {
                     e.preventDefault();
-                    showClientError('Пароль — минимум 6 символов');
+                    showClientError('Пароль - минимум 6 символов');
                 }
             }
         });
 
         const initialMode = "{{ 'register' if (mode == 'register' or error in ['UserExists','EmailExists','InvalidEmail','WeakPassword','NonRussianEmail','ConsentRequired','InvalidUsername','YandexAccountNotFound']) else 'login' }}";
-        document.addEventListener('DOMContentLoaded', () => setAuthMode(initialMode));
+        document.addEventListener('DOMContentLoaded', () => {
+            setAuthMode(initialMode);
+            const params = new URLSearchParams(window.location.search);
+            const wantPro = (params.get('plan') || '').toLowerCase() === 'pro';
+            const banner = document.getElementById('plan-pro-banner');
+            if (wantPro && banner) {
+                banner.classList.remove('hidden');
+                if (initialMode !== 'register') setAuthMode('register');
+            }
+        });
     </script>
 {% include "yandex_metrika.html" %}
 </body>

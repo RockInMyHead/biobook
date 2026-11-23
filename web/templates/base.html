@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Bio-Notebook{% endblock %} | Bio-Notebook</title>
+    <title>{% block title %}Lab-Journal{% endblock %} | Lab-Journal</title>
     <!-- Google Fonts (non-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"></noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS (built locally, not CDN) -->
     <link rel="stylesheet" href="{{ base_path }}/static/tailwind.css">
@@ -20,36 +19,37 @@
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
 
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="{{ base_path }}/static/styles.css">
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css?v=20261121-modal">
 
     {% block extra_head %}{% endblock %}
 </head>
 <body class="antialiased min-h-screen flex flex-col">
 
     <!-- Navbar -->
-    <nav class="navbar">
-        <div class="flex items-center gap-3">
-            <a href="{{ base_path }}/" class="flex items-center gap-3 no-underline" title="Приветственная страница">
-                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center liquid-glass" style="transform: none; border-color: rgba(255,255,255,0.5);">
+    <nav class="navbar" id="appNavbar">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button type="button" id="navMobileBtn" class="nav-mobile-btn" aria-label="Открыть меню" aria-expanded="false" aria-controls="navMobileDrawer">
+                <svg class="nav-mobile-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                <svg class="nav-mobile-icon-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+            <a href="{{ base_path }}/" class="flex items-center gap-2 sm:gap-3 no-underline min-w-0" title="Приветственная страница">
+                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center liquid-glass shrink-0" style="transform: none; border-color: rgba(255,255,255,0.5);">
                     <div class="w-4 h-4 rounded-full" style="background: var(--primary);"></div>
                 </div>
-                <span class="font-bold text-xl tracking-tight font-heading" style="color: var(--text-main);">Bio-Notebook</span>
+                <span class="font-bold text-xl tracking-tight font-heading truncate" style="color: var(--text-main);">Lab-Journal</span>
             </a>
         </div>
 
-        <div class="hidden md:flex flex-wrap items-center gap-6 text-sm">
+        <div class="hidden md:flex flex-wrap items-center gap-6 text-sm" id="navDesktopLinks">
+            <a href="{{ base_path }}/ai-chat?user={{ user }}" class="transition-colors {% if active_page == 'ai_chat' %}font-medium{% endif %}" style="color: {% if active_page == 'ai_chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'ai_chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'" id="navAiChatLink">Чат с ИИ</a>
             <a href="{{ base_path }}/dashboard?user={{ user }}" class="transition-colors {% if active_page == 'dashboard' %}font-medium{% endif %}" style="color: {% if active_page == 'dashboard' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'dashboard' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Эксперименты</a>
             <a href="{{ base_path }}/projects?user={{ user }}" class="transition-colors {% if active_page == 'projects' %}font-medium{% endif %}" style="color: {% if active_page == 'projects' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'projects' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Проекты</a>
-            <a href="{{ base_path }}/reagents?user={{ user }}" class="transition-colors {% if active_page == 'reagents' %}font-medium{% endif %}" style="color: {% if active_page == 'reagents' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'reagents' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Реагенты</a>
-            <a href="{{ base_path }}/consumables?user={{ user }}" class="transition-colors {% if active_page == 'consumables' %}font-medium{% endif %}" style="color: {% if active_page == 'consumables' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'consumables' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Расходники</a>
+            <a href="{{ base_path }}/reagents?user={{ user }}" class="transition-colors {% if active_page in ['reagents', 'consumables', 'materials'] %}font-medium{% endif %}" style="color: {% if active_page in ['reagents', 'consumables', 'materials'] %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page in ['reagents', 'consumables', 'materials'] %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Реагенты</a>
             {% if graph_enabled %}
             <a href="{{ base_path }}/experiment_graph?user={{ user }}" class="transition-colors {% if active_page == 'graph' %}font-medium{% endif %}" style="color: {% if active_page == 'graph' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'graph' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">Граф связей</a>
             {% endif %}
-            <a href="{{ base_path }}/friends?user={{ user }}" class="transition-colors {% if active_page == 'friends' %}font-medium{% endif %}" style="color: {% if active_page == 'friends' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'friends' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
+            <a href="{{ base_path }}/friends?user={{ user }}" id="navChatLink" class="nav-chat-link transition-colors {% if active_page in ['friends', 'chat'] %}font-medium{% endif %}" style="color: {% if active_page in ['friends', 'chat'] %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page in ['friends', 'chat'] %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
                 <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>Друзья
-            </a>
-            <a href="{{ base_path }}/chat?user={{ user }}" id="navChatLink" class="nav-chat-link transition-colors {% if active_page == 'chat' %}font-medium{% endif %}" style="color: {% if active_page == 'chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'chat' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
-                <i data-lucide="message-circle" class="w-3.5 h-3.5 inline mr-1"></i>Чаты
                 <span id="navChatBadge" class="nav-chat-badge" hidden aria-label="Непрочитанные сообщения">0</span>
             </a>
             <a href="{{ base_path }}/equipment?user={{ user }}" class="transition-colors {% if active_page == 'equipment' %}font-medium{% endif %}" style="color: {% if active_page == 'equipment' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %};" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='{% if active_page == 'equipment' %}var(--text-accent){% else %}var(--text-nav-inactive){% endif %}'">
@@ -57,8 +57,7 @@
             </a>
         </div>
 
-        <div class="flex items-center gap-3">
-            <!-- Theme Toggle -->
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
             <button id="themeToggle" class="theme-toggle-btn" title="Переключить тему" aria-label="Переключить тему">
                 <i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i>
             </button>
@@ -66,7 +65,13 @@
             {% if user %}
             <div class="user-menu" id="userMenu">
                 <button type="button" class="user-menu-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
-                    <span class="user-menu-avatar">{{ user[:1]|upper }}</span>
+                    <span class="user-menu-avatar {% if user_avatar_url %}has-photo{% endif %}">
+                        {% if user_avatar_url %}
+                        <img src="{{ user_avatar_url }}" alt="">
+                        {% else %}
+                        {{ user[:1]|upper }}
+                        {% endif %}
+                    </span>
                     <span class="user-menu-meta">
                         <span class="user-menu-name">{{ user }}</span>
                         <span class="user-menu-plan">{{ plan_label|default('Бесплатный') }}</span>
@@ -81,6 +86,14 @@
                             <span>{{ plan_label|default('Бесплатный') }}</span>
                         </div>
                     </div>
+                    <a href="{{ base_path }}/profile/{{ user }}?user={{ user }}" class="user-menu-item" role="menuitem">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                        <span>Мой профиль</span>
+                    </a>
+                    <a href="{{ base_path }}/account" class="user-menu-item" role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>Аккаунт</span>
+                    </a>
                     <a href="{{ base_path }}/pricing?user={{ user }}" class="user-menu-item" role="menuitem">
                         <i data-lucide="credit-card" class="w-4 h-4"></i>
                         <span>Тарифы</span>
@@ -94,8 +107,175 @@
             {% endif %}
         </div>
     </nav>
+    <div class="nav-mobile-drawer" id="navMobileDrawer" hidden>
+        <a href="{{ base_path }}/ai-chat?user={{ user }}" class="{% if active_page == 'ai_chat' %}is-active{% endif %}">Чат с ИИ</a>
+        <a href="{{ base_path }}/dashboard?user={{ user }}" class="{% if active_page == 'dashboard' %}is-active{% endif %}">Эксперименты</a>
+        <a href="{{ base_path }}/projects?user={{ user }}" class="{% if active_page == 'projects' %}is-active{% endif %}">Проекты</a>
+        <a href="{{ base_path }}/reagents?user={{ user }}" class="{% if active_page in ['reagents', 'consumables', 'materials'] %}is-active{% endif %}">Реагенты</a>
+        {% if graph_enabled %}
+        <a href="{{ base_path }}/experiment_graph?user={{ user }}" class="{% if active_page == 'graph' %}is-active{% endif %}">Граф связей</a>
+        {% endif %}
+        <a href="{{ base_path }}/friends?user={{ user }}" class="nav-chat-link {% if active_page in ['friends', 'chat'] %}is-active{% endif %}">
+            Друзья
+            <span class="nav-chat-badge nav-chat-badge-inline" hidden aria-label="Непрочитанные сообщения">0</span>
+        </a>
+        <a href="{{ base_path }}/equipment?user={{ user }}" class="{% if active_page == 'equipment' %}is-active{% endif %}">Оборудование</a>
+    </div>
 
     <style>
+        .nav-mobile-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 999px;
+            border: 1px solid var(--nav-border);
+            background: var(--glass-bg, transparent);
+            color: var(--text-main);
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            flex-shrink: 0;
+            z-index: 10060;
+            position: relative;
+        }
+        .nav-mobile-icon-close { display: none; }
+        body.app-nav-open .nav-mobile-icon-open { display: none; }
+        body.app-nav-open .nav-mobile-icon-close { display: block; }
+        .nav-mobile-drawer {
+            position: fixed;
+            inset: 0;
+            z-index: 10040;
+            display: none;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            min-height: 100dvh;
+            margin: 0;
+            padding: 4.75rem 1.25rem 1.5rem;
+            background: var(--bg-page, #0b1018);
+            color: var(--text-main);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        body.app-nav-open .nav-mobile-drawer,
+        .nav-mobile-drawer:not([hidden]) {
+            display: flex;
+        }
+        .nav-mobile-drawer[hidden] {
+            display: none !important;
+        }
+        @media (min-width: 768px) {
+            .nav-mobile-btn { display: none !important; }
+            .nav-mobile-drawer { display: none !important; }
+        }
+        @media (max-width: 767px) {
+            .navbar { z-index: 10050; }
+        }
+
+        /* Modals must sit ABOVE sticky navbar (10050) and burger (10060) */
+        body .modal {
+            z-index: 10200 !important;
+            max-width: 100vw;
+            overflow-x: hidden;
+            box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
+        }
+        body .modal .modal-content {
+            position: relative;
+            box-sizing: border-box;
+            /* Prevent flex shrink → 1-char column (Safari/Chrome + overflow-wrap:anywhere) */
+            flex: 0 0 auto;
+            width: min(560px, calc(100vw - 2rem));
+            max-width: min(560px, calc(100vw - 2rem));
+            min-width: min(280px, calc(100vw - 2rem));
+            overflow-x: hidden;
+        }
+        body .modal .modal-close,
+        body .modal .modal-content > button.absolute {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            z-index: 5;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0 !important;
+            border: 0;
+            border-radius: 999px;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--glass-bg, #fff) 88%, transparent);
+            color: var(--text-muted) !important;
+            box-shadow: 0 0 0 1px var(--glass-border, rgba(0,0,0,.08));
+            -webkit-tap-highlight-color: transparent;
+            cursor: pointer;
+        }
+        body .modal .modal-close:active,
+        body .modal .modal-content > button.absolute:active {
+            background: color-mix(in srgb, var(--primary) 14%, transparent);
+            color: var(--primary) !important;
+        }
+        body.modal-open {
+            overflow: hidden !important;
+        }
+        body.modal-open .navbar {
+            /* keep visible under dim layer, but never steal taps from the modal X */
+            pointer-events: none;
+        }
+        @media (max-width: 768px) {
+            body .modal {
+                align-items: flex-end !important;
+                justify-content: center !important;
+                padding: 0 !important;
+            }
+            body .modal .modal-content {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                border-radius: 1.25rem 1.25rem 0 0 !important;
+                max-height: min(92dvh, 760px);
+                overflow-x: hidden;
+                overflow-y: auto;
+                padding: 1.25rem !important;
+                padding-top: 3.35rem !important; /* room for close button */
+                padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+            }
+            body .modal .modal-close,
+            body .modal .modal-content > button.absolute {
+                top: 0.7rem;
+                right: 0.7rem;
+            }
+        }
+        .nav-mobile-drawer a {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 1rem 0.25rem;
+            border-bottom: 1px solid var(--nav-border);
+            border-radius: 0;
+            text-decoration: none;
+            color: var(--text-main);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+        .nav-mobile-drawer a:last-child { border-bottom: 0; }
+        .nav-mobile-drawer a:hover,
+        .nav-mobile-drawer a.is-active {
+            background: transparent;
+            color: var(--text-accent, var(--primary));
+        }
+        .nav-chat-badge-inline {
+            position: static !important;
+            top: auto !important;
+            right: auto !important;
+        }
+        body.app-nav-locked { overflow: hidden; }
         .nav-chat-link { position: relative; display: inline-flex; align-items: center; gap: 2px; }
         .nav-chat-badge {
             position: absolute;
@@ -169,7 +349,7 @@
             from { opacity: 0; transform: translateX(16px) scale(0.96); }
             to { opacity: 1; transform: translateX(0) scale(1); }
         }
-        .user-menu { position: relative; }
+        .user-menu { position: relative; z-index: 320; }
         .user-menu-btn {
             display: flex;
             align-items: center;
@@ -199,6 +379,18 @@
             background: color-mix(in srgb, var(--primary) 18%, transparent);
             color: var(--primary);
             flex-shrink: 0;
+            overflow: hidden;
+        }
+        .user-menu-avatar.has-photo {
+            background: transparent;
+            padding: 0;
+        }
+        .user-menu-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            border-radius: 50%;
         }
         .user-menu-meta {
             display: none;
@@ -241,7 +433,7 @@
             -webkit-backdrop-filter: blur(20px);
             box-shadow: var(--shadow-glass);
             display: none;
-            z-index: 80;
+            z-index: 330;
         }
         .user-menu.open .user-menu-dropdown { display: block; }
         .user-menu-section {
@@ -317,6 +509,35 @@
             }
         })();
 
+        // ── Mobile nav drawer ──
+        (function() {
+            const nav = document.getElementById('appNavbar');
+            const btn = document.getElementById('navMobileBtn');
+            const drawer = document.getElementById('navMobileDrawer');
+            if (!nav || !btn || !drawer) return;
+            if (drawer.parentElement !== document.body) {
+                document.body.appendChild(drawer);
+            }
+            function setOpen(open) {
+                nav.classList.toggle('nav-open', open);
+                document.body.classList.toggle('app-nav-open', open);
+                document.body.classList.toggle('app-nav-locked', open);
+                drawer.hidden = !open;
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                btn.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+            }
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setOpen(drawer.hidden);
+            });
+            drawer.querySelectorAll('a').forEach(function(a) {
+                a.addEventListener('click', function() { setOpen(false); });
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') setOpen(false);
+            });
+        })();
+
         // ── User menu dropdown ──
         (function() {
             const menu = document.getElementById('userMenu');
@@ -353,14 +574,55 @@
         });
 
         // ── Modal Helpers (shared) ──
+        function syncModalOpenClass() {
+            const anyOpen = Array.prototype.some.call(
+                document.querySelectorAll('.modal'),
+                function (m) {
+                    if (m.classList.contains('active')) return true;
+                    const d = (m.style.display || '').toLowerCase();
+                    return d === 'flex' || d === 'block';
+                }
+            );
+            document.body.classList.toggle('modal-open', anyOpen);
+        }
         function openModalFn(modalEl) {
+            if (!modalEl) return;
             modalEl.style.display = 'flex';
-            setTimeout(() => { modalEl.style.opacity = '1'; }, 10);
+            modalEl.classList.add('active');
+            document.body.classList.add('modal-open');
+            setTimeout(function () {
+                modalEl.style.opacity = '1';
+                const mc = modalEl.querySelector('.modal-content');
+                if (mc) mc.style.transform = 'scale(1)';
+            }, 10);
         }
         function closeModalFn(modalEl) {
+            if (!modalEl) return;
             modalEl.style.opacity = '0';
-            setTimeout(() => { modalEl.style.display = 'none'; }, 300);
+            modalEl.classList.remove('active');
+            const mc = modalEl.querySelector('.modal-content');
+            if (mc) mc.style.transform = 'scale(0.95)';
+            setTimeout(function () {
+                modalEl.style.display = 'none';
+                syncModalOpenClass();
+            }, 300);
         }
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            const open = Array.prototype.filter.call(
+                document.querySelectorAll('.modal'),
+                function (m) {
+                    if (m.classList.contains('active')) return true;
+                    const d = (m.style.display || '').toLowerCase();
+                    return d === 'flex' || d === 'block';
+                }
+            );
+            if (!open.length) return;
+            const top = open[open.length - 1];
+            const closer = top.querySelector('[onclick*="close"], .modal-close, [aria-label="Закрыть"]');
+            if (closer) closer.click();
+            else closeModalFn(top);
+        });
 
         // ── Chat unread badge + toast (all pages) ──
         {% if user %}
@@ -376,20 +638,22 @@
             }
 
             function setBadge(count) {
-                const badge = document.getElementById('navChatBadge');
-                if (!badge) return;
-                if (!count || count <= 0) {
-                    badge.hidden = true;
-                    badge.textContent = '0';
-                    return;
-                }
-                badge.hidden = false;
-                badge.textContent = count > 99 ? '99+' : String(count);
-                if (count > lastUnreadCount) {
-                    badge.classList.remove('pulse');
-                    void badge.offsetWidth;
-                    badge.classList.add('pulse');
-                }
+                const badges = document.querySelectorAll('.nav-chat-badge');
+                if (!badges.length) return;
+                badges.forEach(function(badge) {
+                    if (!count || count <= 0) {
+                        badge.hidden = true;
+                        badge.textContent = '0';
+                        return;
+                    }
+                    badge.hidden = false;
+                    badge.textContent = count > 99 ? '99+' : String(count);
+                    if (count > lastUnreadCount) {
+                        badge.classList.remove('pulse');
+                        void badge.offsetWidth;
+                        badge.classList.add('pulse');
+                    }
+                });
             }
 
             function showChatToast(latest) {
@@ -465,10 +729,9 @@
         <div class="mx-auto max-w-7xl px-4 pb-4">
             <div class="liquid-glass-strong rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xl" style="border:1px solid var(--glass-border);">
                 <div class="flex-grow min-w-0">
-                    <div class="font-heading font-semibold text-sm mb-1" style="color:var(--text-main);">🍪 Мы используем cookies</div>
+                    <div class="font-heading font-semibold text-sm mb-1" style="color:var(--text-main);">Мы используем cookies</div>
                     <p class="text-xs leading-relaxed" style="color:var(--text-muted);">
-                        Этот сайт использует файлы cookie для обеспечения корректной работы и улучшения вашего опыта. 
-                        Данные хранятся в течение 31 дня. Продолжая использовать сайт, вы соглашаетесь с этим.
+                        Нужны для входа и корректной работы сервиса. Согласие сохраняется на год.
                     </p>
                 </div>
                 <button onclick="acceptCookies()" class="font-bold py-2.5 px-8 rounded-full transition-all duration-200 flex-shrink-0 text-sm whitespace-nowrap" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
@@ -479,38 +742,56 @@
     </div>
 
     <script>
-        // ── Cookie Banner ──
         (function() {
-            const banner = document.getElementById('cookieBanner');
-            if (!banner) return;
+            const KEY = 'biobook-cookie-consent';
+            const DATE_KEY = 'biobook-cookie-date';
+            const DAYS = 365;
 
-            const cookieConsent = localStorage.getItem('biobook-cookie-consent');
-            const consentDate = localStorage.getItem('biobook-cookie-date');
-
-            if (cookieConsent === 'accepted' && consentDate) {
-                const daysSince = (Date.now() - parseInt(consentDate)) / (1000 * 60 * 60 * 24);
-                if (daysSince < 31) {
-                    return; // Consent still valid
+            function readCookie(name) {
+                const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+                return m ? decodeURIComponent(m[1]) : '';
+            }
+            function writeCookie(name, value, days) {
+                const maxAge = Math.floor(days * 86400);
+                document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
+            }
+            function hasValidConsent() {
+                let consent = '';
+                let ts = 0;
+                try {
+                    consent = localStorage.getItem(KEY) || '';
+                    ts = parseInt(localStorage.getItem(DATE_KEY) || '0', 10) || 0;
+                } catch (e) {}
+                if (consent !== 'accepted') {
+                    consent = readCookie(KEY);
+                    ts = parseInt(readCookie(DATE_KEY) || '0', 10) || 0;
                 }
+                if (consent !== 'accepted' || !ts) return false;
+                const daysSince = (Date.now() - ts) / 86400000;
+                return daysSince >= 0 && daysSince < DAYS;
             }
 
-            // Show banner with animation
+            const banner = document.getElementById('cookieBanner');
+            if (!banner) return;
+            if (hasValidConsent()) return;
             requestAnimationFrame(() => {
                 banner.style.transform = 'translateY(0)';
                 banner.style.opacity = '1';
             });
-        })();
 
-        function acceptCookies() {
-            const banner = document.getElementById('cookieBanner');
-            if (banner) {
+            window.acceptCookies = function acceptCookies() {
+                const now = String(Date.now());
+                try {
+                    localStorage.setItem(KEY, 'accepted');
+                    localStorage.setItem(DATE_KEY, now);
+                } catch (e) {}
+                writeCookie(KEY, 'accepted', DAYS);
+                writeCookie(DATE_KEY, now, DAYS);
                 banner.style.transform = 'translateY(100%)';
                 banner.style.opacity = '0';
                 setTimeout(() => { banner.style.display = 'none'; }, 500);
-            }
-            localStorage.setItem('biobook-cookie-consent', 'accepted');
-            localStorage.setItem('biobook-cookie-date', String(Date.now()));
-        }
+            };
+        })();
     </script>
     {% include "yandex_metrika.html" %}
 </body>

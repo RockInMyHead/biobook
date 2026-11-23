@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}Реагенты{% endblock %}
+{% block nav_subtitle %}Реагенты{% endblock %}
+
+{% block extra_head %}
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: var(--modal-overlay);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal.active { display: flex; opacity: 1; }
+    .modal-content {
+        transform: scale(0.95);
+        transition: transform 0.3s ease;
+        width: 100%; max-width: 600px;
+    }
+    .modal.active .modal-content { transform: scale(1); }
+    table th { color: var(--text-muted); }
+    table td { color: var(--text-secondary); }
+    table tr { border-color: var(--table-border-light); }
+    table tr:hover { background: var(--table-hover); }
+    .mat-tabs {
+        display: inline-flex;
+        gap: 0.35rem;
+        padding: 0.3rem;
+        border-radius: 999px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        margin-bottom: 1.5rem;
+    }
+    .mat-tab {
+        border: 0;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 0.55rem 1.1rem;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background .15s, color .15s;
+    }
+    .mat-tab:hover { color: var(--text-main); }
+    .mat-tab.active {
+        background: var(--primary);
+        color: var(--primary-fg);
+    }
+    .mat-panel { display: none; }
+    .mat-panel.active { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-6">
+    <div>
+        <h1 class="text-4xl md:text-5xl font-heading tracking-tight mb-2">Реагенты</h1>
+        <p class="text-sm" style="color: var(--text-muted);" id="matSubtitle">
+            {{ low_reagents }} реагентов и {{ low_consumables }} расходников на низком остатке
+        </p>
+    </div>
+    <div class="flex flex-wrap gap-3">
+        <button type="button" id="matAddBtn" onclick="matAddClick()" class="font-bold py-3 px-6 rounded-full transition-colors flex items-center gap-2 whitespace-nowrap" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            <span id="matAddLabel">Добавить реагент</span>
+        </button>
+    </div>
+</div>
+
+<div class="mat-tabs" role="tablist" aria-label="Тип материалов">
+    <button type="button" class="mat-tab {% if materials_tab != 'consumables' %}active{% endif %}" data-tab="reagents" role="tab" aria-selected="{% if materials_tab != 'consumables' %}true{% else %}false{% endif %}">Реагенты</button>
+    <button type="button" class="mat-tab {% if materials_tab == 'consumables' %}active{% endif %}" data-tab="consumables" role="tab" aria-selected="{% if materials_tab == 'consumables' %}true{% else %}false{% endif %}">Расходники</button>
+</div>
+
+<div id="panel-reagents" class="mat-panel {% if materials_tab != 'consumables' %}active{% endif %}" role="tabpanel">
+<div class="liquid-glass rounded-2xl p-6">
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button class="filter-pill active" data-filter="Все">Все</button>
+        <button class="filter-pill" data-filter="Жидкий">Жидкий</button>
+        <button class="filter-pill" data-filter="Сыпучий">Сыпучий</button>
+        <button class="filter-pill" data-filter="Газ">Газ</button>
+    </div>
+
+    {% if reagents|length == 0 %}
+    <div class="text-center py-16">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+            <i data-lucide="flask-conical" class="w-10 h-10" style="color: var(--text-muted);"></i>
+        </div>
+        <h3 class="text-2xl font-heading mb-3">Нет реагентов</h3>
+        <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Добавьте реагенты вручную - демо-данные больше не подставляются.</p>
+        <button onclick="openReagentModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors border" style="color: var(--text-main); border-color: var(--glass-border);">
+            Добавить реагент
+        </button>
+    </div>
+    {% else %}
+    <div class="overflow-x-auto">
+        <table class="min-w-[1100px] w-full text-sm">
+            <thead>
+                <tr class="border-b" style="border-color: var(--table-border);">
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Название</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Категория</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">CAS / Формула</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Конц-ция / Хранение</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Мин. остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Срок годности</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Проект</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Местоположение</th>
+                    <th class="text-left py-3 pr-0 font-medium" style="color: var(--text-muted);"> </th>
+                </tr>
+            </thead>
+            <tbody id="reagentsTable">
+                {% for r in reagents %}
+                {% set r_amount = r.amount|float %}
+                {% set r_min = r.min_amount|float %}
+                {% set r_low = r_amount <= r_min %}
+                <tr class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ r.category }}">
+                    <td class="py-3 pr-4">
+                        <div class="font-semibold" style="color: var(--text-main);">{{ r.name }}</div>
+                        <div class="text-xs" style="color: var(--text-muted);">{{ r.supplier }}</div>
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.category }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">
+                        <div class="text-xs">{{ r.cas }}</div>
+                        <div class="text-xs" style="color: var(--text-muted);">{{ r.formula }}</div>
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">
+                        <div class="text-xs">{{ r.concentration }}</div>
+                        <div class="text-xs" style="color: var(--text-muted);">{{ r.storage }}</div>
+                    </td>
+                    <td class="py-3 pr-4 {% if r_low %}font-semibold{% endif %}" style="{% if r_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
+                        {{ r.amount }} {{ r.unit }}
+                        {% if r_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ r.min_amount }} {{ r.unit }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.expiry or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.project or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.location or '-' }}</td>
+                    <td class="py-3 pr-0 text-right whitespace-nowrap">
+                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editReagent('{{ r.id }}')">Изм.</button>
+                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteReagent('{{ r.id }}')">Уд.</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<div id="panel-consumables" class="mat-panel {% if materials_tab == 'consumables' %}active{% endif %}" role="tabpanel">
+<div class="liquid-glass rounded-2xl p-6">
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button class="filter2-pill active" data-filter="Все">Все категории</button>
+        <button class="filter2-pill" data-filter="Стекло">Стекло</button>
+        <button class="filter2-pill" data-filter="СИЗ">СИЗ</button>
+        <button class="filter2-pill" data-filter="Пластик">Пластик</button>
+        <button class="filter2-pill" data-filter="Фильтры">Фильтры</button>
+    </div>
+
+    {% if consumables|length == 0 %}
+    <div class="text-center py-16">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style="background: var(--glass-bg);">
+            <i data-lucide="package" class="w-10 h-10" style="color: var(--text-muted);"></i>
+        </div>
+        <h3 class="text-2xl font-heading mb-3">Нет расходников</h3>
+        <p class="max-w-md mx-auto mb-8" style="color: var(--text-muted);">Добавьте позиции вручную.</p>
+        <button onclick="openConsumableModal()" class="liquid-glass px-8 py-3 rounded-full transition-colors border" style="color: var(--text-main); border-color: var(--glass-border);">
+            Добавить расходник
+        </button>
+    </div>
+    {% else %}
+    <div class="overflow-x-auto">
+        <table class="min-w-[900px] w-full text-sm">
+            <thead>
+                <tr class="border-b" style="border-color: var(--table-border);">
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Название</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Категория</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Мин. остаток</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Местоположение</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Поставщик</th>
+                    <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Комментарий</th>
+                    <th class="text-left py-3 pr-0 font-medium" style="color: var(--text-muted);"> </th>
+                </tr>
+            </thead>
+            <tbody id="consumablesTable">
+                {% for c in consumables %}
+                {% set c_amount = c.amount|float %}
+                {% set c_min = c.min_amount|float %}
+                {% set c_low = c_amount <= c_min %}
+                <tr class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ c.category }}">
+                    <td class="py-3 pr-4">
+                        <div class="font-semibold" style="color: var(--text-main);">{{ c.name }}</div>
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.category }}</td>
+                    <td class="py-3 pr-4 {% if c_low %}font-semibold{% endif %}" style="{% if c_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
+                        {{ c.amount }} {{ c.unit }}
+                        {% if c_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
+                    </td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.min_amount }} {{ c.unit }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '-' }}</td>
+                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '-' }}</td>
+                    <td class="py-3 pr-0 text-right whitespace-nowrap">
+                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editConsumable('{{ c.id }}')">Изм.</button>
+                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteConsumable('{{ c.id }}')">Уд.</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<!-- Add Reagent Modal -->
+<div id="reagentModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeReagentModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Добавить реагент</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Заполните минимум название и остаток</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="r_name" class="form-input" placeholder="Название" />
+            <input id="r_supplier" class="form-input" placeholder="Поставщик" />
+            <select id="r_category" class="form-input">
+                <option>Жидкий</option>
+                <option>Сыпучий</option>
+                <option>Газ</option>
+            </select>
+            <input id="r_cas" class="form-input" placeholder="CAS" />
+            <input id="r_formula" class="form-input" placeholder="Формула" />
+            <input id="r_conc" class="form-input" placeholder="Конц-ция" />
+            <input id="r_storage" class="form-input" placeholder="Хранение" />
+            <input id="r_project" class="form-input" placeholder="Проект" />
+            <input id="r_location" class="form-input" placeholder="Местоположение" />
+            <input id="r_expiry" class="form-input" placeholder="Срок годности (дд.мм.гггг)" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="r_amount" class="form-input" placeholder="Остаток" />
+                <input id="r_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="r_unit" class="form-input" placeholder="Ед. (мл/г/л)" value="мл" />
+            </div>
+        </div>
+        <div class="mt-6">
+            <button type="button" onclick="createReagent()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Reagent Modal -->
+<div id="editReagentModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeEditReagentModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Изменить реагент</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Отредактируйте поля реагента</p>
+        </div>
+        <input type="hidden" id="er_id" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="er_name" class="form-input" placeholder="Название" />
+            <input id="er_supplier" class="form-input" placeholder="Поставщик" />
+            <select id="er_category" class="form-input">
+                <option>Жидкий</option>
+                <option>Сыпучий</option>
+                <option>Газ</option>
+            </select>
+            <input id="er_cas" class="form-input" placeholder="CAS" />
+            <input id="er_formula" class="form-input" placeholder="Формула" />
+            <input id="er_conc" class="form-input" placeholder="Конц-ция" />
+            <input id="er_storage" class="form-input" placeholder="Хранение" />
+            <input id="er_project" class="form-input" placeholder="Проект" />
+            <input id="er_location" class="form-input" placeholder="Местоположение" />
+            <input id="er_expiry" class="form-input" placeholder="Срок годности (дд.мм.гггг)" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="er_amount" class="form-input" placeholder="Остаток" />
+                <input id="er_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="er_unit" class="form-input" placeholder="Ед. (мл/г/л)" value="мл" />
+            </div>
+        </div>
+        <div class="mt-6">
+            <button type="button" onclick="saveEditReagent()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Consumable Modal -->
+<div id="consumableModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeConsumableModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Добавить расходник</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Заполните минимум название и остаток</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="c_name" class="form-input" placeholder="Название" />
+            <select id="c_category" class="form-input">
+                <option>Стекло</option>
+                <option>СИЗ</option>
+                <option>Пластик</option>
+                <option>Фильтры</option>
+            </select>
+            <input id="c_location" class="form-input" placeholder="Местоположение" />
+            <input id="c_supplier" class="form-input" placeholder="Поставщик" />
+            <input id="c_comment" class="form-input md:col-span-2" placeholder="Комментарий" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="c_amount" class="form-input" placeholder="Остаток" />
+                <input id="c_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="c_unit" class="form-input" placeholder="Ед. (шт/пар)" value="шт" />
+            </div>
+        </div>
+        <div class="mt-6">
+            <button type="button" onclick="createConsumable()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Consumable Modal -->
+<div id="editConsumableModal" class="modal">
+    <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
+        <button type="button" onclick="closeEditConsumableModal()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="mb-6">
+            <h2 class="text-2xl font-heading font-bold mb-2">Изменить расходник</h2>
+            <p class="text-sm" style="color: var(--text-muted);">Отредактируйте поля расходника</p>
+        </div>
+        <input type="hidden" id="ec_id" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input id="ec_name" class="form-input" placeholder="Название" />
+            <select id="ec_category" class="form-input">
+                <option>Стекло</option>
+                <option>СИЗ</option>
+                <option>Пластик</option>
+                <option>Фильтры</option>
+            </select>
+            <input id="ec_location" class="form-input" placeholder="Местоположение" />
+            <input id="ec_supplier" class="form-input" placeholder="Поставщик" />
+            <input id="ec_comment" class="form-input md:col-span-2" placeholder="Комментарий" />
+            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                <input id="ec_amount" class="form-input" placeholder="Остаток" />
+                <input id="ec_min" class="form-input" placeholder="Мин. остаток" />
+                <input id="ec_unit" class="form-input" placeholder="Ед. (шт/пар)" value="шт" />
+            </div>
+        </div>
+        <div class="mt-6">
+            <button type="button" onclick="saveEditConsumable()" class="w-full font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function setActivePill(groupSelector, btn) {
+        document.querySelectorAll(groupSelector).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    function setMaterialsTab(tab) {
+        const isCons = tab === 'consumables';
+        document.querySelectorAll('.mat-tab').forEach(b => {
+            const on = b.dataset.tab === tab;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        document.getElementById('panel-reagents').classList.toggle('active', !isCons);
+        document.getElementById('panel-consumables').classList.toggle('active', isCons);
+        document.getElementById('matAddLabel').textContent = isCons ? 'Добавить расходник' : 'Добавить реагент';
+        const url = new URL(location.href);
+        if (isCons) url.searchParams.set('tab', 'consumables');
+        else url.searchParams.delete('tab');
+        history.replaceState(null, '', url);
+    }
+
+    function matAddClick() {
+        const cons = document.querySelector('.mat-tab.active')?.dataset.tab === 'consumables';
+        if (cons) openConsumableModal();
+        else openReagentModal();
+    }
+
+    document.querySelectorAll('.mat-tab').forEach(btn => {
+        btn.addEventListener('click', () => setMaterialsTab(btn.dataset.tab));
+    });
+
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setActivePill('.filter-pill', btn);
+            const filter = btn.dataset.filter;
+            document.querySelectorAll('#reagentsTable tr').forEach(row => {
+                row.style.display = (filter === 'Все' || row.dataset.category === filter) ? '' : 'none';
+            });
+        });
+    });
+
+    document.querySelectorAll('.filter2-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setActivePill('.filter2-pill', btn);
+            const filter = btn.dataset.filter;
+            document.querySelectorAll('#consumablesTable tr').forEach(row => {
+                row.style.display = (filter === 'Все' || row.dataset.category === filter) ? '' : 'none';
+            });
+        });
+    });
+
+    const reagentModal = document.getElementById('reagentModal');
+    const editReagentModal = document.getElementById('editReagentModal');
+    const consumableModal = document.getElementById('consumableModal');
+    const editConsumableModal = document.getElementById('editConsumableModal');
+
+    function openReagentModal(){ openModalFn(reagentModal); }
+    function closeReagentModal(){ closeModalFn(reagentModal); }
+    function openEditReagentModal() { openModalFn(editReagentModal); }
+    function closeEditReagentModal() { closeModalFn(editReagentModal); }
+    function openConsumableModal(){ openModalFn(consumableModal); }
+    function closeConsumableModal(){ closeModalFn(consumableModal); }
+    function openEditConsumableModal() { openModalFn(editConsumableModal); }
+    function closeEditConsumableModal() { closeModalFn(editConsumableModal); }
+
+    if (reagentModal) reagentModal.addEventListener('click', function(e){ if(e.target===this) closeReagentModal(); });
+    if (editReagentModal) editReagentModal.addEventListener('click', function (e) { if (e.target === this) closeEditReagentModal(); });
+    if (consumableModal) consumableModal.addEventListener('click', function(e){ if(e.target===this) closeConsumableModal(); });
+    if (editConsumableModal) editConsumableModal.addEventListener('click', function (e) { if (e.target === this) closeEditConsumableModal(); });
+
+    async function deleteReagent(id){
+        if(!confirm('Удалить реагент?')) return;
+        await fetch(`{{ base_path }}/api/reagents/${id}`, { method:'DELETE' });
+        location.reload();
+    }
+
+    async function createReagent(){
+        const payload = {
+            user: "{{ user }}",
+            name: document.getElementById('r_name').value,
+            supplier: document.getElementById('r_supplier').value,
+            category: document.getElementById('r_category').value,
+            cas: document.getElementById('r_cas').value,
+            formula: document.getElementById('r_formula').value,
+            concentration: document.getElementById('r_conc').value,
+            storage: document.getElementById('r_storage').value,
+            amount: document.getElementById('r_amount').value,
+            min_amount: document.getElementById('r_min').value,
+            unit: document.getElementById('r_unit').value,
+            expiry: document.getElementById('r_expiry').value,
+            project: document.getElementById('r_project').value,
+            location: document.getElementById('r_location').value,
+        };
+        await fetch('{{ base_path }}/api/reagents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        closeReagentModal();
+        location.href = '{{ base_path }}/reagents?user={{ user }}';
+    }
+
+    async function fetchReagentData(id) {
+        const resp = await fetch(`{{ base_path }}/api/reagents?user={{ user }}`);
+        const data = await resp.json();
+        return data.items.find(i => i.id === id);
+    }
+
+    async function editReagent(id) {
+        const r = await fetchReagentData(id);
+        if (!r) return;
+        document.getElementById('er_id').value = r.id;
+        document.getElementById('er_name').value = r.name;
+        document.getElementById('er_supplier').value = r.supplier;
+        document.getElementById('er_category').value = r.category;
+        document.getElementById('er_cas').value = r.cas;
+        document.getElementById('er_formula').value = r.formula;
+        document.getElementById('er_conc').value = r.concentration;
+        document.getElementById('er_storage').value = r.storage;
+        document.getElementById('er_amount').value = r.amount;
+        document.getElementById('er_min').value = r.min_amount;
+        document.getElementById('er_unit').value = r.unit;
+        document.getElementById('er_expiry').value = r.expiry;
+        document.getElementById('er_project').value = r.project;
+        document.getElementById('er_location').value = r.location;
+        openEditReagentModal();
+    }
+
+    async function saveEditReagent() {
+        const id = document.getElementById('er_id').value;
+        const payload = {
+            name: document.getElementById('er_name').value,
+            supplier: document.getElementById('er_supplier').value,
+            category: document.getElementById('er_category').value,
+            cas: document.getElementById('er_cas').value,
+            formula: document.getElementById('er_formula').value,
+            concentration: document.getElementById('er_conc').value,
+            storage: document.getElementById('er_storage').value,
+            amount: document.getElementById('er_amount').value,
+            min_amount: document.getElementById('er_min').value,
+            unit: document.getElementById('er_unit').value,
+            expiry: document.getElementById('er_expiry').value,
+            project: document.getElementById('er_project').value,
+            location: document.getElementById('er_location').value,
+        };
+        await fetch(`{{ base_path }}/api/reagents/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        closeEditReagentModal();
+        location.reload();
+    }
+
+    async function deleteConsumable(id){
+        if(!confirm('Удалить расходник?')) return;
+        await fetch(`{{ base_path }}/api/consumables/${id}`, { method:'DELETE' });
+        location.href = '{{ base_path }}/reagents?user={{ user }}&tab=consumables';
+    }
+
+    async function createConsumable(){
+        const payload = {
+            user: "{{ user }}",
+            name: document.getElementById('c_name').value,
+            supplier: document.getElementById('c_supplier').value,
+            category: document.getElementById('c_category').value,
+            amount: document.getElementById('c_amount').value,
+            min_amount: document.getElementById('c_min').value,
+            unit: document.getElementById('c_unit').value,
+            location: document.getElementById('c_location').value,
+            comment: document.getElementById('c_comment').value,
+        };
+        await fetch('{{ base_path }}/api/consumables', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        closeConsumableModal();
+        location.href = '{{ base_path }}/reagents?user={{ user }}&tab=consumables';
+    }
+
+    async function fetchConsumableData(id) {
+        const resp = await fetch(`{{ base_path }}/api/consumables?user={{ user }}`);
+        const data = await resp.json();
+        return data.items.find(i => i.id === id);
+    }
+
+    async function editConsumable(id) {
+        const c = await fetchConsumableData(id);
+        if (!c) return;
+        document.getElementById('ec_id').value = c.id;
+        document.getElementById('ec_name').value = c.name;
+        document.getElementById('ec_category').value = c.category;
+        document.getElementById('ec_amount').value = c.amount;
+        document.getElementById('ec_min').value = c.min_amount;
+        document.getElementById('ec_unit').value = c.unit;
+        document.getElementById('ec_location').value = c.location;
+        document.getElementById('ec_supplier').value = c.supplier;
+        document.getElementById('ec_comment').value = c.comment;
+        openEditConsumableModal();
+    }
+
+    async function saveEditConsumable() {
+        const id = document.getElementById('ec_id').value;
+        const payload = {
+            name: document.getElementById('ec_name').value,
+            supplier: document.getElementById('ec_supplier').value,
+            category: document.getElementById('ec_category').value,
+            amount: document.getElementById('ec_amount').value,
+            min_amount: document.getElementById('ec_min').value,
+            unit: document.getElementById('ec_unit').value,
+            location: document.getElementById('ec_location').value,
+            comment: document.getElementById('ec_comment').value,
+        };
+        await fetch(`{{ base_path }}/api/consumables/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        closeEditConsumableModal();
+        location.href = '{{ base_path }}/reagents?user={{ user }}&tab=consumables';
+    }
+</script>
+{% endblock %}

@@ -1,4 +1,4 @@
-# Развертывание Bio-Notebook
+# Развертывание Lab-Journal
 
 > Актуальные реквизиты доступа, инфраструктура и ключи — в корневом [`../deploy.md`](../deploy.md).
 
@@ -24,21 +24,31 @@ rm /tmp/bio-notebook-deploy.tar.gz
 - **Админка лаб. журнала (отдельно от сайта):** https://anticus.tech/bio-notebook/lab-admin — ключ `ADMIN_KEY` (`admin123` по умолчанию)
 - Старый URL `/bio-notebook/admin` перенаправляет на `/lab-admin`
 
-## Яндекс ID (OAuth)
+## Канонический домен (актуально)
 
-1. Создайте приложение: https://oauth.yandex.ru/client/new  
-   - **Redirect URI:** `https://bionotebook.ru/auth/yandex/callback`
-   - (legacy, если ещё нужен) `https://anticus.tech/bio-notebook/auth/yandex/callback`
-   - Права: login:email, login:info
+- **Прод:** https://labjournal.tech  
+- **ВМ:** `user1@176.109.103.209`, код `/opt/bio-notebook/web`, сервис `biobook`  
+- **Nginx:** `deploy/nginx-labjournal.tech.conf`  
+- Старый **bionotebook.ru** → 301 на labjournal.tech (после DNS+SSL)
 
-2. Добавьте в env сервиса `biobook` (или `/etc/biobook.env`):
+Env (`/etc/biobook.env`):
 
 ```bash
-YANDEX_CLIENT_ID=ваш_client_id
-YANDEX_CLIENT_SECRET=ваш_client_secret
-SITE_ORIGIN=https://bionotebook.ru
-LEGAL_BASE_URL=https://anticus.tech
+BASE_PATH=
+SITE_ORIGIN=https://labjournal.tech
+LEGAL_BASE_URL=https://labjournal.tech
+COOKIE_SECURE=true
+LEGACY_HOSTS=bionotebook.ru,www.bionotebook.ru,www.labjournal.tech
 ```
+
+## Яндекс ID (OAuth)
+
+1. Создайте / обновите приложение: https://oauth.yandex.ru/client/new  
+   - **Redirect URI:** `https://labjournal.tech/auth/yandex/callback`
+   - (legacy) `https://bionotebook.ru/auth/yandex/callback` — пока живёт 301
+   - Права: login:email, login:info
+
+2. В `/etc/biobook.env` — `YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET`, `SITE_ORIGIN=https://labjournal.tech`.
 
 3. Перезапуск: `systemctl restart biobook`
 
