@@ -379,7 +379,7 @@
 {% block content %}
 <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
     <div>
-        <a href="{{ base_path }}/dashboard?user={{ viewing_user or user }}" class="text-sm flex items-center gap-1 mb-3 no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+        <a href="{% if is_public_view %}{{ base_path }}/{% else %}{{ base_path }}/dashboard?user={{ viewing_user or user }}{% endif %}" class="text-sm flex items-center gap-1 mb-3 no-underline" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
             <i data-lucide="arrow-left" class="w-4 h-4"></i> Назад к исследованиям
         </a>
         <h1 class="text-3xl md:text-4xl font-heading tracking-tight">{{ exp.name }}</h1>
@@ -425,12 +425,16 @@
     <button class="exp-tab active" data-tab="nodes" onclick="switchExpTab('nodes')">
         <i data-lucide="list-ordered" class="w-4 h-4"></i> Этапы
     </button>
+    {% if not is_public_view %}
     <button class="exp-tab" data-tab="wiki" onclick="switchExpTab('wiki')">
         <i data-lucide="book-open" class="w-4 h-4"></i> Wiki
     </button>
+    {% endif %}
+    {% if not is_public_view %}
     <button class="exp-tab" data-tab="files" onclick="switchExpTab('files')">
         <i data-lucide="folder-open" class="w-4 h-4"></i> Файлы
     </button>
+    {% endif %}
 </div>
 
 <!-- Tab: Nodes -->
@@ -478,7 +482,7 @@
                 {% set level_idx = loop.index0 %}
                 <div class="level-row" data-level="{{ level_idx }}">
                     {% for node in level %}
-                    <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-5 md:p-6 node-card group" style="border-color: var(--glass-border);">
+                    <a href="{{ base_path }}{% if is_public_view %}/share/{{ exp.id }}{% else %}/experiment/{{ user }}/{{ exp.id }}{% endif %}/node/{{ node.id }}" class="liquid-glass rounded-2xl p-5 md:p-6 node-card group" style="border-color: var(--glass-border);">
                         <div class="flex justify-between items-start mb-3">
                             <span class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md" style="background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);">Этап</span>
                             <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
@@ -528,7 +532,7 @@
         {% for level in exp.levels %}
         <div class="tree-level">
             {% for node in level %}
-            <a href="{{ base_path }}/experiment/{{ user }}/{{ exp.id }}/node/{{ node.id }}" class="tree-node group">
+            <a href="{{ base_path }}{% if is_public_view %}/share/{{ exp.id }}{% else %}/experiment/{{ user }}/{{ exp.id }}{% endif %}/node/{{ node.id }}" class="tree-node group">
                 <span class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border" style="background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary);">
                     {{ loop.index }}
                 </span>

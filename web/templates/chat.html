@@ -22,7 +22,7 @@
         padding: 0 !important;
         margin: 0 !important;
         overflow: hidden !important;
-        height: calc(100vh - 64px) !important;
+        height: calc(100dvh - var(--app-navbar-height, 64px)) !important;
     }
 
     /* ───── Animations ───── */
@@ -1390,6 +1390,8 @@ async function stopVoiceRecording() {
         const formData = new FormData();
         // Append as field "file" to match the upload endpoint
         formData.append('file', blob, 'voice_' + Date.now() + '.webm');
+        formData.set('chat_id', curChatId);
+        formData.set('kind', 'voice');
 
         const r = await fetch(BASE + '/api/upload', {
             method: 'POST',
@@ -1539,6 +1541,7 @@ async function sendFile(input) {
     try {
         const formData = new FormData();
         formData.append('file', file);
+        formData.set('chat_id', curChatId);
 
         const r = await fetch(BASE + '/api/upload', {
             method: 'POST',

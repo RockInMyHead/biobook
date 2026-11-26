@@ -376,7 +376,7 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.28);
             z-index: 80;
         }
-        .version-panel[hidden] { display: none !important; }
+        .version-panel[hidden], #restoreNoteVersion[hidden] { display: none !important; }
         .version-panel-head {
             display: flex; align-items: center; justify-content: space-between;
             padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--nb-border);
@@ -1028,7 +1028,7 @@
                 {% if not is_public_view %}
                 <div class="workspace-toolbar">
                     <div class="toolbar-main">
-                    <div class="tool-group">
+                    <div class="tool-group" id="noteInsertTools">
                         <span class="tool-group-label">Вставка</span>
                             <button type="button" class="tool-btn" data-media-tool="photo" title="Фото" onclick="requestMediaTool('photo')">
                             <i data-lucide="image" class="w-4 h-4"></i><span class="tool-label">Фото</span>
@@ -1076,6 +1076,7 @@
                         <button type="button" class="tool-btn" onclick="travelTime(-1)" title="Вперёд по версиям">
                             <i data-lucide="redo-2" class="w-4 h-4"></i>
                         </button>
+                        <button type="button" id="restoreNoteVersion" class="tool-btn" hidden onclick="restoreActiveVersion()">Восстановить версию</button>
                         <div id="versionPanel" class="version-panel" hidden>
                             <div class="version-panel-head">
                                 <span>История версий</span>
@@ -1206,6 +1207,10 @@
 
     <script>
         let saveTimeout = null;
+        let noteRevision = {{ (notes.revision if notes else 0) | tojson }};
+        let noteDirty = false;
+        let noteSave = null;
+        let activeVersion = null;
         const exp_id = "{{ exp.id }}";
         const node_id = "{{ node.id }}";
 
@@ -1330,49 +1335,66 @@
             }
         }
 
-        // AutoSave Logic with Retry
-        async function autoSave(retries = 3) {
+        function autoSave() {
+            if (activeVersion || document.getElementById('editor').contentEditable !== 'true') return;
+            noteDirty = true;
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(async () => {
-                const html = getEditorHtmlForSave();
-                const annotationUrl = document.getElementById('editor').dataset.annotationUrl || '';
-                
-                const performSave = async (count) => {
+            saveTimeout = setTimeout(flushAutosave, 1000);
+        }
+
+        function flushAutosave() {
+            clearTimeout(saveTimeout);
+            if (noteSave) return noteSave;
+            if (!noteDirty || activeVersion) return Promise.resolve(true);
+            noteSave = (async () => {
+                while (noteDirty && !activeVersion) {
+                    noteDirty = false;
+                    const annotation_url = document.getElementById('editor').dataset.annotationUrl || '';
+                    const html = getEditorHtmlForSave();
                     try {
-                        const resp = await fetch('{{ base_path }}/api/node/save', {
+                        const response = await fetch('{{ base_path }}/api/node/save', {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ exp_id, node_id, html, annotation_url: annotationUrl })
+                            body: JSON.stringify({ exp_id, node_id, html, annotation_url, revision: noteRevision }),
                         });
-                        if (!resp.ok) throw new Error('Server error');
-                        showSaveIndicator();
-                    } catch (e) {
-                        console.error(`Save failed (${count} retries left)`, e);
-                        if (count > 0) {
-                            setTimeout(() => performSave(count - 1), 2000);
-                        } else {
-                            showSaveIndicator(true);
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Не удалось сохранить. Попробуйте ещё раз.');
                         }
+                        noteRevision = (await response.json()).revision;
+                        showSaveIndicator();
+                    } catch (error) {
+                        noteDirty = true;
+                        clearTimeout(saveTimeout);
+                        showSaveIndicator(true, error.message);
+                        return false;
                     }
-                };
-                
-                performSave(retries);
-            }, 1000);
+                }
+                return true;
+            })().finally(() => { noteSave = null; });
+            return noteSave;
         }
 
-        function showSaveIndicator(isError = false) {
+        function showSaveIndicator(isError = false, message = "Не удалось сохранить") {
             const pill = document.getElementById('savePill');
             const ind = document.getElementById('saveIndicator');
             if (pill) {
                 pill.classList.toggle('is-error', !!isError);
-                pill.innerHTML = isError
-                    ? '<i data-lucide="alert-circle" class="w-3 h-3"></i> Ошибка'
-                    : '<i data-lucide="check" class="w-3 h-3"></i> Сохранено';
+                pill.textContent = isError ? message : 'Сохранено';
+                pill.setAttribute('role', isError ? 'alert' : 'status');
+                if (isError) {
+                    const retry = document.createElement('button');
+                    retry.type = 'button';
+                    retry.className = 'ml-2 underline';
+                    retry.textContent = 'Повторить';
+                    retry.addEventListener('click', flushAutosave);
+                    pill.append(retry);
+                }
                 pill.classList.add('visible');
                 if (window.lucide) lucide.createIcons();
                 clearTimeout(showSaveIndicator._t);
-                showSaveIndicator._t = setTimeout(() => pill.classList.remove('visible'), 1800);
+                if (!isError) showSaveIndicator._t = setTimeout(() => pill.classList.remove('visible'), 1800);
             }
             if (ind) {
                 ind.classList.add('active');
@@ -1733,6 +1755,7 @@
         }
 
         function applyAssistantNotebookActions(data) {
+            if (activeVersion) return;
             let changed = false;
             if (data.edit_html) {
                 const editor = getNoteEditor();
@@ -2024,6 +2047,7 @@
             formData.append('file', input.files[0]);
 
             try {
+                formData.set('exp_id', exp_id);
                 const resp = await fetch('{{ base_path }}/api/upload', {
                     method: 'POST',
                     body: formData
@@ -2354,6 +2378,7 @@
                 const formData = new FormData();
                 formData.append('file', blob, 'sketch.png');
                 
+                formData.set('exp_id', exp_id);
                 const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
                 const data = await resp.json();
                 
@@ -2393,12 +2418,10 @@
             };
             const conf = map[kind] || map.docx;
             try {
-                await new Promise((resolve) => {
-                    try { autoSave(); } catch (e) {}
-                    setTimeout(resolve, 400);
-                });
+                if (!activeVersion && !await flushAutosave()) return;
+                const versionQuery = activeVersion ? '&version_id=' + encodeURIComponent(activeVersion.id) : '';
                 const resp = await fetch(
-                    `{{ base_path }}/api/node/${conf.path}?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`,
+                    `{{ base_path }}/api/node/${conf.path}?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}${versionQuery}`,
                     { credentials: 'same-origin' }
                 );
                 if (!resp.ok) {
@@ -2444,7 +2467,9 @@
             window.requestMediaTool = requestMediaTool;
 
         function upgradeLegacyCodeCells() {
-            document.querySelectorAll('.code-cell').forEach(cell => {
+            const editor = getNoteEditor();
+            const editable = editor.contentEditable === 'true';
+            editor.querySelectorAll('.code-cell').forEach(cell => {
                 cell.querySelectorAll('.compute-unit-select').forEach(el => el.remove());
                 if (!cell.querySelector('.code-cell-head')) {
                     const head = document.createElement('div');
@@ -2457,13 +2482,13 @@
                 if (actions) {
                     const legacyDel = actions.querySelector('button:not(.run-btn):not(.cell-del-btn)');
                     if (legacyDel && !actions.querySelector('.cell-del-btn')) {
-                        const id = cell.id;
                         legacyDel.className = 'cell-del-btn';
                         legacyDel.removeAttribute('style');
                         legacyDel.title = 'Удалить ячейку';
                         legacyDel.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
-                        if (id) legacyDel.setAttribute('onclick', `deleteCodeCell('${id}')`);
                     }
+                    const deleteButton = actions.querySelector('.cell-del-btn');
+                    if (deleteButton) deleteButton.disabled = !editable;
                     actions.querySelectorAll('span').forEach(s => {
                         if ((s.textContent || '').includes('автодополнение')) s.remove();
                     });
@@ -2472,13 +2497,16 @@
                 if (runBtn) {
                     runBtn.removeAttribute('style');
                     runBtn.className = 'run-btn';
-                    runBtn.disabled = false;
+                    runBtn.disabled = !editable;
                     if (!runBtn.querySelector('i')) {
                         runBtn.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> Run';
                     }
                 }
                 const area = cell.querySelector('.code-editor');
-                if (area) refreshCodeHighlight(area);
+                if (area) {
+                    area.readOnly = !editable;
+                    autoExpand(area);
+                }
             });
             if (window.lucide) lucide.createIcons();
         }
@@ -2571,7 +2599,7 @@
         }
 
         document.getElementById('editor')?.addEventListener('input', (e) => {
-            if (e.target.classList?.contains('code-editor')) refreshCodeHighlight(e.target);
+            if (e.target.classList?.contains('code-editor')) autoExpand(e.target);
         });
 
         function buildCodeCellElement(initialCode) {
@@ -2586,10 +2614,9 @@
                     <textarea
                         class="code-editor"
                         placeholder="Пишите Python-код здесь…"
-                        oninput="autoExpand(this)"
                     ></textarea>
                     <div class="code-actions">
-                        <button type="button" class="cell-del-btn" title="Удалить ячейку" onclick="deleteCodeCell('${cellId}')">
+                        <button type="button" class="cell-del-btn" title="Удалить ячейку">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>
                         <div class="code-actions-right">
@@ -2699,8 +2726,14 @@
             }
         }
 
-        // Event delegation for Run buttons and Autocomplete
         document.getElementById('editor').addEventListener('click', (e) => {
+            if (e.currentTarget.contentEditable !== 'true') return;
+            const deleteButton = e.target.closest('.cell-del-btn');
+            if (deleteButton) {
+                const cell = deleteButton.closest('.code-cell');
+                if (cell?.id) deleteCodeCell(cell.id);
+                return;
+            }
             const runBtn = e.target.closest('.run-btn');
             if (runBtn) {
                 const cellId = runBtn.dataset.cellId;
@@ -2864,6 +2897,7 @@
                     formData.append('file', blob, 'pasted-image.png');
                     
                     try {
+                        formData.set('exp_id', exp_id);
                         const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
                         const data = await resp.json();
                         const imgHTML = `<img src="${data.url}" alt="Pasted Image">`;
@@ -2916,24 +2950,29 @@
                     list.textContent = 'Пока нет снимков. Отредактируйте заметку и подождите автосохранение.';
                     return;
                 }
-                list.innerHTML = versions.map((v, idx) => {
-                    const author = (v.author || '').trim() || 'без автора';
-                    const msg = (v.message || 'Снимок').replace(/[<>&]/g, '');
-                    return `<button type="button" class="version-item" data-version-idx="${idx}">
-                        <span class="version-item-msg">${msg}</span>
-                        <span class="version-item-meta">${formatVersionWhen(v.created_at)} · ${author}</span>
-                    </button>`;
-                }).join('');
-                list.querySelectorAll('.version-item').forEach((btn) => {
-                    btn.addEventListener('click', async () => {
-                        const idx = Number(btn.getAttribute('data-version-idx'));
-                        const version = currentVersions[idx];
-                        if (!version) return;
-                        timeOffset = idx + 1;
-                        await applyVersionToUI(version);
-                        showVersionIndicator(version);
-                        panel.setAttribute('hidden', '');
+                list.replaceChildren();
+                versions.forEach((version, idx) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'version-item';
+                    const message = document.createElement('span');
+                    message.className = 'version-item-msg';
+                    message.textContent = version.message || 'Снимок';
+                    const meta = document.createElement('span');
+                    meta.className = 'version-item-meta';
+                    meta.textContent = formatVersionWhen(version.created_at) + ' · ' + (version.author || 'без автора');
+                    button.append(message, meta);
+                    button.addEventListener('click', async () => {
+                        try {
+                            if (!await applyVersionToUI(version)) return;
+                            timeOffset = idx + 1;
+                            showVersionIndicator(version);
+                            panel.hidden = true;
+                        } catch (error) {
+                            showSaveIndicator(true, error.message);
+                        }
                     });
+                    list.append(button);
                 });
             } catch (e) {
                 if (list) list.textContent = 'Не удалось загрузить историю.';
@@ -2981,7 +3020,10 @@
                 }
 
                 const version = currentVersions[timeOffset - 1];
-                await applyVersionToUI(version);
+                if (!await applyVersionToUI(version)) {
+                    timeOffset = activeVersion ? currentVersions.findIndex(v => v.id === activeVersion.id) + 1 : 0;
+                    return;
+                }
                 const n = currentVersions.length;
                 const idx = timeOffset;
                 showVersionIndicator(version, `версия ${idx} из ${n}`);
@@ -2993,14 +3035,38 @@
         }
 
         async function applyVersionToUI(version) {
-            const r = await fetch(`{{ base_path }}/api/node/version/${version.id}`, { credentials: 'same-origin' });
-            if (!r.ok) return;
+            if (!activeVersion && !await flushAutosave()) return false;
+            const r = await fetch(`{{ base_path }}/api/node/version/${encodeURIComponent(version.id)}`, { credentials: 'same-origin' });
+            if (!r.ok) throw new Error('Не удалось открыть версию.');
             const data = await r.json();
+            activeVersion = version;
             const editor = document.getElementById('editor');
             editor.innerHTML = data.html_snapshot || '';
-            document.querySelectorAll('.code-editor').forEach(autoExpand);
+            editor.contentEditable = 'false';
             upgradeLegacyCodeCells();
+            document.querySelectorAll('#noteInsertTools button, #noteInsertTools input').forEach(control => {
+                control.disabled = true;
+            });
+            document.getElementById('restoreNoteVersion').hidden = false;
             updateEditorEmptyState();
+            return true;
+        }
+
+        async function restoreActiveVersion() {
+            if (!activeVersion || !confirm('Сделать эту версию текущей?')) return;
+            try {
+                const response = await fetch('{{ base_path }}/api/node/version/rollback', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version_id: activeVersion.id, revision: noteRevision }),
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Не удалось восстановить версию.');
+                }
+                window.location.reload();
+            } catch (error) {
+                showSaveIndicator(true, error.message);
+            }
         }
 
         document.addEventListener('click', (e) => {

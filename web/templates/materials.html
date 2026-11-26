@@ -55,6 +55,30 @@
     }
     .mat-panel { display: none; }
     .mat-panel.active { display: block; }
+
+    .materials-table .material-actions button { min-height: 36px; }
+    @media (max-width: 767px) {
+        .material-panel-body { padding: 1rem; }
+        .materials-table { display: block; min-width: 0; }
+        .materials-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+        .materials-table tbody, .materials-table tbody tr { display: block; }
+        .materials-table tbody tr { padding: .7rem 0; }
+        .materials-table td {
+            display: block;
+            padding: .35rem 0;
+            text-align: start;
+            overflow-wrap: anywhere;
+        }
+        .materials-table td[data-label]::before {
+            content: attr(data-label) " ";
+            display: block;
+            font-size: .75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .materials-table .material-actions { display: flex; gap: .5rem; }
+        .materials-table .material-actions button { min-height: 44px; min-width: 44px; }
+    }
 </style>
 {% endblock %}
 
@@ -80,7 +104,7 @@
 </div>
 
 <div id="panel-reagents" class="mat-panel {% if materials_tab != 'consumables' %}active{% endif %}" role="tabpanel">
-<div class="liquid-glass rounded-2xl p-6">
+<div class="material-panel-body liquid-glass rounded-2xl p-6">
     <div class="flex flex-wrap gap-2 mb-6">
         <button class="filter-pill active" data-filter="Все">Все</button>
         <button class="filter-pill" data-filter="Жидкий">Жидкий</button>
@@ -101,7 +125,7 @@
     </div>
     {% else %}
     <div class="overflow-x-auto">
-        <table class="min-w-[1100px] w-full text-sm">
+        <table role="table" class="materials-table min-w-[1100px] w-full text-sm">
             <thead>
                 <tr class="border-b" style="border-color: var(--table-border);">
                     <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Название</th>
@@ -118,34 +142,34 @@
             </thead>
             <tbody id="reagentsTable">
                 {% for r in reagents %}
-                {% set r_amount = r.amount|float %}
-                {% set r_min = r.min_amount|float %}
+                {% set r_amount = r.amount|parse_amount %}
+                {% set r_min = r.min_amount|parse_amount %}
                 {% set r_low = r_amount <= r_min %}
-                <tr class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ r.category }}">
-                    <td class="py-3 pr-4">
+                <tr role="row" class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ r.category }}">
+                    <td role="cell" class="py-3 pr-4">
                         <div class="font-semibold" style="color: var(--text-main);">{{ r.name }}</div>
                         <div class="text-xs" style="color: var(--text-muted);">{{ r.supplier }}</div>
                     </td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.category }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">
+                    <td role="cell" data-label="Категория" class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.category }}</td>
+                    <td role="cell" data-label="CAS / Формула" class="py-3 pr-4" style="color: var(--text-secondary);">
                         <div class="text-xs">{{ r.cas }}</div>
                         <div class="text-xs" style="color: var(--text-muted);">{{ r.formula }}</div>
                     </td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">
+                    <td role="cell" data-label="Концентрация / Хранение" class="py-3 pr-4" style="color: var(--text-secondary);">
                         <div class="text-xs">{{ r.concentration }}</div>
                         <div class="text-xs" style="color: var(--text-muted);">{{ r.storage }}</div>
                     </td>
-                    <td class="py-3 pr-4 {% if r_low %}font-semibold{% endif %}" style="{% if r_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
+                    <td role="cell" data-label="Остаток" class="py-3 pr-4 {% if r_low %}font-semibold{% endif %}" style="{% if r_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
                         {{ r.amount }} {{ r.unit }}
                         {% if r_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
                     </td>
-                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ r.min_amount }} {{ r.unit }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.expiry or '-' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.project or '-' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.location or '-' }}</td>
-                    <td class="py-3 pr-0 text-right whitespace-nowrap">
-                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editReagent('{{ r.id }}')">Изм.</button>
-                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteReagent('{{ r.id }}')">Уд.</button>
+                    <td role="cell" data-label="Минимальный остаток" class="py-3 pr-4" style="color: var(--text-muted);">{{ r.min_amount }} {{ r.unit }}</td>
+                    <td role="cell" data-label="Срок годности" class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.expiry or '-' }}</td>
+                    <td role="cell" data-label="Проект" class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.project or '-' }}</td>
+                    <td role="cell" data-label="Местоположение" class="py-3 pr-4" style="color: var(--text-secondary);">{{ r.location or '-' }}</td>
+                    <td role="cell" class="material-actions py-3 pr-0 text-right">
+                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editReagent('{{ r.id }}')">Изменить</button>
+                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteReagent('{{ r.id }}')">Удалить</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -157,7 +181,7 @@
 </div>
 
 <div id="panel-consumables" class="mat-panel {% if materials_tab == 'consumables' %}active{% endif %}" role="tabpanel">
-<div class="liquid-glass rounded-2xl p-6">
+<div class="material-panel-body liquid-glass rounded-2xl p-6">
     <div class="flex flex-wrap gap-2 mb-6">
         <button class="filter2-pill active" data-filter="Все">Все категории</button>
         <button class="filter2-pill" data-filter="Стекло">Стекло</button>
@@ -179,7 +203,7 @@
     </div>
     {% else %}
     <div class="overflow-x-auto">
-        <table class="min-w-[900px] w-full text-sm">
+        <table role="table" class="materials-table min-w-[900px] w-full text-sm">
             <thead>
                 <tr class="border-b" style="border-color: var(--table-border);">
                     <th class="text-left py-3 pr-4 font-medium" style="color: var(--text-muted);">Название</th>
@@ -194,25 +218,25 @@
             </thead>
             <tbody id="consumablesTable">
                 {% for c in consumables %}
-                {% set c_amount = c.amount|float %}
-                {% set c_min = c.min_amount|float %}
+                {% set c_amount = c.amount|parse_amount %}
+                {% set c_min = c.min_amount|parse_amount %}
                 {% set c_low = c_amount <= c_min %}
-                <tr class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ c.category }}">
-                    <td class="py-3 pr-4">
+                <tr role="row" class="border-b transition-colors" style="border-color: var(--table-border-light);" data-category="{{ c.category }}">
+                    <td role="cell" class="py-3 pr-4">
                         <div class="font-semibold" style="color: var(--text-main);">{{ c.name }}</div>
                     </td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.category }}</td>
-                    <td class="py-3 pr-4 {% if c_low %}font-semibold{% endif %}" style="{% if c_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
+                    <td role="cell" data-label="Категория" class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.category }}</td>
+                    <td role="cell" data-label="Остаток" class="py-3 pr-4 {% if c_low %}font-semibold{% endif %}" style="{% if c_low %}color: var(--low-stock-text);{% else %}color: var(--text-secondary);{% endif %}">
                         {{ c.amount }} {{ c.unit }}
                         {% if c_low %}<span style="color: var(--low-stock-badge); font-size: 10px; margin-left: 2px;">⚠</span>{% endif %}
                     </td>
-                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.min_amount }} {{ c.unit }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '-' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '-' }}</td>
-                    <td class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '-' }}</td>
-                    <td class="py-3 pr-0 text-right whitespace-nowrap">
-                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editConsumable('{{ c.id }}')">Изм.</button>
-                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteConsumable('{{ c.id }}')">Уд.</button>
+                    <td role="cell" data-label="Минимальный остаток" class="py-3 pr-4" style="color: var(--text-muted);">{{ c.min_amount }} {{ c.unit }}</td>
+                    <td role="cell" data-label="Местоположение" class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.location or '-' }}</td>
+                    <td role="cell" data-label="Поставщик" class="py-3 pr-4" style="color: var(--text-secondary);">{{ c.supplier or '-' }}</td>
+                    <td role="cell" data-label="Комментарий" class="py-3 pr-4" style="color: var(--text-muted);">{{ c.comment or '-' }}</td>
+                    <td role="cell" class="material-actions py-3 pr-0 text-right">
+                        <button type="button" class="text-xs px-2" style="color: var(--text-muted);" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="editConsumable('{{ c.id }}')">Изменить</button>
+                        <button type="button" class="text-xs px-2" style="color: var(--low-stock-text);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="deleteConsumable('{{ c.id }}')">Удалить</button>
                     </td>
                 </tr>
                 {% endfor %}

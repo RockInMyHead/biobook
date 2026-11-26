@@ -7,3 +7,7 @@ web/__pycache__/
 web/data/
 web/node_modules/
 *.tar.gz
+
+# Runtime notebooks belong to the local database volume.
+notebooks/*
+!notebooks/1_demo.ipynb

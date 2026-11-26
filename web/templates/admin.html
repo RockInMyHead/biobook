@@ -347,7 +347,6 @@
                                 </div>
                                 <div class="u-actions">
                                     <button type="button" class="icon-btn" onclick="focusUserActivity('{{ u.username }}')" title="События пользователя"><i data-lucide="list"></i></button>
-                                    <button type="button" class="icon-btn" onclick="loginAs('{{ u.username }}')" title="Открыть кабинет"><i data-lucide="log-in"></i></button>
                                     <button type="button" class="icon-btn" onclick="toggleBan('{{ u.username }}', '{{ u.is_banned }}')" title="{% if u.is_banned == 'true' %}Разблокировать{% else %}Заблокировать{% endif %}"><i data-lucide="{% if u.is_banned == 'true' %}unlock{% else %}lock{% endif %}"></i></button>
                                     <button type="button" class="icon-btn danger" onclick="deleteUser('{{ u.username }}')" title="Удалить"><i data-lucide="trash-2"></i></button>
                                 </div>
@@ -470,7 +469,6 @@
 
 <script>
 const BASE_PATH = '{{ base_path }}';
-const ADMIN_KEY = '{{ admin_key }}';
 const LAB_ADMIN = '{{ lab_admin_path }}';
 
 // ── Theme ──
@@ -538,7 +536,7 @@ async function loadUserDashboard(){
     const c=document.getElementById('udContent');const q=document.getElementById('udSearch')?.value||'';
     c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
     try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user_dashboard?key='+ADMIN_KEY+(q?'&user='+q:''));
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user_dashboard'+(q?'?user='+encodeURIComponent(q):''));
         const d=await r.json();if(!d.users||!d.users.length){c.innerHTML='<div class="liquid-glass rounded-2xl p-12 text-center"><p class="text-sm" style="color:var(--text-muted);">Пользователи не найдены</p></div>';return}
         c.innerHTML='<div class="space-y-3">'+d.users.map(u=>{
             const active=u.has_experiments;
@@ -561,7 +559,6 @@ async function loadUserDashboard(){
                         <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" style="color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>${u.total_nodes} узлов</span>
                     </div>
                 </div>
-                <button onclick="loginAs('${u.username}')" class="flex items-center gap-1.5 text-xs font-semibold py-2 px-4 rounded-full transition-all duration-200 flex-shrink-0 hover:shadow-lg" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                     Войти
                 </button>
@@ -575,8 +572,8 @@ async function loadUserDashboard(){
 async function loadCorporate(){
     const c=document.getElementById('corpContent');
     try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/corporate?key='+ADMIN_KEY);const d=await r.json();
-        const o=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations?key='+ADMIN_KEY);const od=await o.json();
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/corporate');const d=await r.json();
+        const o=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations');const od=await o.json();
         c.innerHTML=`
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
                 <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Всего пользователей</div><div class="stat-value" style="color:var(--primary);">${d.total_users}</div></div>
@@ -605,7 +602,7 @@ document.getElementById('orgModal')?.addEventListener('click',function(e){if(e.t
 async function createOrg(){
     const n=document.getElementById('orgName').value.trim();const o=document.getElementById('orgOwner').value.trim();
     if(!n||!o){alert('Заполните все поля');return}
-    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,name:n,owner_id:o})});
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/organizations/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,owner_id:o})});
     const d=await r.json();if(d.ok){closeOrgModal();loadCorporate()}else alert('Ошибка: '+(d.error||'?'));
 }
 
@@ -613,8 +610,8 @@ async function createOrg(){
 async function loadReferrals(){
     const c=document.getElementById('refContent');
     try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/referrals?key='+ADMIN_KEY);const d=await r.json();
-        const rc=await fetch(BASE_PATH+LAB_ADMIN+'/api/referral_codes?key='+ADMIN_KEY);const rd=await rc.json();
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/referrals');const d=await r.json();
+        const rc=await fetch(BASE_PATH+LAB_ADMIN+'/api/referral_codes');const rd=await rc.json();
         c.innerHTML=`
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
                 <div class="liquid-glass stat-card"><div class="text-xs mb-1" style="color:var(--text-muted);">Всего дружеских связей</div><div class="stat-value" style="color:var(--primary);">${d.total_friendships}</div></div>
@@ -644,7 +641,7 @@ async function loadTickets(){
     try{
         const st=document.getElementById('ticketStatusFilter')?.value||'all';
         const pr=document.getElementById('ticketPriorityFilter')?.value||'all';
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?key='+ADMIN_KEY+'&status='+st+'&priority='+pr);
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?status='+st+'&priority='+pr);
         const d=await r.json();
         const tt=d.tickets||[];
         const cnt=d.counts||{};
@@ -675,7 +672,7 @@ function openTicket(id){
     currentTicketId=id;
     const r=document.getElementById('ticketContent').querySelectorAll('.ticket-card');
     // Find ticket data from the API data we already have
-    fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?key='+ADMIN_KEY+'&status=all').then(r=>r.json()).then(d=>{
+    fetch(BASE_PATH+LAB_ADMIN+'/api/tickets?status=all').then(r=>r.json()).then(d=>{
         const t=d.tickets.find(x=>x.id===id);if(!t)return;
         document.getElementById('tmTitle').textContent=t.subject;
         document.getElementById('tmMeta').innerHTML=`<span>От: ${t.user_id}</span> · <span>Приоритет: ${t.priority}</span> · <span>Статус: ${t.status}</span>`;
@@ -697,8 +694,8 @@ async function sendTicketReply(){
     if(!currentTicketId)return;
     const msg=document.getElementById('tmReply').value.trim();const st=document.getElementById('tmStatus').value;
     if(!msg){alert('Введите ответ');return}
-    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,ticket_id:currentTicketId,message:msg})});
-    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,ticket_id:currentTicketId,status:st})});
+    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_id:currentTicketId,message:msg})});
+    await fetch(BASE_PATH+LAB_ADMIN+'/api/tickets/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_id:currentTicketId,status:st})});
     document.getElementById('tmReply').value='';closeTicketModal();loadTickets();
 }
 
@@ -720,7 +717,7 @@ async function loadLogs(){
     const c=document.getElementById('logsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
     try{
         const uf=document.getElementById('logUserFilter')?.value||'';
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?key='+ADMIN_KEY+'&limit=200');const d=await r.json();
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?limit=200');const d=await r.json();
         let logs=d.logs||[];
         // Filter by error tab
         if(currentLogTab==='errors')logs=logs.filter(l=>l.level==='error');
@@ -1018,7 +1015,7 @@ function renderAnalytics(base, mode) {
 async function loadAnalytics(){
     const c=document.getElementById('analyticsContent');c.innerHTML='<div class="text-center py-12" style="color:var(--text-muted);">Загрузка...</div>';
     try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/analytics?key='+ADMIN_KEY);const d=await r.json();
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/analytics');const d=await r.json();
         analyticsCache = d;
         renderAnalytics(d, visitFilterMode || 'human');
     }catch(e){c.innerHTML='<div class="text-center py-12" style="color:#ef4444;">Ошибка</div>'}
@@ -1112,7 +1109,7 @@ function focusUserActivity(username){
 }
 async function refreshActivityFeed(){
     try{
-        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?key='+encodeURIComponent(ADMIN_KEY)+'&limit=80');
+        const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/logs?limit=80');
         const d=await r.json();hubFeed=d.logs||[];renderActivityFeed();
     }catch(e){const b=document.getElementById('activityFeed');if(b)b.innerHTML='<div class="chart-empty" style="height:120px;color:#ef4444;">Не удалось обновить</div>'}
 }
@@ -1172,15 +1169,14 @@ document.getElementById('themeToggle')?.addEventListener('click',()=>setTimeout(
 // ── User Actions ──
 function deleteUser(n){
     openConfirmModal('Удалить пользователя','Удалить "'+n+'"? Все данные будут удалены.',
-        async()=>{const r=await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_key:ADMIN_KEY,username:n})});const d=await r.json();if(d.ok)location.reload();else alert(d.error||'Ошибка')});
+        async()=>{const r=await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n})});const d=await r.json();if(d.ok)location.reload();else alert(d.error||'Ошибка')});
 }
-function loginAs(n){window.location.href=BASE_PATH+LAB_ADMIN+'/api/login_as?key='+encodeURIComponent(ADMIN_KEY)+'&username='+encodeURIComponent(n)}
 async function toggleBan(n,b){
-    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,username:n,is_banned:b==='true'?'false':'true'})});
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/user/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n,is_banned:b==='true'?'false':'true'})});
     const d=await r.json();if(d.ok){location.reload()}else alert('Ошибка');
 }
 async function exportUsersCSV(){
-    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/export/users?key='+ADMIN_KEY);const d=await r.json();
+    const r=await fetch(BASE_PATH+LAB_ADMIN+'/api/export/users');const d=await r.json();
     if(d.csv){const b=new Blob([d.csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='users_export.csv';a.click()}
 }
 
@@ -1192,9 +1188,9 @@ async function bulkAction(action){
     const label=action==='delete'?'удалить':action==='ban'?'заблокировать':'разблокировать';
     openConfirmModal('Массовое действие',`${label} ${selected.length} пользователей?`,async()=>{
         if(action==='delete'){
-            for(const u of selected){await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_key:ADMIN_KEY,username:u})})}
+            for(const u of selected){await fetch(BASE_PATH+LAB_ADMIN+'/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u})})}
         }else{
-            await fetch(BASE_PATH+LAB_ADMIN+'/api/user/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ADMIN_KEY,action,usernames:selected})});
+            await fetch(BASE_PATH+LAB_ADMIN+'/api/user/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,usernames:selected})});
         }
         location.reload();
     });
