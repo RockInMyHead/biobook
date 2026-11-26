@@ -4,6 +4,7 @@
 {% block nav_subtitle %}Конструктор{% endblock %}
 
 {% block extra_head %}
+<script src="{{ base_path }}/static/mobile-viewport.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -38,7 +39,7 @@
     }
 
     .tpl-app {
-        min-height: calc(100vh - 64px);
+        min-height: max(0px, calc(var(--app-viewport-height, 100dvh) - var(--app-navbar-height, 64px)));
         background:
             radial-gradient(ellipse 80% 50% at 80% 0%, rgba(14,116,144,0.07), transparent 55%),
             radial-gradient(ellipse 50% 40% at 0% 100%, rgba(100,206,251,0.08), transparent 50%),
@@ -193,7 +194,7 @@
     .tpl-body {
         display: grid;
         grid-template-columns: minmax(250px, 280px) minmax(0, 1fr);
-        min-height: calc(100vh - 64px - 62px);
+        min-height: max(0px, calc(var(--app-viewport-height, 100dvh) - var(--app-navbar-height, 64px) - 62px));
     }
     @media (max-width: 980px) {
         .tpl-body { grid-template-columns: 1fr; }
@@ -367,9 +368,10 @@
         position: relative;
         width: 100%;
     }
+    .tpl-page-scroll { overflow-x: auto; }
     .tpl-page-scale {
         width: 100%;
-        transform-origin: top center;
+        transform-origin: top left;
     }
     .tpl-page {
         position: relative;
@@ -380,7 +382,8 @@
         color: var(--tpl-ink);
         border-radius: 2px;
         border: 1px solid #e4dfd4;
-        padding: 22mm 20mm 24mm;
+        padding: 22mm clamp(1rem, 9vw, 20mm) 24mm;
+        overflow-wrap: anywhere;
         font-family: Literata, "Times New Roman", Times, serif;
         font-size: 12pt;
         line-height: 1.55;
@@ -406,6 +409,27 @@
     .tpl-page h2 { font-size: 14pt; }
     .tpl-page h3 { font-size: 12.5pt; }
     .tpl-page p { margin: 0 0 0.65em; }
+    [data-short-viewport] .tpl-top,
+    [data-short-viewport] .tpl-ribbon { position: static; }
+    @media (max-width: 700px) {
+        .tpl-stage { padding-inline: .65rem; scrollbar-gutter: auto; }
+        .tpl-top {
+            position: static;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: .5rem .65rem;
+            padding-inline: .75rem;
+        }
+        .tpl-back { grid-area: 1 / 1; width: fit-content; min-height: 44px; }
+        .tpl-kind-row { grid-area: 1 / 2; justify-self: end; }
+        .tpl-brand-block { grid-area: 2 / 1 / auto / -1; }
+        .tpl-name-input { width: 100%; min-height: 44px; }
+        .tpl-top-actions { grid-area: 3 / 1 / auto / -1; margin-left: 0; }
+        .tpl-top-actions .tpl-btn { min-height: 44px; }
+        .tpl-page { min-height: 75vh; padding-block: 1.65rem 2rem; }
+        .tpl-ribbon button, .tpl-ribbon select { min-height: 44px; }
+        .tpl-modal-card input { font-size: 1rem; }
+    }
     .tpl-page table {
         width: 100%;
         border-collapse: collapse;
@@ -511,7 +535,7 @@
 
         <div class="tpl-brand-block">
             <p class="tpl-kicker">Конструктор бланка</p>
-            <input id="tplName" class="tpl-name-input" type="text" value="{{ tpl.name }}" maxlength="120" autocomplete="off" placeholder="Название шаблона">
+            <input id="tplName" class="tpl-name-input" type="text" value="{{ tpl.name }}" maxlength="120" autocomplete="off" aria-label="Название шаблона" placeholder="Название шаблона">
         </div>
 
         <div class="tpl-kind-row" id="tplKindRow" role="group" aria-label="Формат экспорта">
@@ -606,8 +630,10 @@
                     </div>
 
                     <div class="tpl-page-frame">
-                        <div class="tpl-page-scale" id="tplPageScale">
-                            <div id="tplPage" class="tpl-page" contenteditable="true" spellcheck="true" role="textbox" aria-label="Страница шаблона"></div>
+                        <div class="tpl-page-scroll">
+                            <div class="tpl-page-scale" id="tplPageScale">
+                                <div id="tplPage" class="tpl-page" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Страница шаблона"></div>
+                            </div>
                         </div>
                         <p class="tpl-guide">Лист A4 · автосохранение · <kbd>⌘/Ctrl</kbd>+<kbd>S</kbd></p>
                     </div>
@@ -667,7 +693,9 @@
     const newNameEl = document.getElementById('tplNewName');
     let zoom = 1;
     let dirty = false;
-    let saveTimer = null;
+    let saveTimer;
+    let pendingSave;
+    let pageSelection;
 
     function fieldHtml(key, label) {
         const safeKey = String(key).replace(/"/g, '');
@@ -700,6 +728,27 @@
     page.addEventListener('input', markDirty);
     nameEl.addEventListener('input', markDirty);
 
+    document.addEventListener('selectionchange', () => {
+        const selection = window.getSelection();
+        if (!selection?.rangeCount) return;
+        const range = selection.getRangeAt(0);
+        if (page.contains(range.commonAncestorContainer)) pageSelection = range.cloneRange();
+    });
+
+    function focusPageSelection() {
+        page.focus();
+        const selection = window.getSelection();
+        if (!selection) return;
+        let range = pageSelection;
+        if (!range || !page.contains(range.commonAncestorContainer)) {
+            range = document.createRange();
+            range.selectNodeContents(page);
+            range.collapse(false);
+        }
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
     document.querySelectorAll('#tplKindRow .tpl-kind').forEach((btn) => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('#tplKindRow .tpl-kind').forEach((b) => b.classList.remove('active'));
@@ -711,44 +760,43 @@
 
     document.querySelectorAll('.tpl-ribbon [data-cmd]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            page.focus();
+            focusPageSelection();
             document.execCommand(btn.dataset.cmd, false, null);
             markDirty();
         });
     });
 
     document.getElementById('tplBlock').addEventListener('change', (e) => {
-        page.focus();
+        focusPageSelection();
         const tag = e.target.value;
         document.execCommand('formatBlock', false, tag === 'p' ? 'p' : tag);
         markDirty();
     });
 
     document.getElementById('tplInsertTable').addEventListener('click', () => {
-        page.focus();
+        focusPageSelection();
         document.execCommand('insertHTML', false, '<table><tr><th>№</th><th>Параметр</th><th>Значение</th></tr><tr><td>1</td><td></td><td></td></tr><tr><td>2</td><td></td><td></td></tr></table><p><br></p>');
         markDirty();
     });
 
     document.getElementById('tplInsertPageBreak').addEventListener('click', () => {
-        page.focus();
+        focusPageSelection();
         document.execCommand('insertHTML', false, '<hr style="page-break-before:always;margin:2em 0;border:none;border-top:1px dashed #999;"><p style="text-align:center;color:#999;font-size:10pt;">— новая страница —</p><p><br></p>');
         markDirty();
     });
 
     const pageScale = document.getElementById('tplPageScale');
     function applyZoom() {
-        pageScale.style.transform = 'scale(' + zoom + ')';
-        // Keep layout height so the page doesn't visually jump when scaling
-        const h = page.offsetHeight;
-        pageScale.style.height = (h * zoom) + 'px';
+        pageScale.style.transform = zoom === 1 ? '' : 'scale(' + zoom + ')';
+        pageScale.style.height = zoom === 1 ? '' : (page.offsetHeight * zoom) + 'px';
         document.getElementById('tplZoomLabel').textContent = Math.round(zoom * 100) + '%';
     }
+    new ResizeObserver(applyZoom).observe(page);
     document.getElementById('tplZoomIn').addEventListener('click', () => { zoom = Math.min(1.35, +(zoom + 0.1).toFixed(2)); applyZoom(); });
     document.getElementById('tplZoomOut').addEventListener('click', () => { zoom = Math.max(0.7, +(zoom - 0.1).toFixed(2)); applyZoom(); });
 
     function insertField(key, label) {
-        page.focus();
+        focusPageSelection();
         document.execCommand('insertHTML', false, fieldHtml(key, label) + '&nbsp;');
         markDirty();
     }
@@ -762,34 +810,44 @@
     document.getElementById('tplRailBtn')?.addEventListener('click', () => app.classList.toggle('rail-open'));
     document.getElementById('tplScrim')?.addEventListener('click', () => app.classList.remove('rail-open'));
 
-    async function saveTemplate() {
-        setStatus('Сохраняю…', 'is-busy');
-        try {
-            const resp = await fetch(BASE + '/api/export-template/save', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: tplId,
-                    name: nameEl.value.trim() || 'Шаблон кафедры',
-                    kind,
-                    html: page.innerHTML,
-                }),
-            });
-            const data = await resp.json();
-            if (!data.ok) throw new Error(data.error || 'fail');
-            tplId = data.id;
-            dirty = false;
-            setStatus('Сохранено', 'is-ok');
-            const url = new URL(location.href);
-            url.searchParams.set('tpl_id', tplId);
-            url.searchParams.set('user', USER);
-            if (expId) url.searchParams.set('exp_id', expId);
-            if (nodeId) url.searchParams.set('node_id', nodeId);
-            history.replaceState(null, '', url.toString());
-        } catch (e) {
-            setStatus('Ошибка сохранения', 'is-dirty');
-        }
+    function saveTemplate() {
+        clearTimeout(saveTimer);
+        if (pendingSave) return pendingSave;
+        pendingSave = (async () => {
+            try {
+                do {
+                    dirty = false;
+                    setStatus('Сохраняю…', 'is-busy');
+                    const response = await fetch(BASE + '/api/export-template/save', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: tplId,
+                            name: nameEl.value.trim() || 'Шаблон кафедры',
+                            kind,
+                            html: page.innerHTML,
+                        }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.ok) throw new Error(data.error || 'Ошибка сохранения');
+                    tplId = data.id;
+                } while (dirty);
+                clearTimeout(saveTimer);
+                setStatus('Сохранено', 'is-ok');
+                const url = new URL(location.href);
+                url.searchParams.set('tpl_id', tplId);
+                url.searchParams.set('user', USER);
+                if (expId) url.searchParams.set('exp_id', expId);
+                if (nodeId) url.searchParams.set('node_id', nodeId);
+                history.replaceState(null, '', url.toString());
+            } catch (error) {
+                dirty = true;
+                clearTimeout(saveTimer);
+                setStatus('Ошибка сохранения', 'is-dirty');
+            }
+        })().finally(() => { pendingSave = null; });
+        return pendingSave;
     }
 
     document.getElementById('tplSaveBtn').addEventListener('click', saveTemplate);
@@ -839,7 +897,7 @@
     });
 
     window.addEventListener('beforeunload', (e) => {
-        if (dirty) { e.preventDefault(); e.returnValue = ''; }
+        if (dirty || pendingSave) { e.preventDefault(); e.returnValue = ''; }
     });
 
     document.addEventListener('keydown', (e) => {

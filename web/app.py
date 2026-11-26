@@ -4798,7 +4798,8 @@ async def node_detail(request: Request, user: str, exp_id: str, node_id: str, db
 
     resp = templates.TemplateResponse(
         request, "node_detail.html",
-        {"user": user, "exp": exp, "node": node, "notes": notes, "is_public_view": False}
+        {"user": user, "exp": exp, "node": node, "notes": notes, "is_public_view": False,
+         "pptx_export_enabled": plan_allows_ai(getattr(request.state, "user_plan", "free"))}
     )
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
@@ -5410,7 +5411,7 @@ async def export_node_docx(exp_id: str, node_id: str, request: Request, db: Sess
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "docx")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -5431,7 +5432,7 @@ async def export_node_pdf(exp_id: str, node_id: str, request: Request, db: Sessi
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "pdf")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(buf, media_type="application/pdf", headers=headers)
 
 
@@ -5460,7 +5461,7 @@ async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Sess
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "pptx")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",

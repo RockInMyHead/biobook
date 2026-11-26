@@ -534,3 +534,48 @@ input:focus, textarea:focus {
     padding-right: 4rem;
   }
 }
+
+.app-cookie-banner {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 200;
+  padding: 0 1rem max(1rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.app-cookie-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .8rem 1rem;
+  padding: 1rem 1.15rem;
+  color: var(--text-main);
+  background: #111b25;
+  border: 1px solid var(--glass-strong-border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-glass);
+  pointer-events: auto;
+}
+
+[data-theme="light"] .app-cookie-card { background: #fff; }
+
+.app-cookie-copy {
+  margin: 0;
+  font-size: .875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.app-cookie-accept {
+  min-height: 44px;
+  padding: .55rem 1.5rem;
+  border-radius: 999px;
+  background: #64cefb;
+  color: #092033;
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-cookie-accept:hover { background: #8cdbfc; }
+.app-cookie-accept:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 3px; }
