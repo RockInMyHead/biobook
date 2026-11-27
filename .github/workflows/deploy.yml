@@ -1,0 +1,132 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_indexnow:
+        description: "Skip IndexNow ping after deploy"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to labjournal.tech
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_SSH_KEY:-}"
+          test -n "${DEPLOY_HOST:-}"
+          test -n "${DEPLOY_USER:-}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          ssh-keyscan -p "$PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > ~/.ssh/config <<EOF
+          Host lj-prod
+            HostName ${DEPLOY_HOST}
+            User ${DEPLOY_USER}
+            Port ${PORT}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+            ServerAliveInterval 15
+            IPQoS throughput
+          EOF
+          chmod 600 ~/.ssh/config
+          # Warm up flaky SSH banner
+          for i in 1 2 3 4 5 6 7 8; do
+            if ssh -o ConnectTimeout=20 lj-prod 'echo SSH_OK'; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "SSH to production failed" >&2
+          exit 1
+
+      - name: Sync web tree
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            --exclude 'data/' \
+            --exclude '__pycache__/' \
+            --exclude '*.pyc' \
+            --exclude '.DS_Store' \
+            --exclude '._*' \
+            -e 'ssh -F ~/.ssh/config' \
+            web/ lj-prod:/tmp/biobook-web-release/
+
+      - name: Install & restart biobook
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh lj-prod "GIT_SHA='${GIT_SHA}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          SRC=/tmp/biobook-web-release
+          DST=/opt/bio-notebook/web
+          test -d "$SRC"
+          test -d "$DST"
+
+          # Keep runtime data & local secrets-ish files that must not vanish
+          sudo mkdir -p "$DST/data" "$DST/data/uploads"
+          sudo rsync -a --delete \
+            --exclude 'data/' \
+            --exclude '__pycache__/' \
+            --exclude '*.pyc' \
+            "$SRC/" "$DST/"
+
+          sudo chown -R www-data:www-data "$DST"
+          # Ensure data stays writable by the service user
+          sudo chown -R www-data:www-data "$DST/data" || true
+
+          sudo systemctl restart biobook
+          sleep 3
+          systemctl is-active biobook
+
+          # Local smoke
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 http://127.0.0.1:3001/ || echo 000)
+          echo "home_http=$code"
+          test "$code" = "200"
+
+          # Legacy path must 301, not 5xx
+          bn=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:3001/bio-notebook/ || echo 000)
+          echo "bio_notebook_http=$bn"
+          test "$bn" = "301" -o "$bn" = "302"
+
+          echo "DEPLOY_OK sha=${GIT_SHA:-unknown}"
+          REMOTE
+
+      - name: IndexNow ping
+        if: ${{ github.event.inputs.skip_indexnow != 'true' }}
+        run: |
+          set -euo pipefail
+          ssh lj-prod "bash -s" <<'REMOTE'
+          set -euo pipefail
+          KEY=$(sudo grep '^ADMIN_KEY=' /etc/biobook.env | cut -d= -f2- || true)
+          if [ -z "$KEY" ]; then
+            echo "ADMIN_KEY missing — skip IndexNow"
+            exit 0
+          fi
+          curl -sS --max-time 60 -X POST \
+            "http://127.0.0.1:3001/lab-admin/indexnow-ping?key=${KEY}" \
+            | head -c 1500 || true
+          echo
+          REMOTE

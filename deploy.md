@@ -2,6 +2,21 @@
 
 > Актуальные реквизиты доступа, инфраструктура и ключи — в корневом [`../deploy.md`](../deploy.md).
 
+## CI/CD (GitHub Actions)
+
+Репозиторий: [RockInMyHead/biobook](https://github.com/RockInMyHead/biobook)
+
+| Workflow | Когда | Что делает |
+|----------|--------|------------|
+| `.github/workflows/ci.yml` | PR + push в `main` (web/) | `compileall` + smoke-import FastAPI |
+| `.github/workflows/deploy.yml` | push в `main` + manual | rsync `web/` → `/opt/bio-notebook/web` (без `data/`), restart `biobook`, smoke HTTP, IndexNow |
+
+Secrets (Settings → Secrets → Actions): `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`.  
+Первичная установка ключа: `./scripts/ci-setup-deploy-key.sh` (нужен SSH `user1` на прод).
+
+Прод: `user1@176.109.103.209`, сервис `biobook`, канон https://labjournal.tech.  
+`/etc/biobook.env` и `web/data/` **не** перезаписываются деплоем.
+
 ## Быстрый деплой
 
 ```bash
@@ -53,6 +68,22 @@ LEGACY_HOSTS=bionotebook.ru,www.bionotebook.ru,www.labjournal.tech
 3. Перезапуск: `systemctl restart biobook`
 
 Кнопка «Быстрая регистрация через Яндекс» появляется только когда заданы оба ключа.
+
+## SMTP (подтверждение email при регистрации)
+
+В `/etc/biobook.env` (права `600`, не коммитить) — Яндекс Почта, приложение:
+
+```bash
+SMTP_HOST=smtp.yandex.ru
+SMTP_PORT=465
+SMTP_SSL=true
+SMTP_USER=rmyhead@yandex.ru
+SMTP_PASSWORD=<пароль_приложения>
+SMTP_FROM=rmyhead@yandex.ru
+EMAIL_VERIFY_TTL_HOURS=48
+```
+
+После регистрации по паролю письмо со ссылкой `/verify-email?token=…`; вход без подтверждения блокируется. Яндекс ID считается подтверждённым. Существующие аккаунты grandfathered (`email_verified` по умолчанию `true`).
 
 ## OCR через OpenRouter
 

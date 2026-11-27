@@ -11,3 +11,7 @@ web/node_modules/
 # Runtime notebooks belong to the local database volume.
 notebooks/*
 !notebooks/1_demo.ipynb
+
+.deploy-keys/
+web/indexnow_key.txt
+web/[0-9a-f]*.txt
