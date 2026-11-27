@@ -106,6 +106,8 @@ _TG_LOCK = threading.Lock()
 _TG_AI_FAIL_LAST: dict[str, float] = {}
 _TG_AI_FAIL_COOLDOWN_SEC = 300
 _TG_POLLER_STARTED = False
+_TG_LOG = logging.getLogger("uvicorn.error.telegram")
+_TG_JOURNAL_SIZE = 500
 
 
 def _ocr_vision_model_candidates() -> list[str]:
@@ -748,6 +750,14 @@ class AuditLogDB(Base):
     ip_address = Column(String, default="")
     created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
 
+class TelegramJournalDB(Base):
+    __tablename__ = "telegram_journal"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(String, nullable=False)
+    level = Column(String, nullable=False)
+    event = Column(String, nullable=False)
+    details = Column(JSON, nullable=False)
+
 class OrganizationDB(Base):
     __tablename__ = "organizations"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4())[:8])
@@ -991,6 +1001,22 @@ def audit_log(db: Session, user_id: str, action: str, entity_type: str, entity_i
 
 # ── Telegram alerts (registrations / errors / DeepSeek) ──
 
+def _tg_journal(level: str, event: str, **details) -> None:
+    # Callers pass operational metadata only, never messages, URLs or exception text.
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    _TG_LOG.log(getattr(logging, level), "telegram event=%s %s", event, json.dumps(details, ensure_ascii=False))
+    try:
+        with SessionLocal.begin() as db:
+            entry = TelegramJournalDB(created_at=stamp, level=level, event=event, details=details)
+            db.add(entry)
+            db.flush()
+            db.query(TelegramJournalDB).filter(TelegramJournalDB.id <= entry.id - _TG_JOURNAL_SIZE).delete(
+                synchronize_session=False
+            )
+    except Exception as exc:
+        _TG_LOG.error("telegram event=journal_write_failed exception=%s", type(exc).__name__)
+
+
 def _tg_escape(text: str) -> str:
     return (
         str(text or "")
@@ -1000,13 +1026,12 @@ def _tg_escape(text: str) -> str:
     )
 
 
+def _tg_configured_chat_ids() -> list[str]:
+    return list(dict.fromkeys(part.strip() for part in TG_CHAT_ID.split(",") if part.strip()))
+
+
 def _tg_load_chat_ids() -> list[str]:
-    ids: list[str] = []
-    if TG_CHAT_ID:
-        for part in TG_CHAT_ID.split(","):
-            s = part.strip()
-            if s and s not in ids:
-                ids.append(s)
+    ids = _tg_configured_chat_ids()
     try:
         with open(TG_CHATS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1014,12 +1039,14 @@ def _tg_load_chat_ids() -> list[str]:
             s = str(item).strip()
             if s and s not in ids:
                 ids.append(s)
-    except Exception:
+    except FileNotFoundError:
         pass
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        _tg_journal("ERROR", "subscriptions_read_failed", exception=type(exc).__name__)
     return ids
 
 
-def _tg_remember_chat(chat_id) -> bool:
+def _tg_remember_chat(chat_id) -> bool | None:
     cid = str(chat_id).strip()
     if not cid:
         return False
@@ -1032,14 +1059,38 @@ def _tg_remember_chat(chat_id) -> bool:
             os.makedirs(DATABASE_DIR, exist_ok=True)
             with open(TG_CHATS_FILE, "w", encoding="utf-8") as f:
                 json.dump({"chat_ids": ids}, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except OSError as exc:
+            _tg_journal("ERROR", "subscription_save_failed", exception=type(exc).__name__)
+            return None
         return True
 
 
-def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) -> dict:
+def _tg_failure_reason(code: int, description: str) -> str:
+    description = description.lower()
+    for fragment, explanation in (
+        ("terminated by other getupdates", "Другой процесс уже опрашивает этого бота"),
+        ("while webhook is active", "Активный webhook блокирует getUpdates"),
+        ("bot was blocked", "Получатель заблокировал бота"),
+        ("bot was kicked", "Бот удалён из чата"),
+        ("chat not found", "Telegram не нашёл чат"),
+        ("can't parse entities", "Telegram отклонил разметку сообщения"),
+        ("message is too long", "Сообщение превышает лимит Telegram"),
+    ):
+        if fragment in description:
+            return explanation
+    return {
+        401: "Telegram не принял токен бота",
+        403: "Telegram запретил операцию",
+        409: "Конфликт получения обновлений",
+        429: "Превышен лимит запросов Telegram",
+    }.get(code, "Telegram API отклонил запрос")
+
+
+def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) -> tuple[dict, dict]:
+    started = time.monotonic()
+    details = {"method": method, "connection": "прокси" if TG_HTTP_PROXY else "напрямую", "timeout_s": timeout}
     if not TG_BOT_TOKEN:
-        return {"ok": False, "description": "no token"}
+        return {"ok": False}, {**details, "reason": "Токен бота не задан"}
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/{method}"
     kwargs: dict = {"timeout": timeout}
     if TG_HTTP_PROXY:
@@ -1050,16 +1101,41 @@ def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) 
                 resp = client.get(url)
             else:
                 resp = client.post(url, json=payload)
-            try:
-                return resp.json()
-            except Exception:
-                return {"ok": False, "description": (resp.text or "")[:300]}
-    except Exception as e:
-        return {"ok": False, "description": str(e)}
+        details["http_status"] = resp.status_code
+        try:
+            data = resp.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict) or type(data.get("ok")) is not bool:
+            details["reason"] = "Ответ не соответствует формату Telegram API"
+        elif not resp.is_success or not data["ok"]:
+            code = data.get("error_code")
+            if type(code) is int:
+                details["telegram_code"] = code
+            details["reason"] = _tg_failure_reason(details.get("telegram_code", resp.status_code), str(data.get("description") or ""))
+            params = data.get("parameters")
+            retry_after = params.get("retry_after") if isinstance(params, dict) else None
+            if type(retry_after) is int and 0 < retry_after <= 86_400:
+                details["retry_after_s"] = retry_after
+        elif method == "getUpdates" and not isinstance(data.get("result"), list):
+            details["reason"] = "Ответ getUpdates не содержит список обновлений"
+        else:
+            return data, {**details, "elapsed_ms": round((time.monotonic() - started) * 1000)}
+    except Exception as exc:
+        details["exception"] = type(exc).__name__
+        details["reason"] = "Истекло время ожидания Telegram" if isinstance(exc, httpx.TimeoutException) else "Запрос к Telegram не выполнен"
+        cause = exc.__cause__
+        while cause is not None:
+            details["cause"] = type(cause).__name__
+            if isinstance(cause, OSError) and cause.errno is not None:
+                details["errno"] = cause.errno
+                break
+            cause = cause.__cause__
+    return {"ok": False}, {**details, "elapsed_ms": round((time.monotonic() - started) * 1000)}
 
 
-def _tg_send_to(chat_id: str, text: str) -> bool:
-    data = _tg_api(
+def _tg_send_to(chat_id: str, text: str, *, purpose: str) -> bool:
+    data, details = _tg_api(
         "sendMessage",
         {
             "chat_id": chat_id,
@@ -1069,31 +1145,37 @@ def _tg_send_to(chat_id: str, text: str) -> bool:
         },
         timeout=12.0,
     )
-    return bool(data.get("ok"))
+    ok = data["ok"]
+    if not ok or purpose != "journal":
+        _tg_journal("INFO" if ok else "ERROR", "send_ok" if ok else "send_failed", purpose=purpose, **details)
+    return ok
 
 
-def tg_notify(text: str) -> None:
+def tg_notify(text: str, *, purpose: str, problem: dict | None = None) -> None:
     """Fire-and-forget Telegram alert to all known admin chats."""
     if not TG_BOT_TOKEN:
         return
 
     def _deliver():
+        if problem is not None:
+            _tg_journal("ERROR", "alert_triggered", purpose=purpose, **problem)
         chats = _tg_load_chat_ids()
         if not chats:
+            _tg_journal("WARNING", "no_recipients", purpose=purpose)
             return
         body = text.strip()
         if not body:
             return
         for chat_id in chats:
-            try:
-                _tg_send_to(chat_id, body)
-            except Exception:
-                pass
+            _tg_send_to(chat_id, body, purpose=purpose)
 
-    threading.Thread(target=_deliver, daemon=True).start()
+    try:
+        threading.Thread(target=_deliver, daemon=True, name="tg-delivery").start()
+    except RuntimeError as exc:
+        _tg_journal("ERROR", "delivery_start_failed", purpose=purpose, exception=type(exc).__name__)
 
 
-def tg_notify_ai_issue(where: str, detail: str) -> None:
+def tg_notify_ai_issue(where: str, detail: str, *, exception: Exception | None = None) -> None:
     """Alert when DeepSeek / AI API fails; debounced per signature."""
     sig = f"{where}|{(detail or '')[:160]}"
     now = time.time()
@@ -1102,70 +1184,185 @@ def tg_notify_ai_issue(where: str, detail: str) -> None:
         if now - last < _TG_AI_FAIL_COOLDOWN_SEC:
             return
         _TG_AI_FAIL_LAST[sig] = now
+    status = re.search(r"\(([45]\d\d)\):", detail or "")
+    problem = {"component": where}
+    if exception is not None:
+        problem["exception"] = type(exception).__name__
+    elif status:
+        problem["http_status"] = int(status.group(1))
+    elif not (AI_API_KEY and AI_API_URL and AI_CHAT_MODEL) and where != "ai-agent-vision":
+        problem["reason"] = "Настройки AI не заданы"
+    elif detail == "AI вернул пустой ответ.":
+        problem["reason"] = "AI вернул пустой ответ"
     tg_notify(
         "⚠️ <b>DeepSeek / AI недоступен</b>\n"
         f"Где: {_tg_escape(where)}\n"
         f"Детали: {_tg_escape((detail or '')[:500])}\n"
-        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}"
+        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}",
+        purpose="DeepSeek / AI",
+        problem=problem,
     )
 
 
-def _tg_handle_update(update: dict) -> None:
+_TG_EVENT_LABELS = {
+    "poller_started": "Запущен опрос Telegram",
+    "webhook_removed": "Webhook отключён для опроса",
+    "webhook_remove_failed": "Не удалось отключить webhook",
+    "poll_failed": "Не удалось получить обновления",
+    "poll_recovered": "Получение обновлений восстановлено",
+    "update_failed": "Не удалось обработать обновление",
+    "send_ok": "Telegram принял сообщение",
+    "send_failed": "Не удалось отправить сообщение",
+    "delivery_start_failed": "Не удалось запустить отправку",
+    "subscriptions_read_failed": "Не удалось прочитать список получателей",
+    "subscription_save_failed": "Не удалось сохранить получателя",
+    "no_recipients": "Нет чатов для отправки",
+    "alert_triggered": "Сбой Lab-Journal, для которого создано уведомление",
+}
+
+_TG_DETAIL_LABELS = {
+    "method": "метод", "purpose": "уведомление", "component": "компонент", "route": "маршрут",
+    "connection": "подключение", "http_status": "HTTP", "telegram_code": "код Telegram",
+    "exception": "исключение", "cause": "причина", "errno": "системный код",
+    "elapsed_ms": "длительность, мс", "timeout_s": "таймаут, с", "retry_after_s": "лимит Telegram, с",
+    "retry_in_s": "следующий опрос через, с", "failures": "сбоев подряд", "update_id": "обновление",
+    "source": "источник", "configured_chats": "разрешённых чатов",
+}
+
+
+def _tg_send_journal(chat_id: str, command: list[str]) -> None:
+    errors_only = command[1:2] == ["errors"]
+    count = command[2:3] if errors_only else command[1:2]
+    limit = max(1, min(20, int(count[0][:8]))) if count and re.fullmatch(r"[0-9]+", count[0]) else 10
+    try:
+        with SessionLocal() as db:
+            query = db.query(TelegramJournalDB)
+            if errors_only:
+                query = query.filter(TelegramJournalDB.level.in_(("ERROR", "WARNING")))
+            rows = query.order_by(TelegramJournalDB.id.desc()).limit(limit).all()
+    except Exception as exc:
+        _TG_LOG.error("telegram event=journal_read_failed exception=%s", type(exc).__name__)
+        _tg_send_to(chat_id, "Журнал недоступен. Проверьте журнал службы Biolab на сервере.", purpose="journal")
+        return
+    if not rows:
+        _tg_send_to(chat_id, "В журнале нет ошибок и предупреждений." if errors_only else "В журнале пока нет записей.", purpose="journal")
+        return
+
+    title = "Ошибки и предупреждения" if errors_only else "Журнал Telegram-бота"
+    page = f"<b>{title}</b> · время МСК"
+    for row in rows:
+        when = datetime.datetime.fromisoformat(row.created_at).astimezone(
+            datetime.timezone(datetime.timedelta(hours=3))
+        ).strftime("%d.%m %H:%M:%S")
+        label = _TG_EVENT_LABELS.get(row.event, row.event)
+        details = " · ".join(f"{name} {row.details[key]}" for key, name in _TG_DETAIL_LABELS.items() if key in row.details)
+        entry = f"<b>#{row.id} · {when} · {row.level}</b>\n{_tg_escape(label)}"
+        if row.details.get("reason"):
+            entry += f"\n{_tg_escape(row.details['reason'])}"
+        if details:
+            entry += f"\n{_tg_escape(details)}"
+        if len(page) + len(entry) + 2 > 3900:
+            if not _tg_send_to(chat_id, page, purpose="journal"):
+                return
+            page = f"<b>{title} · продолжение</b>"
+        page += f"\n\n{entry}"
+    _tg_send_to(chat_id, page, purpose="journal")
+
+
+def _tg_handle_update(update: dict, *, source: str) -> None:
     msg = update.get("message") or update.get("edited_message") or {}
     chat = msg.get("chat") or {}
     chat_id = chat.get("id")
     if chat_id is None:
         return
-    is_new = _tg_remember_chat(chat_id)
+    chat_id = str(chat_id)
     text = (msg.get("text") or "").strip()
-    if text.startswith("/start") or is_new:
+    command = text.lower().split()
+    name = command[0].split("@", 1)[0] if command else ""
+    if name == "/logs":
+        if source == "poller":
+            if chat_id in _tg_configured_chat_ids():
+                _tg_send_journal(chat_id, command)
+            else:
+                _tg_send_to(chat_id, "Журнал доступен только чатам, заданным администратором Biolab.", purpose="journal")
+        return
+
+    is_new = _tg_remember_chat(chat_id)
+    if is_new is None:
+        _tg_send_to(chat_id, "Не удалось сохранить подписку. Попробуйте /start ещё раз.", purpose="подписка")
+        return
+    if name == "/start" or is_new:
+        journal_help = "\n/logs — журнал бота. /logs errors — ошибки и предупреждения." if chat_id in _tg_configured_chat_ids() else ""
         _tg_send_to(
-            str(chat_id),
+            chat_id,
             "✅ <b>Lab-Journal</b>: алерты подключены.\n"
-            "Сюда приходят регистрации, заявки LabOS, ошибки сервера и сбои DeepSeek/AI.",
+            f"Сюда приходят регистрации, заявки LabOS, ошибки сервера и сбои DeepSeek/AI.{journal_help}",
+            purpose="подписка",
         )
         if is_new:
             ai_ok = bool(AI_API_KEY and AI_API_URL and AI_CHAT_MODEL)
             tg_notify(
                 "🔔 <b>Новый чат для алертов</b>\n"
                 f"chat_id: <code>{_tg_escape(chat_id)}</code>\n"
-                f"AI настроен: {'да' if ai_ok else 'нет (AI_API_* пусты)'}"
+                f"AI настроен: {'да' if ai_ok else 'нет (AI_API_* пусты)'}",
+                purpose="новый чат",
             )
+
+
+def _tg_process_update(update, *, source: str) -> None:
+    try:
+        _tg_handle_update(update, source=source)
+    except Exception as exc:
+        if source == "webhook":
+            _TG_LOG.warning("telegram event=webhook_update_failed exception=%s", type(exc).__name__)
+            return
+        details = {"source": source, "exception": type(exc).__name__}
+        update_id = update.get("update_id") if isinstance(update, dict) else None
+        if type(update_id) is int:
+            details["update_id"] = update_id
+        _tg_journal("ERROR", "update_failed", **details)
 
 
 def _tg_poller_loop() -> None:
     """Long-poll getUpdates so /start binds chat_id without HTTPS webhook."""
     offset = 0
-    # Drop any leftover webhook so getUpdates works.
-    _tg_api("deleteWebhook", {"drop_pending_updates": False}, timeout=10.0)
+    webhook, details = _tg_api("deleteWebhook", {"drop_pending_updates": False}, timeout=10.0)
+    _tg_journal("INFO" if webhook["ok"] else "ERROR", "webhook_removed" if webhook["ok"] else "webhook_remove_failed", **details)
+    failures, last_signature, last_report = 0, None, 0.0
     while True:
-        try:
-            data = _tg_api(
-                "getUpdates",
-                {"timeout": 25, "offset": offset, "allowed_updates": ["message"]},
-                timeout=35.0,
-            )
-            if not data.get("ok"):
-                time.sleep(5)
-                continue
-            for upd in data.get("result") or []:
-                try:
-                    uid = int(upd.get("update_id", 0))
-                    offset = max(offset, uid + 1)
-                except Exception:
-                    pass
-                try:
-                    _tg_handle_update(upd)
-                except Exception:
-                    pass
-        except Exception:
-            time.sleep(5)
+        data, details = _tg_api(
+            "getUpdates",
+            {"timeout": 25, "offset": offset, "allowed_updates": ["message"]},
+            timeout=35.0,
+        )
+        if not data["ok"]:
+            failures += 1
+            signature = {key: value for key, value in details.items() if key != "elapsed_ms"}
+            wait = max(5, details.get("retry_after_s", 0))
+            now = time.monotonic()
+            if signature != last_signature or now - last_report >= 60:
+                _tg_journal("ERROR", "poll_failed", failures=failures, retry_in_s=wait, **details)
+                last_signature, last_report = signature, now
+            time.sleep(wait)
+            continue
+        if failures:
+            _tg_journal("INFO", "poll_recovered", failures=failures, **details)
+            failures, last_signature = 0, None
+        for update in data["result"]:
+            update_id = update.get("update_id") if isinstance(update, dict) else None
+            if type(update_id) is int:
+                offset = max(offset, update_id + 1)
+            _tg_process_update(update, source="poller")
 
 
 def start_tg_poller() -> None:
     global _TG_POLLER_STARTED
-    if not TG_BOT_TOKEN or _TG_POLLER_STARTED:
+    if not TG_BOT_TOKEN:
+        _TG_LOG.info("telegram event=poller_disabled reason=missing_token")
         return
+    if _TG_POLLER_STARTED:
+        return
+    _tg_journal("INFO", "poller_started", connection="прокси" if TG_HTTP_PROXY else "напрямую", configured_chats=len(_tg_configured_chat_ids()))
     _TG_POLLER_STARTED = True
     threading.Thread(target=_tg_poller_loop, daemon=True, name="tg-poller").start()
     # One-shot boot notice if chats already known
@@ -1177,8 +1374,9 @@ def start_tg_poller() -> None:
         ai_ok = bool(AI_API_KEY and AI_API_URL and AI_CHAT_MODEL)
         tg_notify(
             "🟢 <b>Lab-Journal</b> перезапущен\n"
-            f"Алерты: OK · чатов: {len(chats)}\n"
-            f"AI: {'настроен' if ai_ok else 'не настроен (AI_API_* пусты)'}"
+            f"Чатов для уведомлений: {len(chats)}\n"
+            f"AI: {'настроен' if ai_ok else 'не настроен (AI_API_* пусты)'}",
+            purpose="перезапуск",
         )
         if not ai_ok:
             tg_notify_ai_issue("startup", "AI_API_KEY / AI_API_URL / AI_CHAT_MODEL не заданы в окружении")
@@ -2252,7 +2450,9 @@ async def biobook_unhandled_exception_handler(request: Request, exc: Exception):
         f"Путь: <code>{_tg_escape(path)}</code>\n"
         f"Тип: {_tg_escape(type(exc).__name__)}\n"
         f"Текст: {_tg_escape(str(exc)[:700])}\n"
-        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}"
+        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}",
+        purpose="ошибка сервера",
+        problem={"route": getattr(request.scope.get("route"), "path", None) or "не определён", "exception": type(exc).__name__},
     )
     if path.startswith("/api/") or (BASE_PATH and path.startswith(BASE_PATH + "/api/")):
         return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
@@ -2877,7 +3077,8 @@ async def api_labos_lead(request: Request, db: Session = Depends(get_db)):
         f"Орг: {_tg_escape(org) or '—'}\n"
         f"Сообщение: {_tg_escape(message) or '—'}\n"
         f"IP: {_tg_escape(ip)}\n"
-        f"id: {lead.id}"
+        f"id: {lead.id}",
+        purpose="заявка LabOS",
     )
     return JSONResponse({"ok": True, "id": lead.id})
 
@@ -2892,10 +3093,7 @@ async def api_tg_webhook(request: Request):
     except Exception:
         return JSONResponse({"ok": False}, status_code=400)
     if isinstance(body, dict):
-        try:
-            _tg_handle_update(body)
-        except Exception:
-            pass
+        _tg_process_update(body, source="webhook")
     return JSONResponse({"ok": True})
 
 
@@ -3032,7 +3230,8 @@ async def register(
         f"Email: {_tg_escape(email)}\n"
         f"Способ: пароль\n"
         f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
-        f"IP: {_tg_escape(ip)}"
+        f"IP: {_tg_escape(ip)}",
+        purpose="регистрация по паролю",
     )
     resp = RedirectResponse(
         url=f"{BASE_PATH}/dashboard?user={final_username}&bn_signup=1&bn_method=email&bn_plan=pro",
@@ -3181,7 +3380,8 @@ async def auth_yandex_callback(
             f"Имя: {_tg_escape(display_name) or '—'}\n"
             f"Способ: Яндекс\n"
             f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
-            f"IP: {_tg_escape(request.client.host if request.client else '')}"
+            f"IP: {_tg_escape(request.client.host if request.client else '')}",
+            purpose="регистрация через Яндекс",
         )
 
     if user.is_banned == "true":
@@ -6305,7 +6505,7 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
                         tg_notify_ai_issue("chat", assistant_msg)
         except Exception as e:
             assistant_msg = format_ai_request_error(e)
-            tg_notify_ai_issue("chat", assistant_msg)
+            tg_notify_ai_issue("chat", assistant_msg, exception=e)
 
     assistant_msg, notebook_actions = _parse_assistant_notebook_actions(assistant_msg, user_message)
 
@@ -8296,7 +8496,7 @@ async def _llm_planner_chat(messages) -> tuple[str | None, str | None]:
             return msg, None
     except Exception as e:
         msg = format_ai_request_error(e)
-        tg_notify_ai_issue("planner", msg)
+        tg_notify_ai_issue("planner", msg, exception=e)
         return None, msg
 
 @app.post("/api/planner/chat")

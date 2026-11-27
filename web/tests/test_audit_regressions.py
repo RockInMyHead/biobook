@@ -72,6 +72,76 @@ class AuditRegressions(unittest.TestCase):
         self.assertIn(self.m.ADMIN_COOKIE, client.cookies)
         return client
 
+    def test_telegram_journal_records_delivery_failure_without_payload_or_secrets(self):
+        token = "123456789:dummy-token-for-test"
+        proxy = "http://tester:dummy-proxy-secret@proxy.example"
+        payload = "private contents of a notification"
+        response = self.m.httpx.Response(403, json={
+            "ok": False, "error_code": 403,
+            "description": f"Forbidden: bot was blocked by the user {payload} {token} {proxy}",
+        })
+        with mock.patch.object(self.m, "TG_BOT_TOKEN", token), mock.patch.object(self.m, "TG_HTTP_PROXY", proxy):
+            with mock.patch.object(self.m.httpx, "Client") as client, self.assertLogs("uvicorn.error.telegram") as logs:
+                client.return_value.__enter__.return_value.post.return_value = response
+                self.assertFalse(self.m._tg_send_to("17", payload, purpose="заявка LabOS"))
+        with self.m.SessionLocal() as db:
+            row = db.query(self.m.TelegramJournalDB).order_by(self.m.TelegramJournalDB.id.desc()).first()
+        self.assertEqual("send_failed", row.event)
+        self.assertEqual("sendMessage", row.details["method"])
+        self.assertEqual(403, row.details["http_status"])
+        self.assertEqual(403, row.details["telegram_code"])
+        self.assertEqual("Получатель заблокировал бота", row.details["reason"])
+        self.assertEqual("прокси", row.details["connection"])
+        for private in (token, proxy, "dummy-proxy-secret", payload):
+            self.assertNotIn(private, str(row.details) + str(logs.output))
+
+    def test_telegram_polling_journals_failure_backoff_and_recovery(self):
+        class EndPoll(Exception):
+            pass
+
+        first_failure = {"method": "getUpdates", "http_status": 429, "retry_after_s": 12, "elapsed_ms": 31}
+        with mock.patch.object(self.m, "_tg_api", side_effect=[
+            ({"ok": True}, {"method": "deleteWebhook"}),
+            ({"ok": False}, first_failure),
+            ({"ok": False}, {**first_failure, "elapsed_ms": 30}),
+            ({"ok": True, "result": [{"update_id": 21}]}, {"method": "getUpdates"}),
+            EndPoll(),
+        ]) as api, mock.patch.object(self.m.time, "sleep") as sleep, mock.patch.object(self.m, "_tg_process_update") as process:
+            with self.assertLogs("uvicorn.error.telegram"), self.assertRaises(EndPoll):
+                self.m._tg_poller_loop()
+        self.assertEqual([mock.call(12), mock.call(12)], sleep.call_args_list)
+        self.assertEqual(22, api.call_args.args[1]["offset"])
+        process.assert_called_once_with({"update_id": 21}, source="poller")
+        with self.m.SessionLocal() as db:
+            last = db.query(self.m.TelegramJournalDB).order_by(self.m.TelegramJournalDB.id.desc()).limit(3).all()
+        self.assertEqual(["poll_recovered", "poll_failed", "webhook_removed"], [row.event for row in last])
+        self.assertEqual(2, last[0].details["failures"])
+        self.assertEqual(12, last[1].details["retry_in_s"])
+
+    def test_telegram_journal_scope_retention_and_error_filter(self):
+        with mock.patch.object(self.m, "_TG_JOURNAL_SIZE", 3), self.assertLogs("uvicorn.error.telegram"):
+            self.m._tg_journal("ERROR", "send_failed", reason="retention-marker")
+            self.m._tg_journal("INFO", "send_ok", purpose="success-marker")
+            self.m._tg_journal("WARNING", "no_recipients", purpose="warning-marker")
+            self.m._tg_journal("ERROR", "poll_failed", reason="<error-marker>")
+        with self.m.SessionLocal() as db:
+            self.assertEqual(3, db.query(self.m.TelegramJournalDB).count())
+        update = {"message": {"chat": {"id": 42}, "text": "/logs@LabJournalBot errors 20"}}
+        with mock.patch.object(self.m, "TG_CHAT_ID", "42"), mock.patch.object(self.m, "_tg_send_to", return_value=True) as send:
+            with mock.patch.object(self.m, "_tg_remember_chat") as remember:
+                self.m._tg_handle_update(update, source="webhook")
+                send.assert_not_called()
+                self.m._tg_handle_update({"message": {"chat": {"id": 17}, "text": "/logs"}}, source="poller")
+                self.assertIn("доступен только чатам", send.call_args.args[1])
+                self.m._tg_handle_update(update, source="poller")
+                remember.assert_not_called()
+            self.assertEqual("42", send.call_args.args[0])
+            page = send.call_args.args[1]
+            self.assertIn("&lt;error-marker&gt;", page)
+            self.assertIn("warning-marker", page)
+            self.assertNotIn("success-marker", page)
+            self.assertNotIn("retention-marker", page)
+
     def experiment(self, owner):
         result = owner.post(self.prefix + "/create_experiment", data={"user": "owner", "name": "QA sample",
                             "description": "Local fixture", "template": "blank"}, follow_redirects=False)
