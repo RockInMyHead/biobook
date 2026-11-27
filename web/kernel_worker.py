@@ -5,7 +5,7 @@ Runs untrusted user code outside the API process with:
 - scrubbed environment (no API secrets)
 - resource limits
 - PR_SET_NO_NEW_PRIVS when available
-- private /tmp (caller should start us under `unshare --mount`)
+- private /tmp mounted by bubblewrap (the caller must create the sandbox)
 """
 from __future__ import annotations
 
@@ -85,21 +85,6 @@ def _apply_rlimits() -> None:
             pass
 
 
-def _mount_private_tmp() -> None:
-    """Best-effort private /tmp when running inside a mount namespace as mapped root."""
-    try:
-        import subprocess
-
-        subprocess.run(
-            ["mount", "-t", "tmpfs", "-o", "size=64m,mode=1777,nosuid,nodev", "tmpfs", "/tmp"],
-            check=False,
-            capture_output=True,
-            timeout=3,
-        )
-    except Exception:
-        pass
-
-
 def _load_ns(path: str) -> dict:
     if not path or not os.path.isfile(path):
         return {"__builtins__": builtins}
@@ -159,7 +144,6 @@ def main() -> int:
 
     _apply_no_new_privs()
     _apply_rlimits()
-    _mount_private_tmp()
     builtins.open = _safe_open  # security: block secret file paths in user code
 
     ns = _load_ns(ns_path)

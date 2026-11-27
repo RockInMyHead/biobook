@@ -468,14 +468,14 @@
 {% endif %}
 
 <!-- New Experiment Modal -->
-<div id="newExpModal" class="modal">
+<div id="newExpModal" class="modal" aria-labelledby="newExpModalHeading">
     <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative" style="transform: scale(0.95);">
         <button type="button" onclick="closeMod()" class="absolute top-4 right-4 p-2" style="color: var(--text-muted);" aria-label="Закрыть">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         
         <div class="mb-6">
-            <h2 class="text-2xl font-heading font-bold mb-2">Новая лабораторная</h2>
+            <h2 id="newExpModalHeading" class="text-2xl font-heading font-bold mb-2">Новая лабораторная</h2>
             <p class="text-sm" style="color: var(--text-muted);">Выберите шаблон и начните запись по этапам</p>
         </div>
         

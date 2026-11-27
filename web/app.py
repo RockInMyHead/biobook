@@ -11,10 +11,15 @@ import base64
 import re
 import subprocess
 import tempfile
+import mimetypes
+import shutil
+import sysconfig
+import logging
 
 import hashlib
 import binascii
 import httpx
+import nh3
 from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, Query, HTTPException
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
@@ -101,6 +106,8 @@ _TG_LOCK = threading.Lock()
 _TG_AI_FAIL_LAST: dict[str, float] = {}
 _TG_AI_FAIL_COOLDOWN_SEC = 300
 _TG_POLLER_STARTED = False
+_TG_LOG = logging.getLogger("uvicorn.error.telegram")
+_TG_JOURNAL_SIZE = 500
 
 
 def _ocr_vision_model_candidates() -> list[str]:
@@ -297,12 +304,8 @@ def _stored_auth_signing_secret() -> str:
         return connection.exec_driver_sql("SELECT value FROM auth_signing_secret WHERE id = 1").scalar_one()
 
 
-OAUTH_STATE_SECRET = (
-    os.environ.get("OAUTH_STATE_SECRET")
-    or ADMIN_KEY
-    or os.environ.get("SESSION_SECRET")
-    or _stored_auth_signing_secret()
-)
+SESSION_SECRET = os.environ.get("SESSION_SECRET") or _stored_auth_signing_secret()
+OAUTH_STATE_SECRET = os.environ.get("OAUTH_STATE_SECRET") or SESSION_SECRET
 LEGAL_BASE_URL = os.environ.get("LEGAL_BASE_URL", SITE_ORIGIN).rstrip("/")
 # Legacy hosts that should 301 to SITE_ORIGIN (same app / same VM).
 LEGACY_HOSTS = {
@@ -314,53 +317,32 @@ LEGACY_HOSTS = {
     if h.strip()
 }
 SESSION_COOKIE = "biobook_sid"
+ADMIN_COOKIE = "biobook_admin"
+ADMIN_SESSION_SECONDS = 8 * 60 * 60
 SESSION_DAYS = 30
-SESSION_SECRET = os.environ.get("SESSION_SECRET") or OAUTH_STATE_SECRET
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() != "false"
 VISITOR_COOKIE = "bio_vid"
 VISITOR_COOKIE_MAX_AGE = 365 * 24 * 3600
 
 
-def make_session_token(username: str) -> str:
-    exp = int(time.time()) + SESSION_DAYS * 86400
-    payload = f"{username}|{exp}"
-    sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
-    raw = f"{payload}|{sig}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def parse_session_token(token: str | None) -> str | None:
-    if not token:
-        return None
-    try:
-        raw = base64.urlsafe_b64decode(token.encode()).decode()
-        username, exp_s, sig = raw.rsplit("|", 2)
-        payload = f"{username}|{exp_s}"
-        expected = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
-        if not hmac.compare_digest(sig, expected):
-            return None
-        if int(exp_s) < int(time.time()):
-            return None
-        if not re.match(r"^[\w.-]{1,32}$", username):
-            return None
-        return username
-    except Exception:
-        return None
-
-
 def get_session_username(request: Request) -> str | None:
-    return parse_session_token(request.cookies.get(SESSION_COOKIE))
+    return getattr(request.state, "auth_user", None)
+
+
+def _session_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def attach_session_cookie(response: RedirectResponse, username: str) -> RedirectResponse:
+    token = secrets.token_urlsafe(32)
+    now = int(time.time())
+    with SessionLocal() as db:
+        db.query(LoginSessionDB).filter(LoginSessionDB.expires_at <= now).delete()
+        db.add(LoginSessionDB(token_hash=_session_digest(token), user_id=username, expires_at=now + SESSION_DAYS * 86400))
+        db.commit()
     response.set_cookie(
-        key=SESSION_COOKIE,
-        value=make_session_token(username),
-        max_age=SESSION_DAYS * 86400,
-        httponly=True,
-        secure=COOKIE_SECURE,
-        samesite="lax",
-        path="/",
+        key=SESSION_COOKIE, value=token, max_age=SESSION_DAYS * 86400,
+        httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/",
     )
     return response
 
@@ -578,7 +560,6 @@ class BasePathMiddleware:
         if path == self.base_path or path.startswith(self.base_path + "/"):
             scope = dict(scope)
             scope["root_path"] = self.base_path
-            scope["path"] = path[len(self.base_path):] or "/"
 
         await self.app(scope, receive, send)
 
@@ -598,6 +579,35 @@ class UserDB(Base):
     plan = Column(String, default="free")  # free | student | corp
     plan_expires_at = Column(String, default="")  # ISO; paid/trial end → downgrade to free
 
+class LoginSessionDB(Base):
+    __tablename__ = "login_sessions"
+    token_hash = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.username"), nullable=False, index=True)
+    expires_at = Column(Integer, nullable=False, index=True)
+
+
+class MediaUploadDB(Base):
+    __tablename__ = "media_uploads"
+    filename = Column(String, primary_key=True)
+    owner_id = Column(String, index=True, nullable=False)
+    exp_id = Column(String, index=True)
+    chat_id = Column(String, index=True)
+    size = Column(Integer, nullable=False)
+    media_type = Column(String, nullable=False)
+    original_name = Column(String, nullable=False)
+
+
+class DataCleanupDB(Base):
+    __tablename__ = "data_cleanup"
+    path = Column(String, primary_key=True)
+    is_directory = Column(Integer, nullable=False, default=0)
+
+
+class DataMigrationDB(Base):
+    __tablename__ = "data_migrations"
+    name = Column(String, primary_key=True)
+
+
 class ExperimentDB(Base):
     __tablename__ = "experiments"
     id = Column(String, primary_key=True, index=True)
@@ -615,6 +625,7 @@ class NodeNotesDB(Base):
     notes_html = Column(Text, default="")
     chat_history = Column(JSON, default=list)
     annotation_url = Column(String, default="")
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
 
 import datetime
 import html as _html
@@ -752,6 +763,14 @@ class AuditLogDB(Base):
     details = Column(Text, default="")  # JSON
     ip_address = Column(String, default="")
     created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
+
+class TelegramJournalDB(Base):
+    __tablename__ = "telegram_journal"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(String, nullable=False)
+    level = Column(String, nullable=False)
+    event = Column(String, nullable=False)
+    details = Column(JSON, nullable=False)
 
 class OrganizationDB(Base):
     __tablename__ = "organizations"
@@ -953,6 +972,7 @@ for table, column, col_type in [
     ("users", "agree_marketing", "VARCHAR DEFAULT 'false'"),
     ("users", "plan", "VARCHAR DEFAULT 'free'"),
     ("users", "plan_expires_at", "VARCHAR DEFAULT ''"),
+    ("node_notes", "revision", "INTEGER NOT NULL DEFAULT 0"),
     ("node_versions", "author", "VARCHAR DEFAULT ''"),
     ("service_visits", "referrer", "VARCHAR DEFAULT ''"),
     ("service_visits", "referrer_host", "VARCHAR DEFAULT ''"),
@@ -995,6 +1015,22 @@ def audit_log(db: Session, user_id: str, action: str, entity_type: str, entity_i
 
 # ── Telegram alerts (registrations / errors / DeepSeek) ──
 
+def _tg_journal(level: str, event: str, **details) -> None:
+    # Callers pass operational metadata only, never messages, URLs or exception text.
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    _TG_LOG.log(getattr(logging, level), "telegram event=%s %s", event, json.dumps(details, ensure_ascii=False))
+    try:
+        with SessionLocal.begin() as db:
+            entry = TelegramJournalDB(created_at=stamp, level=level, event=event, details=details)
+            db.add(entry)
+            db.flush()
+            db.query(TelegramJournalDB).filter(TelegramJournalDB.id <= entry.id - _TG_JOURNAL_SIZE).delete(
+                synchronize_session=False
+            )
+    except Exception as exc:
+        _TG_LOG.error("telegram event=journal_write_failed exception=%s", type(exc).__name__)
+
+
 def _tg_escape(text: str) -> str:
     return (
         str(text or "")
@@ -1004,13 +1040,12 @@ def _tg_escape(text: str) -> str:
     )
 
 
+def _tg_configured_chat_ids() -> list[str]:
+    return list(dict.fromkeys(part.strip() for part in TG_CHAT_ID.split(",") if part.strip()))
+
+
 def _tg_load_chat_ids() -> list[str]:
-    ids: list[str] = []
-    if TG_CHAT_ID:
-        for part in TG_CHAT_ID.split(","):
-            s = part.strip()
-            if s and s not in ids:
-                ids.append(s)
+    ids = _tg_configured_chat_ids()
     try:
         with open(TG_CHATS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1018,12 +1053,14 @@ def _tg_load_chat_ids() -> list[str]:
             s = str(item).strip()
             if s and s not in ids:
                 ids.append(s)
-    except Exception:
+    except FileNotFoundError:
         pass
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        _tg_journal("ERROR", "subscriptions_read_failed", exception=type(exc).__name__)
     return ids
 
 
-def _tg_remember_chat(chat_id) -> bool:
+def _tg_remember_chat(chat_id) -> bool | None:
     cid = str(chat_id).strip()
     if not cid:
         return False
@@ -1036,14 +1073,38 @@ def _tg_remember_chat(chat_id) -> bool:
             os.makedirs(DATABASE_DIR, exist_ok=True)
             with open(TG_CHATS_FILE, "w", encoding="utf-8") as f:
                 json.dump({"chat_ids": ids}, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except OSError as exc:
+            _tg_journal("ERROR", "subscription_save_failed", exception=type(exc).__name__)
+            return None
         return True
 
 
-def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) -> dict:
+def _tg_failure_reason(code: int, description: str) -> str:
+    description = description.lower()
+    for fragment, explanation in (
+        ("terminated by other getupdates", "Другой процесс уже опрашивает этого бота"),
+        ("while webhook is active", "Активный webhook блокирует getUpdates"),
+        ("bot was blocked", "Получатель заблокировал бота"),
+        ("bot was kicked", "Бот удалён из чата"),
+        ("chat not found", "Telegram не нашёл чат"),
+        ("can't parse entities", "Telegram отклонил разметку сообщения"),
+        ("message is too long", "Сообщение превышает лимит Telegram"),
+    ):
+        if fragment in description:
+            return explanation
+    return {
+        401: "Telegram не принял токен бота",
+        403: "Telegram запретил операцию",
+        409: "Конфликт получения обновлений",
+        429: "Превышен лимит запросов Telegram",
+    }.get(code, "Telegram API отклонил запрос")
+
+
+def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) -> tuple[dict, dict]:
+    started = time.monotonic()
+    details = {"method": method, "connection": "прокси" if TG_HTTP_PROXY else "напрямую", "timeout_s": timeout}
     if not TG_BOT_TOKEN:
-        return {"ok": False, "description": "no token"}
+        return {"ok": False}, {**details, "reason": "Токен бота не задан"}
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/{method}"
     kwargs: dict = {"timeout": timeout}
     if TG_HTTP_PROXY:
@@ -1054,16 +1115,41 @@ def _tg_api(method: str, payload: dict | None = None, *, timeout: float = 25.0) 
                 resp = client.get(url)
             else:
                 resp = client.post(url, json=payload)
-            try:
-                return resp.json()
-            except Exception:
-                return {"ok": False, "description": (resp.text or "")[:300]}
-    except Exception as e:
-        return {"ok": False, "description": str(e)}
+        details["http_status"] = resp.status_code
+        try:
+            data = resp.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict) or type(data.get("ok")) is not bool:
+            details["reason"] = "Ответ не соответствует формату Telegram API"
+        elif not resp.is_success or not data["ok"]:
+            code = data.get("error_code")
+            if type(code) is int:
+                details["telegram_code"] = code
+            details["reason"] = _tg_failure_reason(details.get("telegram_code", resp.status_code), str(data.get("description") or ""))
+            params = data.get("parameters")
+            retry_after = params.get("retry_after") if isinstance(params, dict) else None
+            if type(retry_after) is int and 0 < retry_after <= 86_400:
+                details["retry_after_s"] = retry_after
+        elif method == "getUpdates" and not isinstance(data.get("result"), list):
+            details["reason"] = "Ответ getUpdates не содержит список обновлений"
+        else:
+            return data, {**details, "elapsed_ms": round((time.monotonic() - started) * 1000)}
+    except Exception as exc:
+        details["exception"] = type(exc).__name__
+        details["reason"] = "Истекло время ожидания Telegram" if isinstance(exc, httpx.TimeoutException) else "Запрос к Telegram не выполнен"
+        cause = exc.__cause__
+        while cause is not None:
+            details["cause"] = type(cause).__name__
+            if isinstance(cause, OSError) and cause.errno is not None:
+                details["errno"] = cause.errno
+                break
+            cause = cause.__cause__
+    return {"ok": False}, {**details, "elapsed_ms": round((time.monotonic() - started) * 1000)}
 
 
-def _tg_send_to(chat_id: str, text: str) -> bool:
-    data = _tg_api(
+def _tg_send_to(chat_id: str, text: str, *, purpose: str) -> bool:
+    data, details = _tg_api(
         "sendMessage",
         {
             "chat_id": chat_id,
@@ -1073,31 +1159,37 @@ def _tg_send_to(chat_id: str, text: str) -> bool:
         },
         timeout=12.0,
     )
-    return bool(data.get("ok"))
+    ok = data["ok"]
+    if not ok or purpose != "journal":
+        _tg_journal("INFO" if ok else "ERROR", "send_ok" if ok else "send_failed", purpose=purpose, **details)
+    return ok
 
 
-def tg_notify(text: str) -> None:
+def tg_notify(text: str, *, purpose: str, problem: dict | None = None) -> None:
     """Fire-and-forget Telegram alert to all known admin chats."""
     if not TG_BOT_TOKEN:
         return
 
     def _deliver():
+        if problem is not None:
+            _tg_journal("ERROR", "alert_triggered", purpose=purpose, **problem)
         chats = _tg_load_chat_ids()
         if not chats:
+            _tg_journal("WARNING", "no_recipients", purpose=purpose)
             return
         body = text.strip()
         if not body:
             return
         for chat_id in chats:
-            try:
-                _tg_send_to(chat_id, body)
-            except Exception:
-                pass
+            _tg_send_to(chat_id, body, purpose=purpose)
 
-    threading.Thread(target=_deliver, daemon=True).start()
+    try:
+        threading.Thread(target=_deliver, daemon=True, name="tg-delivery").start()
+    except RuntimeError as exc:
+        _tg_journal("ERROR", "delivery_start_failed", purpose=purpose, exception=type(exc).__name__)
 
 
-def tg_notify_ai_issue(where: str, detail: str) -> None:
+def tg_notify_ai_issue(where: str, detail: str, *, exception: Exception | None = None) -> None:
     """Alert when DeepSeek / AI API fails; debounced per signature."""
     sig = f"{where}|{(detail or '')[:160]}"
     now = time.time()
@@ -1106,70 +1198,185 @@ def tg_notify_ai_issue(where: str, detail: str) -> None:
         if now - last < _TG_AI_FAIL_COOLDOWN_SEC:
             return
         _TG_AI_FAIL_LAST[sig] = now
+    status = re.search(r"\(([45]\d\d)\):", detail or "")
+    problem = {"component": where}
+    if exception is not None:
+        problem["exception"] = type(exception).__name__
+    elif status:
+        problem["http_status"] = int(status.group(1))
+    elif not (AI_API_KEY and AI_API_URL and AI_CHAT_MODEL) and where != "ai-agent-vision":
+        problem["reason"] = "Настройки AI не заданы"
+    elif detail == "AI вернул пустой ответ.":
+        problem["reason"] = "AI вернул пустой ответ"
     tg_notify(
         "⚠️ <b>DeepSeek / AI недоступен</b>\n"
         f"Где: {_tg_escape(where)}\n"
         f"Детали: {_tg_escape((detail or '')[:500])}\n"
-        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}"
+        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}",
+        purpose="DeepSeek / AI",
+        problem=problem,
     )
 
 
-def _tg_handle_update(update: dict) -> None:
+_TG_EVENT_LABELS = {
+    "poller_started": "Запущен опрос Telegram",
+    "webhook_removed": "Webhook отключён для опроса",
+    "webhook_remove_failed": "Не удалось отключить webhook",
+    "poll_failed": "Не удалось получить обновления",
+    "poll_recovered": "Получение обновлений восстановлено",
+    "update_failed": "Не удалось обработать обновление",
+    "send_ok": "Telegram принял сообщение",
+    "send_failed": "Не удалось отправить сообщение",
+    "delivery_start_failed": "Не удалось запустить отправку",
+    "subscriptions_read_failed": "Не удалось прочитать список получателей",
+    "subscription_save_failed": "Не удалось сохранить получателя",
+    "no_recipients": "Нет чатов для отправки",
+    "alert_triggered": "Сбой Lab-Journal, для которого создано уведомление",
+}
+
+_TG_DETAIL_LABELS = {
+    "method": "метод", "purpose": "уведомление", "component": "компонент", "route": "маршрут",
+    "connection": "подключение", "http_status": "HTTP", "telegram_code": "код Telegram",
+    "exception": "исключение", "cause": "причина", "errno": "системный код",
+    "elapsed_ms": "длительность, мс", "timeout_s": "таймаут, с", "retry_after_s": "лимит Telegram, с",
+    "retry_in_s": "следующий опрос через, с", "failures": "сбоев подряд", "update_id": "обновление",
+    "source": "источник", "configured_chats": "разрешённых чатов",
+}
+
+
+def _tg_send_journal(chat_id: str, command: list[str]) -> None:
+    errors_only = command[1:2] == ["errors"]
+    count = command[2:3] if errors_only else command[1:2]
+    limit = max(1, min(20, int(count[0][:8]))) if count and re.fullmatch(r"[0-9]+", count[0]) else 10
+    try:
+        with SessionLocal() as db:
+            query = db.query(TelegramJournalDB)
+            if errors_only:
+                query = query.filter(TelegramJournalDB.level.in_(("ERROR", "WARNING")))
+            rows = query.order_by(TelegramJournalDB.id.desc()).limit(limit).all()
+    except Exception as exc:
+        _TG_LOG.error("telegram event=journal_read_failed exception=%s", type(exc).__name__)
+        _tg_send_to(chat_id, "Журнал недоступен. Проверьте журнал службы Biolab на сервере.", purpose="journal")
+        return
+    if not rows:
+        _tg_send_to(chat_id, "В журнале нет ошибок и предупреждений." if errors_only else "В журнале пока нет записей.", purpose="journal")
+        return
+
+    title = "Ошибки и предупреждения" if errors_only else "Журнал Telegram-бота"
+    page = f"<b>{title}</b> · время МСК"
+    for row in rows:
+        when = datetime.datetime.fromisoformat(row.created_at).astimezone(
+            datetime.timezone(datetime.timedelta(hours=3))
+        ).strftime("%d.%m %H:%M:%S")
+        label = _TG_EVENT_LABELS.get(row.event, row.event)
+        details = " · ".join(f"{name} {row.details[key]}" for key, name in _TG_DETAIL_LABELS.items() if key in row.details)
+        entry = f"<b>#{row.id} · {when} · {row.level}</b>\n{_tg_escape(label)}"
+        if row.details.get("reason"):
+            entry += f"\n{_tg_escape(row.details['reason'])}"
+        if details:
+            entry += f"\n{_tg_escape(details)}"
+        if len(page) + len(entry) + 2 > 3900:
+            if not _tg_send_to(chat_id, page, purpose="journal"):
+                return
+            page = f"<b>{title} · продолжение</b>"
+        page += f"\n\n{entry}"
+    _tg_send_to(chat_id, page, purpose="journal")
+
+
+def _tg_handle_update(update: dict, *, source: str) -> None:
     msg = update.get("message") or update.get("edited_message") or {}
     chat = msg.get("chat") or {}
     chat_id = chat.get("id")
     if chat_id is None:
         return
-    is_new = _tg_remember_chat(chat_id)
+    chat_id = str(chat_id)
     text = (msg.get("text") or "").strip()
-    if text.startswith("/start") or is_new:
+    command = text.lower().split()
+    name = command[0].split("@", 1)[0] if command else ""
+    if name == "/logs":
+        if source == "poller":
+            if chat_id in _tg_configured_chat_ids():
+                _tg_send_journal(chat_id, command)
+            else:
+                _tg_send_to(chat_id, "Журнал доступен только чатам, заданным администратором Biolab.", purpose="journal")
+        return
+
+    is_new = _tg_remember_chat(chat_id)
+    if is_new is None:
+        _tg_send_to(chat_id, "Не удалось сохранить подписку. Попробуйте /start ещё раз.", purpose="подписка")
+        return
+    if name == "/start" or is_new:
+        journal_help = "\n/logs — журнал бота. /logs errors — ошибки и предупреждения." if chat_id in _tg_configured_chat_ids() else ""
         _tg_send_to(
-            str(chat_id),
+            chat_id,
             "✅ <b>Lab-Journal</b>: алерты подключены.\n"
-            "Сюда приходят регистрации, заявки LabOS, ошибки сервера и сбои DeepSeek/AI.",
+            f"Сюда приходят регистрации, заявки LabOS, ошибки сервера и сбои DeepSeek/AI.{journal_help}",
+            purpose="подписка",
         )
         if is_new:
             ai_ok = bool(AI_API_KEY and AI_API_URL and AI_CHAT_MODEL)
             tg_notify(
                 "🔔 <b>Новый чат для алертов</b>\n"
                 f"chat_id: <code>{_tg_escape(chat_id)}</code>\n"
-                f"AI настроен: {'да' if ai_ok else 'нет (AI_API_* пусты)'}"
+                f"AI настроен: {'да' if ai_ok else 'нет (AI_API_* пусты)'}",
+                purpose="новый чат",
             )
+
+
+def _tg_process_update(update, *, source: str) -> None:
+    try:
+        _tg_handle_update(update, source=source)
+    except Exception as exc:
+        if source == "webhook":
+            _TG_LOG.warning("telegram event=webhook_update_failed exception=%s", type(exc).__name__)
+            return
+        details = {"source": source, "exception": type(exc).__name__}
+        update_id = update.get("update_id") if isinstance(update, dict) else None
+        if type(update_id) is int:
+            details["update_id"] = update_id
+        _tg_journal("ERROR", "update_failed", **details)
 
 
 def _tg_poller_loop() -> None:
     """Long-poll getUpdates so /start binds chat_id without HTTPS webhook."""
     offset = 0
-    # Drop any leftover webhook so getUpdates works.
-    _tg_api("deleteWebhook", {"drop_pending_updates": False}, timeout=10.0)
+    webhook, details = _tg_api("deleteWebhook", {"drop_pending_updates": False}, timeout=10.0)
+    _tg_journal("INFO" if webhook["ok"] else "ERROR", "webhook_removed" if webhook["ok"] else "webhook_remove_failed", **details)
+    failures, last_signature, last_report = 0, None, 0.0
     while True:
-        try:
-            data = _tg_api(
-                "getUpdates",
-                {"timeout": 25, "offset": offset, "allowed_updates": ["message"]},
-                timeout=35.0,
-            )
-            if not data.get("ok"):
-                time.sleep(5)
-                continue
-            for upd in data.get("result") or []:
-                try:
-                    uid = int(upd.get("update_id", 0))
-                    offset = max(offset, uid + 1)
-                except Exception:
-                    pass
-                try:
-                    _tg_handle_update(upd)
-                except Exception:
-                    pass
-        except Exception:
-            time.sleep(5)
+        data, details = _tg_api(
+            "getUpdates",
+            {"timeout": 25, "offset": offset, "allowed_updates": ["message"]},
+            timeout=35.0,
+        )
+        if not data["ok"]:
+            failures += 1
+            signature = {key: value for key, value in details.items() if key != "elapsed_ms"}
+            wait = max(5, details.get("retry_after_s", 0))
+            now = time.monotonic()
+            if signature != last_signature or now - last_report >= 60:
+                _tg_journal("ERROR", "poll_failed", failures=failures, retry_in_s=wait, **details)
+                last_signature, last_report = signature, now
+            time.sleep(wait)
+            continue
+        if failures:
+            _tg_journal("INFO", "poll_recovered", failures=failures, **details)
+            failures, last_signature = 0, None
+        for update in data["result"]:
+            update_id = update.get("update_id") if isinstance(update, dict) else None
+            if type(update_id) is int:
+                offset = max(offset, update_id + 1)
+            _tg_process_update(update, source="poller")
 
 
 def start_tg_poller() -> None:
     global _TG_POLLER_STARTED
-    if not TG_BOT_TOKEN or _TG_POLLER_STARTED:
+    if not TG_BOT_TOKEN:
+        _TG_LOG.info("telegram event=poller_disabled reason=missing_token")
         return
+    if _TG_POLLER_STARTED:
+        return
+    _tg_journal("INFO", "poller_started", connection="прокси" if TG_HTTP_PROXY else "напрямую", configured_chats=len(_tg_configured_chat_ids()))
     _TG_POLLER_STARTED = True
     threading.Thread(target=_tg_poller_loop, daemon=True, name="tg-poller").start()
     # One-shot boot notice if chats already known
@@ -1181,8 +1388,9 @@ def start_tg_poller() -> None:
         ai_ok = bool(AI_API_KEY and AI_API_URL and AI_CHAT_MODEL)
         tg_notify(
             "🟢 <b>Lab-Journal</b> перезапущен\n"
-            f"Алерты: OK · чатов: {len(chats)}\n"
-            f"AI: {'настроен' if ai_ok else 'не настроен (AI_API_* пусты)'}"
+            f"Чатов для уведомлений: {len(chats)}\n"
+            f"AI: {'настроен' if ai_ok else 'не настроен (AI_API_* пусты)'}",
+            purpose="перезапуск",
         )
         if not ai_ok:
             tg_notify_ai_issue("startup", "AI_API_KEY / AI_API_URL / AI_CHAT_MODEL не заданы в окружении")
@@ -1191,11 +1399,13 @@ def start_tg_poller() -> None:
 
 
 app = FastAPI()
-app.mount("/static/uploads", StaticFiles(directory="data/uploads"), name="uploads")
+@app.get("/static/uploads/{filename}", include_in_schema=False)
+def serve_upload(filename: str, request: Request):
+    with SessionLocal() as db:
+        return _serve_protected_upload(db, request, filename)
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
-if BASE_PATH:
-    app.mount(f"{BASE_PATH}/static/uploads", StaticFiles(directory="data/uploads"), name="uploads_prefixed")
-    app.mount(f"{BASE_PATH}/static", StaticFiles(directory="static"), name="static_prefixed")
 PLAN_LABELS = {
     "free": "Free",
     "student": "Pro",  # legacy id; product plan «Студент» = Pro
@@ -1264,27 +1474,15 @@ def _dir_size_bytes(path: str) -> int:
 
 
 def _user_storage_bytes(username: str, db: Session) -> int:
-    """Approx disk use: notebooks dir + upload files referenced in the user's notes."""
     total = _dir_size_bytes(os.path.join(NOTEBOOKS_BASE, username))
-    exp_ids = [
-        row.id for row in db.query(ExperimentDB).filter(ExperimentDB.user_id == username).all()
-    ]
-    seen: set[str] = set()
-    if exp_ids:
-        notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id.in_(exp_ids)).all()
-        for note in notes:
-            html = (note.notes_html or "") + " " + (note.annotation_url or "")
-            for m in re.finditer(r"/static/uploads/([A-Za-z0-9._-]+)", html):
-                fname = m.group(1)
-                if fname in seen:
-                    continue
-                seen.add(fname)
-                path = os.path.join(UPLOADS_DIR, fname)
-                try:
-                    if os.path.isfile(path):
-                        total += os.path.getsize(path)
-                except OSError:
-                    pass
+    total += db.query(func.coalesce(func.sum(MediaUploadDB.size), 0)).filter_by(owner_id=username).scalar()
+    # Attachment sizes are stored as strings in older databases.
+    rows = db.query(ExperimentFileDB.file_size).join(ExperimentDB, ExperimentDB.id == ExperimentFileDB.exp_id)
+    for (size,) in rows.filter(ExperimentDB.user_id == username):
+        try:
+            total += max(0, int(size))
+        except (TypeError, ValueError):
+            continue
     return total
 
 
@@ -1334,7 +1532,8 @@ templates.env.globals["base_path"] = BASE_PATH
 templates.env.globals["lab_admin_path"] = LAB_ADMIN_PATH
 templates.env.globals["site_origin"] = SITE_ORIGIN
 templates.env.globals["legal_base_url"] = LEGAL_BASE_URL
-templates.env.filters["fix_uploads"] = normalize_upload_urls
+templates.env.filters["fix_uploads"] = lambda value: sanitize_note_html(value or "")
+templates.env.filters["parse_amount"] = lambda value: parse_amount(value)
 templates.env.filters["avatar_src"] = avatar_src
 
 
@@ -2120,7 +2319,19 @@ async def session_auth_middleware(request: Request, call_next):
     Enforce signed session cookie. The old ?user= query param is NOT proof of identity
     (anyone could open a friend's cabinet by changing the URL).
     """
-    request.state.auth_user = get_session_username(request)
+    request.state.auth_user = None
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        with SessionLocal() as db:
+            user = (
+                db.query(UserDB).join(LoginSessionDB, LoginSessionDB.user_id == UserDB.username)
+                .filter(LoginSessionDB.token_hash == _session_digest(token),
+                        LoginSessionDB.expires_at > int(time.time()),
+                        UserDB.is_banned != "true").first()
+            )
+            if user:
+                request.state.auth_user = user.username
+
     request.state.user_plan = "free"
     request.state.user_avatar_url = ""
     path = request.url.path or "/"
@@ -2253,7 +2464,9 @@ async def biobook_unhandled_exception_handler(request: Request, exc: Exception):
         f"Путь: <code>{_tg_escape(path)}</code>\n"
         f"Тип: {_tg_escape(type(exc).__name__)}\n"
         f"Текст: {_tg_escape(str(exc)[:700])}\n"
-        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}"
+        f"Время: {_tg_escape(datetime.datetime.now().isoformat(timespec='seconds'))}",
+        purpose="ошибка сервера",
+        problem={"route": getattr(request.scope.get("route"), "path", None) or "не определён", "exception": type(exc).__name__},
     )
     if path.startswith("/api/") or (BASE_PATH and path.startswith(BASE_PATH + "/api/")):
         return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
@@ -2878,7 +3091,8 @@ async def api_labos_lead(request: Request, db: Session = Depends(get_db)):
         f"Орг: {_tg_escape(org) or '—'}\n"
         f"Сообщение: {_tg_escape(message) or '—'}\n"
         f"IP: {_tg_escape(ip)}\n"
-        f"id: {lead.id}"
+        f"id: {lead.id}",
+        purpose="заявка LabOS",
     )
     return JSONResponse({"ok": True, "id": lead.id})
 
@@ -2893,10 +3107,7 @@ async def api_tg_webhook(request: Request):
     except Exception:
         return JSONResponse({"ok": False}, status_code=400)
     if isinstance(body, dict):
-        try:
-            _tg_handle_update(body)
-        except Exception:
-            pass
+        _tg_process_update(body, source="webhook")
     return JSONResponse({"ok": True})
 
 
@@ -3033,7 +3244,8 @@ async def register(
         f"Email: {_tg_escape(email)}\n"
         f"Способ: пароль\n"
         f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
-        f"IP: {_tg_escape(ip)}"
+        f"IP: {_tg_escape(ip)}",
+        purpose="регистрация по паролю",
     )
     resp = RedirectResponse(
         url=f"{BASE_PATH}/dashboard?user={final_username}&bn_signup=1&bn_method=email&bn_plan=pro",
@@ -3043,7 +3255,11 @@ async def register(
 
 
 @app.get("/logout")
-async def logout():
+async def logout(request: Request, db: Session = Depends(get_db)):
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        db.query(LoginSessionDB).filter(LoginSessionDB.token_hash == _session_digest(token)).delete()
+        db.commit()
     resp = RedirectResponse(url=f"{BASE_PATH}/", status_code=302)
     return clear_session_cookie(resp)
 
@@ -3178,7 +3394,8 @@ async def auth_yandex_callback(
             f"Имя: {_tg_escape(display_name) or '—'}\n"
             f"Способ: Яндекс\n"
             f"План: Pro (пробный {WELCOME_TRIAL_DAYS} дн.)\n"
-            f"IP: {_tg_escape(request.client.host if request.client else '')}"
+            f"IP: {_tg_escape(request.client.host if request.client else '')}",
+            purpose="регистрация через Яндекс",
         )
 
     if user.is_banned == "true":
@@ -3262,17 +3479,49 @@ def parse_amount(val):
     except (ValueError, AttributeError):
         return 0.0
 
+def _active_username(request: Request) -> str:
+    username = get_session_username(request)
+    if not username:
+        raise HTTPException(401, "LoginRequired")
+    return username
+
+
+def _owned_experiment(db: Session, request: Request, exp_id: str) -> ExperimentDB:
+    experiment = db.query(ExperimentDB).filter(
+        ExperimentDB.id == exp_id, ExperimentDB.user_id == _active_username(request)
+    ).first()
+    if not experiment:
+        raise HTTPException(404, "Эксперимент не найден.")
+    return experiment
+
+
+def _projects_for_user(db: Session, username: str):
+    joined = db.query(ProjectMemberDB.project_id).filter(ProjectMemberDB.username == username)
+    return db.query(ProjectDB).filter((ProjectDB.user_id == username) | ProjectDB.id.in_(joined))
+
+
+def _require_project(db: Session, request: Request, project_id: str, *, owner_only: bool = False) -> ProjectDB:
+    username = _active_username(request)
+    projects = db.query(ProjectDB).filter(ProjectDB.user_id == username) if owner_only else _projects_for_user(db, username)
+    project = projects.filter(ProjectDB.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Проект не найден.")
+    return project
+
+
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_page(request: Request, user: str, project: str = None, db: Session = Depends(get_db)):
-    projects = db.query(ProjectDB).filter(ProjectDB.user_id == user).all()
-    all_users = db.query(UserDB).all()
+    projects = _projects_for_user(db, user).all()
+    all_users = []
     current_project = None
     project_tasks = []
     project_members = []
     gantt_tasks: list[dict] = []
     if project:
-        current_project = db.query(ProjectDB).filter(ProjectDB.id == project).first()
+        current_project = _projects_for_user(db, user).filter(ProjectDB.id == project).first()
         if current_project:
+            if current_project.user_id == user:
+                all_users = db.query(UserDB.username).order_by(UserDB.username).all()
             project_tasks = db.query(ProjectTaskDB).filter(ProjectTaskDB.project_id == project).all()
             members = db.query(ProjectMemberDB).filter(ProjectMemberDB.project_id == project).all()
             project_members = [m.username for m in members]
@@ -3341,13 +3590,14 @@ async def consumables_page(request: Request, user: str):
 
 @app.post("/create_experiment")
 async def create_experiment(
-    user: str = Form(...), name: str = Form(...), description: str = Form(...),
+    request: Request, user: str = Form(...), name: str = Form(...), description: str = Form(...),
     template: str = Form("lab"),
     db: Session = Depends(get_db)
 ):
+    user = _active_username(request)
     exp_id = str(uuid.uuid4())[:8]
     user_dir = os.path.join(NOTEBOOKS_BASE, user)
-    exp_dir = os.path.join(user_dir, f"{name}_{exp_id}")
+    exp_dir = os.path.join(user_dir, exp_id)
     os.makedirs(exp_dir, exist_ok=True)
 
     notebook_content = {
@@ -3396,25 +3646,19 @@ async def experiment_detail(request: Request, user: str, exp_id: str, viewing_us
     if not exp:
         return RedirectResponse(url=f"{BASE_PATH}/dashboard?user={user}")
 
-    # Check friendship if viewing as another user
-    is_owner = not viewing_user or viewing_user == user
-    fr_status = "none"
-    if not is_owner:
-        fr = db.query(FriendDB).filter(
-            ((FriendDB.user_id == viewing_user) & (FriendDB.friend_id == user)) |
-            ((FriendDB.user_id == user) & (FriendDB.friend_id == viewing_user)),
-        ).first()
-        if fr:
-            fr_status = fr.status
-
+    actor = _active_username(request)
+    if actor != exp.user_id:
+        if exp.is_public == "true":
+            return RedirectResponse(url=f"{BASE_PATH}/share/{exp.id}", status_code=302)
+        raise HTTPException(404, "Эксперимент не найден.")
     return templates.TemplateResponse(
         request, "experiment_detail.html",
         {
             "user": user,
             "exp": exp,
-            "viewing_user": viewing_user or user,
-            "is_owner": is_owner,
-            "fr_status": fr_status,
+            "viewing_user": actor,
+            "is_owner": True,
+            "fr_status": "none",
             "active_page": "dashboard",
         }
     )
@@ -4063,9 +4307,11 @@ async def account_change_password(
     if not verify_password(u.password, current_password or ""):
         return RedirectResponse(url=f"{BASE_PATH}/account?error=WrongPassword", status_code=302)
     u.password = hash_password(new_password)
+    db.query(LoginSessionDB).filter(LoginSessionDB.user_id == session_user).delete()
     db.commit()
     audit_log(db, session_user, "password_change", "user", session_user, details="")
-    return RedirectResponse(url=f"{BASE_PATH}/account?msg=PasswordChanged", status_code=302)
+    response = RedirectResponse(url=f"{BASE_PATH}/account?msg=PasswordChanged", status_code=302)
+    return attach_session_cookie(response, session_user)
 
 
 @app.post("/api/profile/avatar")
@@ -4292,6 +4538,18 @@ async def list_friend_chats(request: Request, db: Session = Depends(get_db)):
     return JSONResponse(result)
 
 
+def _can_chat(db: Session, user: str, other: str) -> bool:
+    return db.query(FriendDB.id).filter(
+        _friend_pair_filter(user, other), FriendDB.status == "accepted"
+    ).first() is not None
+
+
+def _friend_pair_filter(user: str, other: str):
+    return ((FriendDB.user_id == user) & (FriendDB.friend_id == other)) | (
+        (FriendDB.user_id == other) & (FriendDB.friend_id == user)
+    )
+
+
 @app.post("/api/friends/chats/create")
 async def create_friend_chat(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
@@ -4301,6 +4559,8 @@ async def create_friend_chat(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"error": "LoginRequired"}, status_code=401)
     if user == other:
         return JSONResponse({"error": "Cannot chat with yourself"}, status_code=400)
+    if not _can_chat(db, user, other):
+        return JSONResponse({"error": "Чат доступен только друзьям."}, status_code=403)
     # Check existing
     existing = db.query(FriendChatDB).filter(
         ((FriendChatDB.user1 == user) & (FriendChatDB.user2 == other)) |
@@ -4403,6 +4663,9 @@ async def send_chat_message(chat_id: str, request: Request, db: Session = Depend
     chat = db.query(FriendChatDB).filter(FriendChatDB.id == chat_id).first()
     if not chat or (chat.user1 != user and chat.user2 != user):
         return JSONResponse({"error": "Chat not found"}, status_code=404)
+    other = chat.user2 if chat.user1 == user else chat.user1
+    if not _can_chat(db, user, other):
+        return JSONResponse({"error": "Отправка доступна только друзьям."}, status_code=403)
     content = (body.get("content", "") or "").strip()
     if not content:
         return JSONResponse({"error": "Empty message"}, status_code=400)
@@ -4541,7 +4804,7 @@ async def equipment_page(request: Request, user: str, db: Session = Depends(get_
 async def add_equipment(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     equip = EquipmentDB(
-        owner_id=body.get("owner_id"),
+        owner_id=_active_username(request),
         name=body.get("name", ""),
         description=body.get("description", ""),
         status="available",
@@ -4555,56 +4818,100 @@ async def delete_equipment(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     equip = db.query(EquipmentDB).filter(
         EquipmentDB.id == body.get("id"),
-        EquipmentDB.owner_id == body.get("user_id"),
+        EquipmentDB.owner_id == _active_username(request),
     ).first()
     if not equip:
         return JSONResponse({"error": "Оборудование не найдено"}, status_code=404)
+    db.query(EquipmentBookingDB).filter_by(equipment_id=equip.id).delete()
     db.delete(equip)
     db.commit()
     return JSONResponse({"ok": True})
 
+def _date_range(start: str, end: str, *, required: bool = False) -> tuple[str, str]:
+    def normalized(value: str) -> str:
+        if not value:
+            return ""
+        try:
+            if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                raise ValueError
+            return datetime.date.fromisoformat(value).isoformat()
+        except ValueError:
+            raise HTTPException(422, "Укажите корректную дату.") from None
+
+    start, end = normalized(start), normalized(end)
+    if required and (not start or not end):
+        raise HTTPException(422, "Укажите даты начала и окончания.")
+    if start and end and start > end:
+        raise HTTPException(422, "Дата окончания не может быть раньше начала.")
+    return start, end
+
+
+def _equipment_for_user(db: Session, request: Request, equipment_id: str) -> EquipmentDB:
+    equipment = db.get(EquipmentDB, equipment_id)
+    user = _active_username(request)
+    if not equipment or (equipment.owner_id != user and not _can_chat(db, user, equipment.owner_id)):
+        raise HTTPException(404, "Оборудование не найдено.")
+    return equipment
+
+
 @app.post("/api/equipment/book")
 async def book_equipment(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    equip = db.query(EquipmentDB).filter(EquipmentDB.id == body.get("equipment_id")).first()
-    if not equip:
-        return JSONResponse({"error": "Оборудование не найдено"}, status_code=404)
-    
-    # Check for overlapping approved bookings
-    existing = db.query(EquipmentBookingDB).filter(
-        EquipmentBookingDB.equipment_id == body.get("equipment_id"),
+    equipment = _equipment_for_user(db, request, body.get("equipment_id"))
+    start, end = _date_range(body.get("start_date"), body.get("end_date"), required=True)
+    overlap = db.query(EquipmentBookingDB).filter(
+        EquipmentBookingDB.equipment_id == equipment.id,
         EquipmentBookingDB.status.in_(["pending", "approved"]),
-        EquipmentBookingDB.start_date <= body.get("end_date", ""),
-        EquipmentBookingDB.end_date >= body.get("start_date", ""),
+        EquipmentBookingDB.start_date <= end,
+        EquipmentBookingDB.end_date >= start,
     ).first()
-    
-    booking = EquipmentBookingDB(
-        equipment_id=body.get("equipment_id"),
-        user_id=body.get("user_id"),
-        start_date=body.get("start_date", ""),
-        end_date=body.get("end_date", ""),
-        status="pending",
-    )
+    booking = EquipmentBookingDB(equipment_id=equipment.id, user_id=_active_username(request),
+                                 start_date=start, end_date=end, status="pending")
     db.add(booking)
     db.commit()
-    return JSONResponse({"ok": True, "id": booking.id, "warning": "Обнаружено пересечение бронирований" if existing else None})
+    return JSONResponse({"ok": True, "id": booking.id,
+                         "warning": "Обнаружено пересечение бронирований" if overlap else None})
+
+
+def _owner_booking(db: Session, request: Request, booking_id: str) -> EquipmentBookingDB:
+    booking = db.query(EquipmentBookingDB).join(EquipmentDB, EquipmentDB.id == EquipmentBookingDB.equipment_id).filter(
+        EquipmentBookingDB.id == booking_id, EquipmentDB.owner_id == _active_username(request)
+    ).first()
+    if not booking:
+        raise HTTPException(404, "Бронирование не найдено.")
+    return booking
+
 
 @app.post("/api/equipment/booking/approve")
 async def approve_booking(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    booking = db.query(EquipmentBookingDB).filter(EquipmentBookingDB.id == body.get("id")).first()
-    if not booking:
-        return JSONResponse({"error": "Бронирование не найдено"}, status_code=404)
+    # Lock writes before checking overlap so simultaneous approvals serialize in SQLite.
+    db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    booking = _owner_booking(db, request, body.get("id"))
+    if booking.status == "approved":
+        db.commit()
+        return JSONResponse({"ok": True})
+    if booking.status != "pending":
+        raise HTTPException(409, "Заявка больше не ожидает подтверждения.")
+    start, end = _date_range(booking.start_date, booking.end_date, required=True)
+    conflict = db.query(EquipmentBookingDB.id).filter(
+        EquipmentBookingDB.equipment_id == booking.equipment_id,
+        EquipmentBookingDB.status == "approved", EquipmentBookingDB.id != booking.id,
+        EquipmentBookingDB.start_date <= end, EquipmentBookingDB.end_date >= start,
+    ).first()
+    if conflict:
+        return JSONResponse({"error": "На это время уже подтверждена другая бронь."}, status_code=409)
     booking.status = "approved"
     db.commit()
     return JSONResponse({"ok": True})
 
+
 @app.post("/api/equipment/booking/decline")
 async def decline_booking(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    booking = db.query(EquipmentBookingDB).filter(EquipmentBookingDB.id == body.get("id")).first()
-    if not booking:
-        return JSONResponse({"error": "Бронирование не найдено"}, status_code=404)
+    booking = _owner_booking(db, request, body.get("id"))
+    if booking.status not in ('pending', 'approved'):
+        raise HTTPException(409, "Текущий статус заявки не допускает это действие.")
     booking.status = "declined"
     db.commit()
     return JSONResponse({"ok": True})
@@ -4612,9 +4919,9 @@ async def decline_booking(request: Request, db: Session = Depends(get_db)):
 @app.post("/api/equipment/booking/complete")
 async def complete_booking(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    booking = db.query(EquipmentBookingDB).filter(EquipmentBookingDB.id == body.get("id")).first()
-    if not booking:
-        return JSONResponse({"error": "Бронирование не найдено"}, status_code=404)
+    booking = _owner_booking(db, request, body.get("id"))
+    if booking.status not in ('approved',):
+        raise HTTPException(409, "Текущий статус заявки не допускает это действие.")
     booking.status = "completed"
     db.commit()
     return JSONResponse({"ok": True})
@@ -4624,7 +4931,8 @@ async def cancel_booking(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     booking = db.query(EquipmentBookingDB).filter(
         EquipmentBookingDB.id == body.get("id"),
-        EquipmentBookingDB.user_id == body.get("user_id"),
+        EquipmentBookingDB.user_id == _active_username(request),
+        EquipmentBookingDB.status.in_(("pending", "approved")),
     ).first()
     if not booking:
         return JSONResponse({"error": "Бронирование не найдено"}, status_code=404)
@@ -4633,7 +4941,8 @@ async def cancel_booking(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"ok": True})
 
 @app.get("/api/equipment/bookings")
-async def get_equipment_bookings(id: str, db: Session = Depends(get_db)):
+async def get_equipment_bookings(id: str, request: Request, db: Session = Depends(get_db)):
+    _equipment_for_user(db, request, id)
     bookings = db.query(EquipmentBookingDB).filter(
         EquipmentBookingDB.equipment_id == id
     ).order_by(EquipmentBookingDB.created_at.asc()).all()
@@ -4653,10 +4962,11 @@ async def get_equipment_bookings(id: str, db: Session = Depends(get_db)):
 
 @app.post("/experiment/{user}/{exp_id}/add_node")
 async def add_node(
-    user: str, exp_id: str,
+    request: Request, user: str, exp_id: str,
     title: str = Form(...), content: str = Form(...), level_idx: int = Form(-1),
     db: Session = Depends(get_db)
 ):
+    _owned_experiment(db, request, exp_id)
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id, ExperimentDB.user_id == user).first()
     if exp:
         new_node = {"id": str(uuid.uuid4())[:8], "title": title, "content": content}
@@ -4683,6 +4993,7 @@ def _find_node(exp, node_id):
 
 @app.get("/experiment/{user}/{exp_id}/node/{node_id}", response_class=HTMLResponse)
 async def node_detail(request: Request, user: str, exp_id: str, node_id: str, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id, ExperimentDB.user_id == user).first()
     if not exp:
         return RedirectResponse(url=f"{BASE_PATH}/dashboard?user={user}")
@@ -4701,7 +5012,8 @@ async def node_detail(request: Request, user: str, exp_id: str, node_id: str, db
 
     resp = templates.TemplateResponse(
         request, "node_detail.html",
-        {"user": user, "exp": exp, "node": node, "notes": notes, "is_public_view": False}
+        {"user": user, "exp": exp, "node": node, "notes": notes, "is_public_view": False,
+         "pptx_export_enabled": plan_allows_ai(getattr(request.state, "user_plan", "free"))}
     )
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
@@ -4750,37 +5062,75 @@ def _maybe_create_node_version(
     return version
 
 
+def _sanitize_note_attribute(tag: str, attribute: str, value: str) -> str | None:
+    if attribute in {"id", "data-cell-id"}:
+        return value if re.fullmatch(r"cell_[a-zA-Z0-9_-]{1,40}", value) else None
+    if tag == "a" and attribute == "href" and value.lower().lstrip().startswith("data:"):
+        return None
+    if tag == "img" and attribute == "src":
+        if value.lower().startswith("data:"):
+            return value if re.match(r"^data:image/(png|jpeg|gif|webp);base64,", value, re.I) else None
+        parsed = urlparse(value)
+        if parsed.scheme:
+            return value if parsed.scheme.lower() in {"https", "http"} else None
+        return value if not value.startswith(("//", "\\")) else None
+    return value
+
+
+def sanitize_note_html(value: str) -> str:
+    return nh3.clean(
+        normalize_upload_urls(value),
+        tags={"a", "b", "blockquote", "br", "button", "code", "div", "em", "h1", "h2", "h3",
+              "h4", "h5", "h6", "hr", "i", "img", "li", "ol", "p", "pre", "s", "section",
+              "small", "span", "strike", "strong", "sub", "sup", "table", "tbody", "td",
+              "textarea", "tfoot", "th", "thead", "tr", "u", "ul"},
+        attributes={"*": {"class", "style", "title", "contenteditable"},
+                    "a": {"href"}, "img": {"src", "alt", "width", "height"},
+                    "div": {"id"}, "button": {"type", "data-cell-id"},
+                    "i": {"data-lucide"}, "textarea": {"placeholder", "spellcheck", "rows", "cols"},
+                    "td": {"colspan", "rowspan"}, "th": {"colspan", "rowspan", "scope"}},
+        clean_content_tags={"script", "style", "iframe", "object", "embed", "svg", "math"},
+        url_schemes={"http", "https", "mailto", "data"},
+        filter_style_properties={"color", "background-color", "font-size", "font-family",
+                                 "font-weight", "text-align", "text-decoration", "width",
+                                 "height", "max-width", "transform", "white-space"},
+        attribute_filter=_sanitize_note_attribute,
+    )
+
+
+def _store_note(db: Session, request: Request, exp_id: str, node_id: str, html: str,
+                revision: int, *, annotation_url: str | None = None, message: str = "Автосохранение"):
+    if type(revision) is not int or revision < 0:
+        raise HTTPException(409, "Обновите страницу перед сохранением заметки.")
+    html = sanitize_note_html(html)
+    fields = {NodeNotesDB.notes_html: html, NodeNotesDB.revision: revision + 1}
+    if annotation_url is not None:
+        fields[NodeNotesDB.annotation_url] = _sanitize_note_attribute("img", "src", annotation_url) or ""
+    query = db.query(NodeNotesDB).filter_by(exp_id=exp_id, node_id=node_id)
+    if query.filter(NodeNotesDB.revision == revision).update(fields, synchronize_session=False) != 1:
+        db.rollback()
+        raise HTTPException(409, "Заметка изменилась. Скопируйте свою правку и обновите страницу.")
+    version = _maybe_create_node_version(db, exp_id=exp_id, node_id=node_id, html=html,
+                                         author=_version_author_label(request, db), message=message)
+    db.commit()
+    return {"ok": True, "revision": revision + 1, "version_id": version.id if version else None}
+
+
 @app.post("/api/node/save")
 async def save_node_notes(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    exp_id = body.get("exp_id")
-    node_id = body.get("node_id")
-    html = normalize_upload_urls(body.get("html", ""))
-    annotation_url = body.get("annotation_url", "")
+    exp_id, node_id, html = body.get("exp_id"), body.get("node_id"), body.get("html")
+    _owned_experiment(db, request, exp_id)
+    if not isinstance(html, str):
+        raise HTTPException(422, "Текст заметки должен быть строкой.")
+    annotation = body.get("annotation_url")
+    return _store_note(db, request, exp_id, node_id, html, body.get("revision"),
+                       annotation_url=annotation if isinstance(annotation, str) else None)
 
-    notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id, NodeNotesDB.node_id == node_id).first()
-    if notes:
-        notes.notes_html = html
-        if annotation_url:
-            notes.annotation_url = annotation_url
-        version = _maybe_create_node_version(
-            db,
-            exp_id=exp_id,
-            node_id=node_id,
-            html=html,
-            author=_version_author_label(request, db),
-            message="Автосохранение",
-        )
-        db.commit()
-        payload = {"ok": True}
-        if version:
-            payload["version_id"] = version.id
-        return JSONResponse(payload)
-    return JSONResponse({"ok": False}, status_code=404)
 
 # ── Export helpers (DOCX / PDF / PPTX) ──
 
-def _export_meta(db: Session, exp_id: str, node_id: str) -> dict:
+def _export_meta(db: Session, exp_id: str, node_id: str, version_id: str | None = None) -> dict:
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id).first()
     node = _find_node(exp, node_id) if exp else None
     title = ((node or {}).get("title") if isinstance(node, dict) else None) or f"Узел {node_id}"
@@ -4789,56 +5139,67 @@ def _export_meta(db: Session, exp_id: str, node_id: str) -> dict:
         user = db.query(UserDB).filter(UserDB.username == exp.user_id).first()
         author = ((user.display_name if user else "") or "").strip() or exp.user_id
     notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id, NodeNotesDB.node_id == node_id).first()
+    if not node:
+        raise HTTPException(404, "Этап не найден.")
+    html = notes.notes_html if notes else ""
+    if version_id:
+        version = db.query(NodeVersionDB).filter_by(id=version_id, exp_id=exp_id, node_id=node_id).first()
+        if not version:
+            raise HTTPException(404, "Версия не найдена.")
+        html = version.html_snapshot
     return {
         "title": title,
         "author": author,
         "experiment": (exp.name if exp else "") or "",
-        "html": (notes.notes_html if notes else "") or "",
+        "html": sanitize_note_html(html or ""),
+        "media": {name for (name,) in db.query(MediaUploadDB.filename).filter_by(exp_id=exp_id)},
         "date": datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
 
 
-def _resolve_export_image_path(src: str) -> str | None:
+def _resolve_export_image_path(src: str, allowed_media: set[str]):
     if not src:
         return None
     src = _html.unescape(src.strip())
-    if src.startswith("data:image/"):
+    if re.match(r"^data:image/(png|jpeg|gif|webp);base64,", src, re.I):
         try:
-            header, b64 = src.split(",", 1)
-            ext = "png"
-            if "jpeg" in header or "jpg" in header:
-                ext = "jpg"
-            elif "gif" in header:
-                ext = "gif"
-            elif "webp" in header:
-                ext = "webp"
-            raw = base64.b64decode(b64)
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
-            tmp.write(raw)
-            tmp.close()
-            return tmp.name
-        except Exception:
+            raw = base64.b64decode(src.split(",", 1)[1], validate=True)
+            from PIL import Image as PILImage
+            with PILImage.open(io.BytesIO(raw)) as image:
+                if image.format not in _NOTE_IMAGE_TYPES or image.width * image.height > 25_000_000:
+                    return None
+                image.verify()
+            return io.BytesIO(raw)
+        except (ValueError, OSError):
             return None
-    path = urlparse(src).path if "://" in src else src
-    path = unquote_plus(path)
-    markers = ("/static/uploads/", "/uploads/")
-    fname = ""
-    for marker in markers:
-        if marker in path:
-            fname = path.split(marker, 1)[1]
-            break
-    if not fname:
-        fname = os.path.basename(path)
-    fname = os.path.basename(fname.split("?")[0])
-    if not fname or ".." in fname:
+    matches = _note_media_names(urlparse(src).path)
+    if len(matches) != 1:
         return None
-    full = os.path.join(UPLOADS_DIR, fname)
-    return full if os.path.isfile(full) else None
+    name = next(iter(matches))
+    return _media_path(name) if name in allowed_media else None
 
 
-def _parse_html_export_blocks(html: str) -> list[dict]:
+def _parse_html_export_blocks(html: str, allowed_media: set[str] | None = None) -> list[dict]:
     """Turn notebook HTML into structured blocks for exporters."""
     from html.parser import HTMLParser
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html or "", "html.parser")
+    tables = []
+    for table in soup.find_all("table"):
+        if table.find_parent("table"):
+            continue
+        rows = []
+        for row in table.find_all("tr"):
+            if row.find_parent("table") is not table:
+                continue
+            cells = row.find_all(("th", "td"), recursive=False)
+            if cells:
+                rows.append([cell.get_text(" ", strip=True) for cell in cells])
+        token = soup.new_tag("bb-export-table")
+        token["data-index"] = str(len(tables))
+        tables.append(rows)
+        table.replace_with(token)
 
     class _Parser(HTMLParser):
         def __init__(self):
@@ -4873,6 +5234,15 @@ def _parse_html_export_blocks(html: str) -> list[dict]:
         def handle_starttag(self, tag, attrs):
             tag = tag.lower()
             attrs_d = {k.lower(): (v or "") for k, v in attrs}
+            if tag == "bb-export-table" and not self._skip:
+                index = attrs_d.get("data-index", "")
+                if index.isdecimal() and int(index) < len(tables):
+                    self._flush_text()
+                    rows = tables[int(index)]
+                    if rows:
+                        width = max(map(len, rows))
+                        self.blocks.append({"type": "table", "rows": [row + [""] * (width - len(row)) for row in rows]})
+                return
             if tag in ("script", "style", "button", "svg"):
                 self._skip += 1
                 return
@@ -4886,7 +5256,7 @@ def _parse_html_export_blocks(html: str) -> list[dict]:
                 self._flush_text()
                 src = attrs_d.get("src", "")
                 alt = attrs_d.get("alt", "")
-                path = _resolve_export_image_path(src)
+                path = _resolve_export_image_path(src, allowed_media or set())
                 if path:
                     self.blocks.append({"type": "img", "path": path, "alt": alt})
                 elif alt:
@@ -4962,7 +5332,7 @@ def _parse_html_export_blocks(html: str) -> list[dict]:
 
     parser = _Parser()
     try:
-        parser.feed(html or "")
+        parser.feed(str(soup))
         parser.close()
     except Exception:
         text = re.sub(r"(?i)<br\s*/?>", "\n", html or "")
@@ -4994,7 +5364,7 @@ def _build_docx_bytes(meta: dict) -> bytes:
             run.font.size = Pt(10)
             run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
-    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    blocks = _parse_html_export_blocks(meta.get("html") or "", meta.get("media"))
     if not blocks:
         doc.add_paragraph("(пусто)")
     for block in blocks:
@@ -5021,8 +5391,15 @@ def _build_docx_bytes(meta: dict) -> bytes:
                         run.font.size = Pt(9)
                         run.font.italic = True
             except Exception:
-                doc.add_paragraph(f"[Не удалось вставить изображение: {os.path.basename(path or '')}]")
-    else:
+                doc.add_paragraph(f"[Не удалось вставить изображение: {(os.path.basename(path) if isinstance(path, str) else 'встроенное фото')}]")
+        elif kind == "table":
+            rows = block["rows"]
+            table = doc.add_table(rows=len(rows), cols=len(rows[0]))
+            table.style = "Table Grid"
+            for tr, values in zip(table.rows, rows):
+                for cell, value in zip(tr.cells, values):
+                    cell.text = value
+        else:
             text = block.get("text") or ""
             for part in text.split("\n\n"):
                 part = part.strip()
@@ -5039,32 +5416,31 @@ def _build_pdf_bytes(meta: dict) -> bytes:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
     from reportlab.lib.units import cm  # type: ignore
     from reportlab.platypus import (  # type: ignore
-        SimpleDocTemplate, Paragraph, Spacer, Image, Preformatted, ListFlowable, ListItem,
+        SimpleDocTemplate, Paragraph, Spacer, Image, Preformatted, ListFlowable, ListItem, Table, TableStyle,
     )
     from reportlab.pdfbase import pdfmetrics  # type: ignore
     from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
     from reportlab.lib.enums import TA_LEFT  # type: ignore
+    from reportlab.lib import colors
 
-    font_name = "Helvetica"
-    font_bold = "Helvetica-Bold"
-    for cand in (
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-    ):
-        if os.path.isfile(cand):
-            try:
-                pdfmetrics.registerFont(TTFont("ExportSans", cand))
-                bold_cand = cand.replace("Regular", "Bold").replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
-                if os.path.isfile(bold_cand):
-                    pdfmetrics.registerFont(TTFont("ExportSans-Bold", bold_cand))
-                    font_bold = "ExportSans-Bold"
-                else:
-                    font_bold = "ExportSans"
-                font_name = "ExportSans"
-                break
-            except Exception:
-                pass
+    win_fonts = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+    configured_font = os.environ.get("PDF_EXPORT_FONT", "")
+    candidates = (
+        (configured_font, os.environ.get("PDF_EXPORT_BOLD_FONT", "")),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        (os.path.join(win_fonts, "arial.ttf"), os.path.join(win_fonts, "arialbd.ttf")),
+        ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+    )
+    for regular, bold in candidates:
+        if regular and os.path.isfile(regular):
+            pdfmetrics.registerFont(TTFont("ExportSans", regular))
+            font_name, font_bold = "ExportSans", "ExportSans"
+            if bold and os.path.isfile(bold):
+                pdfmetrics.registerFont(TTFont("ExportSans-Bold", bold))
+                font_bold = "ExportSans-Bold"
+            break
+    else:
+        raise RuntimeError("Не установлен TrueType-шрифт для экспорта PDF.")
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -5093,7 +5469,7 @@ def _build_pdf_bytes(meta: dict) -> bytes:
     if meta_line:
         story.append(Paragraph(esc(meta_line), styles["ExportMeta"]))
 
-    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    blocks = _parse_html_export_blocks(meta.get("html") or "", meta.get("media"))
     if not blocks:
         story.append(Paragraph("(пусто)", styles["ExportBody"]))
     for block in blocks:
@@ -5122,7 +5498,15 @@ def _build_pdf_bytes(meta: dict) -> bytes:
                 story.append(img)
                 story.append(Spacer(1, 6))
             except Exception:
-                story.append(Paragraph(esc(f"[Изображение: {os.path.basename(path or '')}]"), styles["ExportBody"]))
+                story.append(Paragraph(esc(f"[Изображение: {(os.path.basename(path) if isinstance(path, str) else 'встроенное фото')}]"), styles["ExportBody"]))
+        elif kind == "table":
+            rows = [[Paragraph(esc(value), styles["ExportBody"]) for value in row] for row in block["rows"]]
+            table = Table(rows, colWidths=[doc.width / len(rows[0])] * len(rows[0]), splitInRow=1)
+            table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.extend((table, Spacer(1, 6)))
         else:
             text = (block.get("text") or "").strip()
             if text:
@@ -5153,7 +5537,7 @@ def _build_pptx_bytes(meta: dict) -> bytes:
     if slide.placeholders and len(slide.placeholders) > 1:
         slide.placeholders[1].text = subtitle or "Экспорт из Lab-Journal"
 
-    blocks = _parse_html_export_blocks(meta.get("html") or "")
+    blocks = _parse_html_export_blocks(meta.get("html") or "", meta.get("media"))
     # Group into slides by headings; pack paragraphs
     slides_spec: list[dict] = []
     current = {"title": "Содержание", "items": []}
@@ -5163,7 +5547,7 @@ def _build_pptx_bytes(meta: dict) -> bytes:
             if current["items"] or (current["title"] != "Содержание" and not slides_spec):
                 slides_spec.append(current)
             current = {"title": block.get("text") or "Раздел", "items": []}
-        elif kind == "img":
+        elif kind in ("img", "table"):
             current["items"].append(block)
         else:
             text = (block.get("text") or "").strip()
@@ -5174,26 +5558,42 @@ def _build_pptx_bytes(meta: dict) -> bytes:
         slides_spec.append(current)
 
     for spec in slides_spec:
-        slide = prs.slides.add_slide(prs.slide_layouts[5])  # blank-ish title only
-        # title box
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.3), Inches(0.8))
-        tf = title_box.text_frame
-        tf.text = spec["title"]
-        tf.paragraphs[0].font.size = Pt(28)
-        tf.paragraphs[0].font.bold = True
+        def new_slide():
+            page = prs.slides.add_slide(prs.slide_layouts[6])
+            title = page.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.3), Inches(0.8))
+            title.text_frame.text = spec["title"]
+            title.text_frame.paragraphs[0].font.size = Pt(28)
+            title.text_frame.paragraphs[0].font.bold = True
+            return page
 
+        slide = new_slide()
         y = 1.2
         for item in spec["items"]:
             if y > 6.5:
-                break
-            if item.get("type") == "img":
+                slide, y = new_slide(), 1.2
+            if item.get("type") == "table":
+                rows = item["rows"]
+                for start in range(0, len(rows), 10):
+                    chunk = rows[start:start + 10]
+                    if y + len(chunk) * 0.4 > 6.8:
+                        slide, y = new_slide(), 1.2
+                    shape = slide.shapes.add_table(len(chunk), len(chunk[0]), Inches(0.6), Inches(y), Inches(12), Inches(len(chunk) * 0.4))
+                    for i, row in enumerate(chunk):
+                        for j, value in enumerate(row):
+                            cell = shape.table.cell(i, j)
+                            cell.text = value
+                            cell.text_frame.paragraphs[0].font.size = Pt(13)
+                    y += len(chunk) * 0.4 + 0.2
+            elif item.get("type") == "img":
+                if y + 3.2 > 6.8:
+                    slide, y = new_slide(), 1.2
                 path = item.get("path")
                 try:
                     slide.shapes.add_picture(path, Inches(0.8), Inches(y), width=Inches(8))
                     y += 3.2
                 except Exception:
                     box = slide.shapes.add_textbox(Inches(0.6), Inches(y), Inches(12), Inches(0.4))
-                    box.text_frame.text = f"[Изображение: {os.path.basename(path or '')}]"
+                    box.text_frame.text = f"[Изображение: {(os.path.basename(path) if isinstance(path, str) else 'встроенное фото')}]"
                     y += 0.5
             else:
                 box = slide.shapes.add_textbox(Inches(0.6), Inches(y), Inches(12), Inches(0.9))
@@ -5213,8 +5613,9 @@ def _export_filename(prefix: str, node_id: str, ext: str) -> str:
 
 
 @app.get("/api/node/export_docx")
-async def export_node_docx(exp_id: str, node_id: str, db: Session = Depends(get_db)):
-    meta = _export_meta(db, exp_id, node_id)
+async def export_node_docx(exp_id: str, node_id: str, request: Request, db: Session = Depends(get_db), version_id: str | None = None):
+    _owned_experiment(db, request, exp_id)
+    meta = _export_meta(db, exp_id, node_id, version_id)
     try:
         data = _build_docx_bytes(meta)
     except ImportError:
@@ -5224,7 +5625,7 @@ async def export_node_docx(exp_id: str, node_id: str, db: Session = Depends(get_
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "docx")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -5233,8 +5634,9 @@ async def export_node_docx(exp_id: str, node_id: str, db: Session = Depends(get_
 
 
 @app.get("/api/node/export_pdf")
-async def export_node_pdf(exp_id: str, node_id: str, db: Session = Depends(get_db)):
-    meta = _export_meta(db, exp_id, node_id)
+async def export_node_pdf(exp_id: str, node_id: str, request: Request, db: Session = Depends(get_db), version_id: str | None = None):
+    _owned_experiment(db, request, exp_id)
+    meta = _export_meta(db, exp_id, node_id, version_id)
     try:
         data = _build_pdf_bytes(meta)
     except ImportError:
@@ -5244,12 +5646,12 @@ async def export_node_pdf(exp_id: str, node_id: str, db: Session = Depends(get_d
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "pdf")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(buf, media_type="application/pdf", headers=headers)
 
 
 @app.get("/api/node/export_pptx")
-async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Session = Depends(get_db)):
+async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Session = Depends(get_db), version_id: str | None = None):
     session_user = get_session_username(request)
     u = db.query(UserDB).filter(UserDB.username == session_user).first() if session_user else None
     plan = sync_user_plan_effective(u, db) if u else "free"
@@ -5262,7 +5664,8 @@ async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Sess
             },
             status_code=403,
         )
-    meta = _export_meta(db, exp_id, node_id)
+    _owned_experiment(db, request, exp_id)
+    meta = _export_meta(db, exp_id, node_id, version_id)
     try:
         data = _build_pptx_bytes(meta)
     except ImportError:
@@ -5272,7 +5675,7 @@ async def export_node_pptx(request: Request, exp_id: str, node_id: str, db: Sess
 
     buf = io.BytesIO(data)
     fname = _export_filename("node", node_id, "pptx")
-    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"', "Cache-Control": "private, no-store"}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -5506,6 +5909,7 @@ async def api_export_template_delete(request: Request, db: Session = Depends(get
 async def create_version(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     exp_id = body.get("exp_id")
+    _owned_experiment(db, request, exp_id)
     node_id = body.get("node_id")
     message = body.get("message", "Снимок")
     
@@ -5534,7 +5938,8 @@ async def create_version(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"ok": False})
 
 @app.get("/api/node/version/list")
-async def list_versions(exp_id: str, node_id: str, db: Session = Depends(get_db)):
+async def list_versions(exp_id: str, node_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     versions = db.query(NodeVersionDB).filter(NodeVersionDB.exp_id == exp_id, NodeVersionDB.node_id == node_id).order_by(NodeVersionDB.created_at.desc()).all()
     return JSONResponse({
         "versions": [
@@ -5549,16 +5954,17 @@ async def list_versions(exp_id: str, node_id: str, db: Session = Depends(get_db)
     })
 
 @app.get("/api/node/version/{version_id}")
-async def get_version_snapshot(version_id: str, db: Session = Depends(get_db)):
+async def get_version_snapshot(version_id: str, request: Request, db: Session = Depends(get_db)):
     v = db.query(NodeVersionDB).filter(NodeVersionDB.id == version_id).first()
     if not v:
         return JSONResponse({"ok": False}, status_code=404)
+    _owned_experiment(db, request, v.exp_id)
     return JSONResponse(
         {
             "id": v.id,
             "created_at": v.created_at,
             "message": v.message,
-            "html_snapshot": v.html_snapshot or "",
+            "html_snapshot": sanitize_note_html(v.html_snapshot or ""),
         }
     )
 
@@ -5568,13 +5974,12 @@ async def rollback_version(request: Request, db: Session = Depends(get_db)):
     version_id = body.get("version_id")
     
     version = db.query(NodeVersionDB).filter(NodeVersionDB.id == version_id).first()
-    if version:
-        notes = db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == version.exp_id, NodeNotesDB.node_id == version.node_id).first()
-        if notes:
-            notes.notes_html = version.html_snapshot
-            db.commit()
-            return JSONResponse({"ok": True})
-    return JSONResponse({"ok": False})
+    if not version:
+        raise HTTPException(404, "Версия не найдена.")
+    _owned_experiment(db, request, version.exp_id)
+    return _store_note(db, request, version.exp_id, version.node_id, version.html_snapshot or "",
+                       body.get("revision"), message="Восстановление версии")
+
 
 # ── API: STT ──
 
@@ -5657,20 +6062,206 @@ async def run_stt(file: UploadFile = File(...)):
             text = "Не удалось распознать речь. Попробуйте говорить ближе к микрофону."
         return {"text": text}
 
-# ── API: upload image ──
+# ── Uploaded media ──
+
+_MEDIA_NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}")
+_MEDIA_LINK = re.compile(r"/static/uploads/([A-Za-z0-9._-]+)")
+_NOTE_IMAGE_TYPES = {"PNG": ("png", "image/png"), "JPEG": ("jpg", "image/jpeg"),
+                     "GIF": ("gif", "image/gif"), "WEBP": ("webp", "image/webp")}
+_INLINE_TYPES = {media for _, media in _NOTE_IMAGE_TYPES.values()} | {"audio/webm", "audio/ogg", "audio/mp4"}
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+
+def _media_path(filename: str) -> str | None:
+    if not _MEDIA_NAME.fullmatch(filename) or ".." in filename:
+        return None
+    path = os.path.join(UPLOADS_DIR, filename)
+    return path if os.path.isfile(path) and not os.path.islink(path) else None
+
+
+def _note_media_names(text: str) -> set[str]:
+    return set(_MEDIA_LINK.findall(text or ""))
+
+
+def _serve_protected_upload(db: Session, request: Request, filename: str):
+    path = _media_path(filename)
+    if not path:
+        raise HTTPException(404, "Файл не найден.")
+    media = db.get(MediaUploadDB, filename)
+    headers = {"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"}
+    if not media:
+        # Profile pictures are intentionally public. No other unindexed upload is published.
+        aliases = (filename, "/static/uploads/" + filename, f"{BASE_PATH}/static/uploads/{filename}")
+        if not db.query(UserDB.username).filter(UserDB.avatar_url.in_(aliases)).first():
+            raise HTTPException(404, "Файл не найден.")
+        kind = mimetypes.guess_type(path)[0]
+        if kind not in {m for _, m in _NOTE_IMAGE_TYPES.values()}:
+            raise HTTPException(404, "Файл не найден.")
+        return FileResponse(path, media_type=kind, headers=headers)
+
+    user = get_session_username(request)
+    allowed = bool(user and media.owner_id == user)
+    if not allowed and media.chat_id and user:
+        chat = db.get(FriendChatDB, media.chat_id)
+        allowed = bool(chat and user in (chat.user1, chat.user2))
+    if not allowed and media.exp_id:
+        experiment = db.get(ExperimentDB, media.exp_id)
+        if experiment and experiment.is_public == "true":
+            notes = db.query(NodeNotesDB.notes_html, NodeNotesDB.annotation_url).filter_by(exp_id=media.exp_id)
+            allowed = any(filename in _note_media_names((html or "") + " " + (annotation or "")) for html, annotation in notes)
+    if not allowed:
+        raise HTTPException(404, "Файл не найден.")
+    inline = media.media_type in _INLINE_TYPES
+    return FileResponse(path, media_type=media.media_type if inline else "application/octet-stream",
+                        filename=None if inline else media.original_name, headers=headers)
+
+
+def _image_type(path: str) -> tuple[str, str] | None:
+    from PIL import Image as PILImage, UnidentifiedImageError
+    try:
+        with PILImage.open(path) as img:
+            kind = _NOTE_IMAGE_TYPES.get(img.format)
+            if kind and img.width * img.height <= 25_000_000:
+                img.verify()
+                return kind
+    except (OSError, ValueError, UnidentifiedImageError, PILImage.DecompressionBombError):
+        pass
+    return None
+
+
+async def _stage_upload(file: UploadFile) -> tuple[str, int]:
+    size = 0
+    fd, path = tempfile.mkstemp(prefix=".incoming-", dir=UPLOADS_DIR)
+    try:
+        with os.fdopen(fd, "wb") as dest:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > _MAX_UPLOAD_BYTES:
+                    raise HTTPException(413, "Файл превышает 50 МБ.")
+                dest.write(chunk)
+        if not size:
+            raise HTTPException(422, "Файл пуст.")
+        return path, size
+    except BaseException:
+        os.unlink(path)
+        raise
+
+
+def _reserve_quota(db: Session, username: str, size: int):
+    # SQLite write lock keeps the quota check and subsequent reservation atomic across workers.
+    db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    user = db.get(UserDB, username)
+    if not user or user.is_banned == "true":
+        raise HTTPException(401, "LoginRequired")
+    plan = user.plan or "free"
+    expiry = _parse_iso_dt(user.plan_expires_at or "")
+    if expiry and expiry <= datetime.datetime.now():
+        plan = "free"
+    if _user_storage_bytes(username, db) + size > storage_limit_bytes(plan):
+        raise HTTPException(413, "Недостаточно места в хранилище.")
+
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
-    ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-    fname = f"{uuid.uuid4().hex[:12]}.{ext}"
-    path = os.path.join(UPLOADS_DIR, fname)
-    
-    # Stream for better stability
-    with open(path, "wb") as f:
-        while content := await file.read(1024 * 1024):  # 1MB chunks
-            f.write(content)
-            
-    return JSONResponse({"url": upload_public_url(fname)})
+async def upload_file(request: Request, file: UploadFile = File(...), exp_id: str = Form(""),
+                      chat_id: str = Form(""), kind: str = Form(""), db: Session = Depends(get_db)):
+    username = _active_username(request)
+    if bool(exp_id) == bool(chat_id):
+        raise HTTPException(422, "Укажите эксперимент или чат для файла.")
+    if exp_id:
+        _owned_experiment(db, request, exp_id)
+    else:
+        chat = db.get(FriendChatDB, chat_id)
+        other = chat.user2 if chat and chat.user1 == username else chat.user1 if chat and chat.user2 == username else None
+        if not other or not _can_chat(db, username, other):
+            raise HTTPException(404, "Чат не найден.")
+    staged, size = await _stage_upload(file)
+    path = None
+    try:
+        if exp_id:
+            image_type = _image_type(staged)
+            if image_type is None:
+                raise HTTPException(415, "Загрузите изображение JPEG, PNG, GIF или WebP.")
+            ext, media = image_type
+        elif kind == "voice":
+            with open(staged, "rb") as stream:
+                header = stream.read(16)
+            if header.startswith(bytes.fromhex("1A45DFA3")):
+                ext, media = "webm", "audio/webm"
+            elif header.startswith(b"OggS"):
+                ext, media = "ogg", "audio/ogg"
+            elif header[4:8] == b"ftyp":
+                ext, media = "m4a", "audio/mp4"
+            else:
+                raise HTTPException(415, "Этот формат аудио не поддерживается.")
+        else:
+            ext, media = "bin", "application/octet-stream"
+        _reserve_quota(db, username, size)
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        path = os.path.join(UPLOADS_DIR, filename)
+        db.add(MediaUploadDB(filename=filename, owner_id=username, exp_id=exp_id or None,
+                             chat_id=chat_id or None, size=size, media_type=media,
+                             original_name=os.path.basename(file.filename or filename)))
+        os.replace(staged, path)
+        db.commit()
+        return JSONResponse({"url": upload_public_url(filename)})
+    except BaseException:
+        if path and os.path.isfile(path):
+            os.unlink(path)
+        raise
+    finally:
+        if os.path.isfile(staged):
+            os.unlink(staged)
+
+
+def _index_legacy_media(db: Session):
+    marker = "scoped-media-v1"
+    db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    if db.get(DataMigrationDB, marker):
+        db.rollback()
+        return
+    refs = {}
+
+    def remember(filename, owner, exp=None, chat=None):
+        if owner:
+            refs.setdefault(filename, set()).add((owner, exp, chat))
+
+    for model, column in ((NodeNotesDB, NodeNotesDB.notes_html), (NodeVersionDB, NodeVersionDB.html_snapshot),
+                          (NodeNotesDB, NodeNotesDB.annotation_url)):
+        rows = db.query(model.exp_id, ExperimentDB.user_id, column).join(ExperimentDB, ExperimentDB.id == model.exp_id)
+        for exp_id, owner, content in rows:
+            for filename in _note_media_names(normalize_upload_urls(content or "")):
+                remember(filename, owner, exp=exp_id)
+    rows = db.query(FriendMessageDB.chat_id, FriendMessageDB.sender, FriendMessageDB.content)
+    for chat_id, owner, content in rows:
+        if (content or "").startswith(("🎤||", "📎||")):
+            for filename in _note_media_names(content.split("||")[1]):
+                remember(filename, owner, chat=chat_id)
+    existing = {name for (name,) in db.query(MediaUploadDB.filename)}
+    for filename, scopes in refs.items():
+        path = _media_path(filename)
+        if not path or filename in existing or len(scopes) != 1:
+            continue
+        owner, exp_id, chat_id = next(iter(scopes))
+        detected = _image_type(path) if exp_id else None
+        kind = detected[1] if detected else mimetypes.guess_type(path)[0]
+        if chat_id:
+            kind = {"video/webm": "audio/webm", "audio/ogg": "audio/ogg", "audio/mp4": "audio/mp4"}.get(kind)
+        if not kind or kind not in _INLINE_TYPES:
+            if exp_id:
+                continue
+            kind = "application/octet-stream"
+        db.add(MediaUploadDB(filename=filename, owner_id=owner, exp_id=exp_id, chat_id=chat_id,
+                             size=os.path.getsize(path), media_type=kind, original_name=filename))
+    db.add(DataMigrationDB(name=marker))
+    db.commit()
+
+
+@app.on_event("startup")
+def migrate_private_uploads():
+    with SessionLocal() as db:
+        _index_legacy_media(db)
+        _drain_file_cleanup(db)
+
 
 # ── API: AI chat ──
 
@@ -5801,6 +6392,7 @@ def _format_notebook_context(notebook_context) -> str:
 async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     exp_id = body.get("exp_id")
+    _owned_experiment(db, request, exp_id)
     node_id = body.get("node_id")
     user_message = body.get("message", "")
     regenerate = bool(body.get("regenerate"))
@@ -5927,7 +6519,7 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
                         tg_notify_ai_issue("chat", assistant_msg)
         except Exception as e:
             assistant_msg = format_ai_request_error(e)
-            tg_notify_ai_issue("chat", assistant_msg)
+            tg_notify_ai_issue("chat", assistant_msg, exception=e)
 
     assistant_msg, notebook_actions = _parse_assistant_notebook_actions(assistant_msg, user_message)
 
@@ -5939,8 +6531,8 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
 
     return JSONResponse({
         "reply": assistant_msg,
-        "edit_html": notebook_actions.get("edit_html"),
-        "append_html": notebook_actions.get("append_html"),
+        "edit_html": sanitize_note_html(notebook_actions.get("edit_html") or "") or None,
+        "append_html": sanitize_note_html(notebook_actions.get("append_html") or "") or None,
         "insert_code": notebook_actions.get("insert_code"),
         "edit_code_cell": notebook_actions.get("edit_code_cell"),
     })
@@ -5950,6 +6542,7 @@ async def chat_with_ai(request: Request, db: Session = Depends(get_db)):
 async def clear_chat_history(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     exp_id = body.get("exp_id")
+    _owned_experiment(db, request, exp_id)
     node_id = body.get("node_id")
     if not exp_id or not node_id:
         return JSONResponse({"ok": False, "error": "missing ids"}, status_code=400)
@@ -5963,7 +6556,7 @@ async def clear_chat_history(request: Request, db: Session = Depends(get_db)):
 import sys
 import asyncio
 # Per-user kernel locks (execution moved to isolated subprocess — see kernel_worker.py)
-_kernel_exec_locks: dict[str, threading.Lock] = {}
+_kernel_exec_locks: dict[str, asyncio.Lock] = {}
 _KERNEL_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 _KERNEL_WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kernel_worker.py")
 _KERNEL_TIMEOUT_SEC = 20
@@ -6063,30 +6656,43 @@ def _kernel_artifacts_changed(dir_path: str, before: dict[str, float]) -> list[s
     return sorted(changed)
 
 
+def _kernel_sandbox_command(out_dir: str) -> list[str] | None:
+    sandbox = shutil.which("bwrap") if sys.platform.startswith("linux") else None
+    if not sandbox:
+        return None
+    cmd = [sandbox, "--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL",
+           "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    runtime_paths = {sys.executable, os.path.realpath(sys.executable)}
+    runtime_paths.update(path for name in ("stdlib", "platstdlib", "purelib", "platlib")
+                         if (path := sysconfig.get_path(name)))
+    library_dir = sysconfig.get_config_var("LIBDIR")
+    python_library = sysconfig.get_config_var("LDLIBRARY")
+    if library_dir and python_library:
+        library = os.path.join(library_dir, python_library)
+        runtime_paths.update((library, os.path.realpath(library)))
+    multiarch = sysconfig.get_config_var("MULTIARCH")
+    if multiarch:
+        runtime_paths.update(f"{base}/{multiarch}" for base in ("/usr/lib", "/lib"))
+    runtime_paths.update(("/lib64", "/usr/lib64", "/etc/ld.so.cache", "/etc/fonts", "/usr/share/fonts"))
+    # Mount runtime files individually. The source tree, databases and host network stay outside.
+    for path in sorted(runtime_paths, key=lambda name: (name.count("/"), name)):
+        if path and os.path.exists(path):
+            cmd.extend(("--ro-bind", path, path))
+    return [*cmd, "--ro-bind", _KERNEL_WORKER, "/runner.py",
+            "--bind", os.path.abspath(out_dir), "/work", "--chdir", "/work",
+            "--", sys.executable, "/runner.py"]
+
+
 def _run_kernel_subprocess(code: str, out_dir: str, meta: dict) -> tuple[str, bool]:
-    """Execute user code in an isolated worker (unshare mount + scrubbed env)."""
-    ns_path = os.path.join(out_dir, ".kernel_ns.pkl")
+    cmd = _kernel_sandbox_command(out_dir)
+    if cmd is None:
+        return "Безопасная среда Python недоступна. Запуск отключён.", True
     payload = json.dumps(
-        {"code": code, "cwd": out_dir, "ns_path": ns_path, "meta": meta},
+        {"code": code, "cwd": "/work", "ns_path": "/work/.kernel_ns.pkl",
+         "meta": {**meta, "KERNEL_OUTPUT_DIR": "/work"}},
         ensure_ascii=False,
     ).encode("utf-8")
-
-    cmd = [sys.executable, _KERNEL_WORKER]
-    # User+mount (+pid) namespace: private /tmp and hide other processes' environ
-    if os.path.isfile("/usr/bin/unshare"):
-        cmd = [
-            "/usr/bin/unshare",
-            "--user",
-            "--map-root-user",
-            "--mount",
-            "--pid",
-            "--fork",
-            "--mount-proc",
-            "--",
-            *cmd,
-        ]
-
-    env = _kernel_scrubbed_env(out_dir)
+    env = _kernel_scrubbed_env("/work")
     try:
         proc = subprocess.run(
             cmd,
@@ -6098,16 +6704,21 @@ def _run_kernel_subprocess(code: str, out_dir: str, meta: dict) -> tuple[str, bo
         )
     except subprocess.TimeoutExpired:
         return f"Превышено время выполнения ({_KERNEL_TIMEOUT_SEC} с).", True
-    except Exception as e:
-        return f"Sandbox error: {e}", True
+    except OSError:
+        logging.getLogger(__name__).exception("Could not start the Python sandbox")
+        return "Безопасная среда Python недоступна. Запуск отключён.", True
 
-    raw = proc.stdout or b""
     try:
-        data = json.loads(raw.decode("utf-8", "replace") or "{}")
-        return str(data.get("output") or ""), bool(data.get("error"))
-    except Exception:
-        err = (proc.stderr or b"").decode("utf-8", "replace")
-        return err or f"Worker failed (exit {proc.returncode})", True
+        data = json.loads(proc.stdout)
+        if isinstance(data, dict) and isinstance(data.get("error"), bool):
+            return str(data.get("output") or ""), data["error"] or proc.returncode != 0
+    except (ValueError, UnicodeError):
+        pass
+    logging.getLogger(__name__).warning(
+        "Python sandbox exited with code %s: %s",
+        proc.returncode, proc.stderr[:500].decode("utf-8", "replace"),
+    )
+    return "Безопасная среда Python не ответила. Выполнение остановлено.", True
 
 
 COMPUTE_UNITS = {
@@ -6145,8 +6756,7 @@ async def execute_code(request: Request, db: Session = Depends(get_db)):
 
     out_dir = _kernel_output_dir(session_user, exp_id)
     lock_key = f"{session_user}:{exp_id}"
-    lock = _kernel_exec_locks.setdefault(lock_key, threading.Lock())
-    before_artifacts = _snapshot_kernel_artifacts(out_dir)
+    lock = _kernel_exec_locks.setdefault(lock_key, asyncio.Lock())
 
     meta = {
         "COMPUTE_UNIT": compute_unit["name"],
@@ -6155,10 +6765,12 @@ async def execute_code(request: Request, db: Session = Depends(get_db)):
         "KERNEL_OUTPUT_DIR": out_dir,
     }
     images: list[dict[str, str]] = []
-    with lock:
+    async with lock:
+        before_artifacts = _snapshot_kernel_artifacts(out_dir)
         output, error = await asyncio.to_thread(_run_kernel_subprocess, code, out_dir, meta)
+        changed_artifacts = _kernel_artifacts_changed(out_dir, before_artifacts)
 
-    for name in _kernel_artifacts_changed(out_dir, before_artifacts):
+    for name in changed_artifacts:
         images.append(
             {
                 "name": name,
@@ -6194,7 +6806,7 @@ async def kernel_artifact(exp_id: str, filename: str, request: Request, db: Sess
         if not exp:
             return JSONResponse({"error": "Not found"}, status_code=404)
     path = os.path.join(_kernel_output_dir(session_user, exp_id), safe_name)
-    if not os.path.isfile(path):
+    if not os.path.isfile(path) or os.path.islink(path):
         return JSONResponse({"error": "Not found"}, status_code=404)
     media = "application/octet-stream"
     low = safe_name.lower()
@@ -6208,7 +6820,7 @@ async def kernel_artifact(exp_id: str, filename: str, request: Request, db: Sess
         media = "image/webp"
     elif low.endswith(".svg"):
         media = "image/svg+xml"
-    return FileResponse(path, media_type=media, filename=safe_name)
+    return FileResponse(path, media_type=media, filename=safe_name, headers={"X-Content-Type-Options": "nosniff"})
 
 @app.post("/api/kernel/autocomplete")
 async def autocomplete_code(request: Request, db: Session = Depends(get_db)):
@@ -6264,6 +6876,7 @@ os.makedirs(EXPERIMENT_FILES_DIR, exist_ok=True)
 
 @app.get("/experiment/{user}/{exp_id}/wiki")
 async def wiki_page(request: Request, user: str, exp_id: str, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id).first()
     if not exp:
         return HTMLResponse("Experiment not found", status_code=404)
@@ -6286,6 +6899,7 @@ async def wiki_page(request: Request, user: str, exp_id: str, db: Session = Depe
 
 @app.get("/experiment/{user}/{exp_id}/wiki/{page_id}")
 async def wiki_view_page(request: Request, user: str, exp_id: str, page_id: str, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id).first()
     page = db.query(WikiPageDB).filter(WikiPageDB.id == page_id, WikiPageDB.exp_id == exp_id).first()
     if not exp or not page:
@@ -6310,6 +6924,7 @@ async def wiki_view_page(request: Request, user: str, exp_id: str, page_id: str,
 async def wiki_save(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     exp_id = body.get("exp_id")
+    _owned_experiment(db, request, exp_id)
     page_id = body.get("page_id")
     title = body.get("title", "").strip()
     content = body.get("content", "")
@@ -6341,6 +6956,7 @@ async def wiki_delete(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
     page_id = body.get("page_id")
     exp_id = body.get("exp_id")
+    _owned_experiment(db, request, exp_id)
     page = db.query(WikiPageDB).filter(WikiPageDB.id == page_id, WikiPageDB.exp_id == exp_id).first()
     if page:
         db.delete(page)
@@ -6349,7 +6965,8 @@ async def wiki_delete(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/api/experiment/{exp_id}/wiki/pages")
-async def list_wiki_pages(exp_id: str, db: Session = Depends(get_db)):
+async def list_wiki_pages(exp_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     pages = (
         db.query(WikiPageDB)
         .filter(WikiPageDB.exp_id == exp_id)
@@ -6375,7 +6992,8 @@ async def list_wiki_pages(exp_id: str, db: Session = Depends(get_db)):
 
 
 @app.get("/api/experiment/{exp_id}/files")
-async def list_experiment_files(exp_id: str, db: Session = Depends(get_db)):
+async def list_experiment_files(exp_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     files = (
         db.query(ExperimentFileDB)
         .filter(ExperimentFileDB.exp_id == exp_id)
@@ -6402,34 +7020,37 @@ async def upload_experiment_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-    fname = f"{uuid.uuid4().hex[:12]}.{ext}"
-    exp_dir = os.path.join(EXPERIMENT_FILES_DIR, exp_id)
-    os.makedirs(exp_dir, exist_ok=True)
-    path = os.path.join(exp_dir, fname)
-
-    total = 0
-    with open(path, "wb") as f:
-        while chunk := await file.read(1024 * 1024):
-            f.write(chunk)
-            total += len(chunk)
-
-    username = get_session_username(request) or "unknown"
-    ef = ExperimentFileDB(
-        exp_id=exp_id,
-        filename=fname,
-        original_name=file.filename or fname,
-        file_size=str(total),
-        mime_type=file.content_type or "application/octet-stream",
-        uploaded_by=username,
-    )
-    db.add(ef)
-    db.commit()
-    return JSONResponse({"ok": True, "file_id": ef.id})
+    _owned_experiment(db, request, exp_id)
+    username = _active_username(request)
+    staged, size = await _stage_upload(file)
+    path = None
+    try:
+        _reserve_quota(db, username, size)
+        _owned_experiment(db, request, exp_id)
+        original = os.path.basename(file.filename or "file")
+        ext = os.path.splitext(original)[1].lower()
+        fname = uuid.uuid4().hex + (ext if re.fullmatch(r"\.[a-z0-9]{1,12}", ext) else ".bin")
+        directory = os.path.join(EXPERIMENT_FILES_DIR, exp_id)
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, fname)
+        record = ExperimentFileDB(exp_id=exp_id, filename=fname, original_name=original, file_size=str(size),
+                                  mime_type=file.content_type or "application/octet-stream", uploaded_by=username)
+        db.add(record)
+        os.replace(staged, path)
+        db.commit()
+        return JSONResponse({"ok": True, "file_id": record.id})
+    except BaseException:
+        if path and os.path.isfile(path):
+            os.unlink(path)
+        raise
+    finally:
+        if os.path.isfile(staged):
+            os.unlink(staged)
 
 
 @app.get("/api/experiment/{exp_id}/files/{file_id}/download")
-async def download_experiment_file(exp_id: str, file_id: str, db: Session = Depends(get_db)):
+async def download_experiment_file(exp_id: str, file_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     ef = db.query(ExperimentFileDB).filter(ExperimentFileDB.id == file_id, ExperimentFileDB.exp_id == exp_id).first()
     if not ef:
         return JSONResponse({"error": "File not found"}, status_code=404)
@@ -6437,21 +7058,22 @@ async def download_experiment_file(exp_id: str, file_id: str, db: Session = Depe
     if not os.path.exists(path):
         return JSONResponse({"error": "File not on disk"}, status_code=404)
     from fastapi.responses import FileResponse
-    return FileResponse(path, filename=ef.original_name, media_type=ef.mime_type)
+    return FileResponse(path, filename=ef.original_name, media_type="application/octet-stream",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
 
 
 @app.post("/api/experiment/{exp_id}/files/delete")
 async def delete_experiment_file(exp_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     body = await request.json()
     file_id = body.get("file_id")
-    exp_id = body.get("exp_id") or exp_id
     ef = db.query(ExperimentFileDB).filter(ExperimentFileDB.id == file_id, ExperimentFileDB.exp_id == exp_id).first()
     if ef:
         path = os.path.join(EXPERIMENT_FILES_DIR, exp_id, ef.filename)
-        if os.path.exists(path):
-            os.remove(path)
+        _queue_file_cleanup(db, path)
         db.delete(ef)
         db.commit()
+        _drain_file_cleanup(db)
     return JSONResponse({"ok": True})
 
 
@@ -6522,21 +7144,22 @@ async def run_ocr(request: Request, db: Session = Depends(get_db)):
 # ── API: Reagents ──
 
 @app.get("/api/reagents")
-async def get_reagents(user: str, db: Session = Depends(get_db)):
+async def get_reagents(user: str, request: Request, db: Session = Depends(get_db)):
+    user = _active_username(request)
     items = db.query(ReagentDB).filter(ReagentDB.user_id == user).all()
     return JSONResponse({"items": [{"id":r.id,"name":r.name,"supplier":r.supplier,"category":r.category,"cas":r.cas,"formula":r.formula,"concentration":r.concentration,"storage":r.storage,"amount":r.amount,"min_amount":r.min_amount,"unit":r.unit,"expiry":r.expiry,"project":r.project,"location":r.location} for r in items]})
 
 @app.post("/api/reagents")
 async def create_reagent(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    r = ReagentDB(user_id=body.get("user"), name=body.get("name",""), supplier=body.get("supplier",""), category=body.get("category","Жидкий"), cas=body.get("cas",""), formula=body.get("formula",""), concentration=body.get("concentration",""), storage=body.get("storage",""), amount=body.get("amount","0"), min_amount=body.get("min_amount","0"), unit=body.get("unit","мл"), expiry=body.get("expiry",""), project=body.get("project",""), location=body.get("location",""))
+    r = ReagentDB(user_id=_active_username(request), name=body.get("name",""), supplier=body.get("supplier",""), category=body.get("category","Жидкий"), cas=body.get("cas",""), formula=body.get("formula",""), concentration=body.get("concentration",""), storage=body.get("storage",""), amount=body.get("amount","0"), min_amount=body.get("min_amount","0"), unit=body.get("unit","мл"), expiry=body.get("expiry",""), project=body.get("project",""), location=body.get("location",""))
     db.add(r)
     db.commit()
     return JSONResponse({"ok": True, "id": r.id})
 
 @app.put("/api/reagents/{item_id}")
 async def update_reagent(item_id: str, request: Request, db: Session = Depends(get_db)):
-    r = db.query(ReagentDB).filter(ReagentDB.id == item_id).first()
+    r = db.query(ReagentDB).filter(ReagentDB.id == item_id, ReagentDB.user_id == _active_username(request)).first()
     if not r:
         return JSONResponse({"ok": False}, status_code=404)
     body = await request.json()
@@ -6557,8 +7180,8 @@ async def update_reagent(item_id: str, request: Request, db: Session = Depends(g
     return JSONResponse({"ok": True})
 
 @app.delete("/api/reagents/{item_id}")
-async def delete_reagent(item_id: str, db: Session = Depends(get_db)):
-    r = db.query(ReagentDB).filter(ReagentDB.id == item_id).first()
+async def delete_reagent(item_id: str, request: Request, db: Session = Depends(get_db)):
+    r = db.query(ReagentDB).filter(ReagentDB.id == item_id, ReagentDB.user_id == _active_username(request)).first()
     if r:
         db.delete(r)
         db.commit()
@@ -6567,21 +7190,22 @@ async def delete_reagent(item_id: str, db: Session = Depends(get_db)):
 # ── API: Consumables ──
 
 @app.get("/api/consumables")
-async def get_consumables(user: str, db: Session = Depends(get_db)):
+async def get_consumables(user: str, request: Request, db: Session = Depends(get_db)):
+    user = _active_username(request)
     items = db.query(ConsumableDB).filter(ConsumableDB.user_id == user).all()
     return JSONResponse({"items": [{"id":c.id,"name":c.name,"supplier":c.supplier,"category":c.category,"amount":c.amount,"min_amount":c.min_amount,"unit":c.unit,"location":c.location,"comment":c.comment} for c in items]})
 
 @app.post("/api/consumables")
 async def create_consumable(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    c = ConsumableDB(user_id=body.get("user"), name=body.get("name",""), supplier=body.get("supplier",""), category=body.get("category","Пластик"), amount=body.get("amount","0"), min_amount=body.get("min_amount","0"), unit=body.get("unit","шт"), location=body.get("location",""), comment=body.get("comment",""))
+    c = ConsumableDB(user_id=_active_username(request), name=body.get("name",""), supplier=body.get("supplier",""), category=body.get("category","Пластик"), amount=body.get("amount","0"), min_amount=body.get("min_amount","0"), unit=body.get("unit","шт"), location=body.get("location",""), comment=body.get("comment",""))
     db.add(c)
     db.commit()
     return JSONResponse({"ok": True, "id": c.id})
 
 @app.put("/api/consumables/{item_id}")
 async def update_consumable(item_id: str, request: Request, db: Session = Depends(get_db)):
-    c = db.query(ConsumableDB).filter(ConsumableDB.id == item_id).first()
+    c = db.query(ConsumableDB).filter(ConsumableDB.id == item_id, ConsumableDB.user_id == _active_username(request)).first()
     if not c:
         return JSONResponse({"ok": False}, status_code=404)
     body = await request.json()
@@ -6597,8 +7221,8 @@ async def update_consumable(item_id: str, request: Request, db: Session = Depend
     return JSONResponse({"ok": True})
 
 @app.delete("/api/consumables/{item_id}")
-async def delete_consumable(item_id: str, db: Session = Depends(get_db)):
-    c = db.query(ConsumableDB).filter(ConsumableDB.id == item_id).first()
+async def delete_consumable(item_id: str, request: Request, db: Session = Depends(get_db)):
+    c = db.query(ConsumableDB).filter(ConsumableDB.id == item_id, ConsumableDB.user_id == _active_username(request)).first()
     if c:
         db.delete(c)
         db.commit()
@@ -6607,14 +7231,15 @@ async def delete_consumable(item_id: str, db: Session = Depends(get_db)):
 # ── API: Projects ──
 
 @app.get("/api/projects")
-async def get_projects(user: str, db: Session = Depends(get_db)):
-    items = db.query(ProjectDB).filter(ProjectDB.user_id == user).all()
+async def get_projects(user: str, request: Request, db: Session = Depends(get_db)):
+    user = _active_username(request)
+    items = _projects_for_user(db, user).all()
     return JSONResponse({"items": [{"id": p.id, "name": p.name, "status": p.status, "description": p.description or "", "end_date": p.end_date or ""} for p in items]})
 
 @app.post("/api/projects")
 async def create_project(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    username = (body.get("user") or "").strip()
+    username = _active_username(request)
     name = (body.get("name") or "").strip()
     if not username:
         return JSONResponse({"ok": False, "error": "Нужен пользователь"}, status_code=400)
@@ -6639,6 +7264,7 @@ async def create_project(request: Request, db: Session = Depends(get_db)):
 
 @app.put("/api/projects/{item_id}")
 async def update_project(item_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, item_id, owner_only=True)
     p = db.query(ProjectDB).filter(ProjectDB.id == item_id).first()
     if not p:
         return JSONResponse({"ok": False}, status_code=404)
@@ -6651,24 +7277,20 @@ async def update_project(item_id: str, request: Request, db: Session = Depends(g
     return JSONResponse({"ok": True})
 
 @app.delete("/api/projects/{item_id}")
-async def delete_project(item_id: str, db: Session = Depends(get_db)):
-    p = db.query(ProjectDB).filter(ProjectDB.id == item_id).first()
-    if p:
-        db.query(ProjectTaskDB).filter(ProjectTaskDB.project_id == item_id).delete()
-        db.query(ProjectMemberDB).filter(ProjectMemberDB.project_id == item_id).delete()
-        db.query(ProjectInviteDB).filter(ProjectInviteDB.project_id == item_id).delete()
-        db.delete(p)
-        db.commit()
+async def delete_project(item_id: str, request: Request, db: Session = Depends(get_db)):
+    project = _require_project(db, request, item_id, owner_only=True)
+    _delete_project_rows(db, project)
+    db.commit()
     return JSONResponse({"ok": True})
 
 @app.get("/api/projects/{item_id}")
-async def get_project_detail(item_id: str, db: Session = Depends(get_db)):
-    p = db.query(ProjectDB).filter(ProjectDB.id == item_id).first()
-    if not p:
-        return JSONResponse({"ok": False}, status_code=404)
+async def get_project_detail(item_id: str, request: Request, db: Session = Depends(get_db)):
+    p = _require_project(db, request, item_id)
     tasks = db.query(ProjectTaskDB).filter(ProjectTaskDB.project_id == item_id).all()
     members = db.query(ProjectMemberDB).filter(ProjectMemberDB.project_id == item_id).all()
-    invites = db.query(ProjectInviteDB).filter(ProjectInviteDB.project_id == item_id).all()
+    invites = []
+    if p.user_id == _active_username(request):
+        invites = db.query(ProjectInviteDB).filter(ProjectInviteDB.project_id == item_id).all()
     member_names = [m.username for m in members]
     return JSONResponse({
         "ok": True,
@@ -6680,42 +7302,46 @@ async def get_project_detail(item_id: str, db: Session = Depends(get_db)):
 
 # ── API: Project Tasks ──
 
+_TASK_STATUSES = {"Открыто", "В работе", "На проверке", "Завершено"}
+
+
+def _task_values(body: dict, existing: ProjectTaskDB | None = None) -> dict:
+    defaults = {"title": "", "description": "", "assignee": "", "status": "Открыто",
+                "priority": "Средний", "start_date": "", "end_date": ""}
+    values = {key: body.get(key, getattr(existing, key, fallback)) for key, fallback in defaults.items()}
+    if not isinstance(values["title"], str) or not values["title"].strip():
+        raise HTTPException(422, "Введите название задачи.")
+    if not isinstance(values["status"], str) or values["status"] not in _TASK_STATUSES:
+        raise HTTPException(422, "Выберите допустимый статус задачи.")
+    values["title"] = values["title"].strip()
+    values["start_date"], values["end_date"] = _date_range(values["start_date"], values["end_date"])
+    return values
+
+
 @app.post("/api/projects/{project_id}/tasks")
 async def create_task(project_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id)
     body = await request.json()
-    t = ProjectTaskDB(
-        project_id=project_id,
-        title=body.get("title", ""),
-        description=body.get("description", ""),
-        assignee=body.get("assignee", ""),
-        status=body.get("status", "Открыто"),
-        priority=body.get("priority", "Средний"),
-        start_date=body.get("start_date", ""),
-        end_date=body.get("end_date", ""),
-        created_by=body.get("user", ""),
-    )
+    t = ProjectTaskDB(project_id=project_id, created_by=_active_username(request), **_task_values(body))
     db.add(t)
     db.commit()
     return JSONResponse({"ok": True, "id": t.id})
 
 @app.put("/api/projects/{project_id}/tasks/{task_id}")
 async def update_task(project_id: str, task_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id)
     t = db.query(ProjectTaskDB).filter(ProjectTaskDB.id == task_id, ProjectTaskDB.project_id == project_id).first()
     if not t:
         return JSONResponse({"ok": False}, status_code=404)
     body = await request.json()
-    t.title = body.get("title", t.title)
-    t.description = body.get("description", t.description)
-    t.assignee = body.get("assignee", t.assignee)
-    t.status = body.get("status", t.status)
-    t.priority = body.get("priority", t.priority)
-    t.start_date = body.get("start_date", t.start_date)
-    t.end_date = body.get("end_date", t.end_date)
+    for key, value in _task_values(body, t).items():
+        setattr(t, key, value)
     db.commit()
     return JSONResponse({"ok": True})
 
 @app.delete("/api/projects/{project_id}/tasks/{task_id}")
-async def delete_task(project_id: str, task_id: str, db: Session = Depends(get_db)):
+async def delete_task(project_id: str, task_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id)
     t = db.query(ProjectTaskDB).filter(ProjectTaskDB.id == task_id, ProjectTaskDB.project_id == project_id).first()
     if t:
         db.delete(t)
@@ -6726,6 +7352,7 @@ async def delete_task(project_id: str, task_id: str, db: Session = Depends(get_d
 
 @app.post("/api/projects/{project_id}/members")
 async def add_member(project_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id, owner_only=True)
     body = await request.json()
     username = body.get("username", "")
     existing = db.query(ProjectMemberDB).filter(ProjectMemberDB.project_id == project_id, ProjectMemberDB.username == username).first()
@@ -6736,7 +7363,8 @@ async def add_member(project_id: str, request: Request, db: Session = Depends(ge
     return JSONResponse({"ok": True})
 
 @app.delete("/api/projects/{project_id}/members/{username}")
-async def remove_member(project_id: str, username: str, db: Session = Depends(get_db)):
+async def remove_member(project_id: str, username: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id, owner_only=True)
     m = db.query(ProjectMemberDB).filter(ProjectMemberDB.project_id == project_id, ProjectMemberDB.username == username).first()
     if m:
         db.delete(m)
@@ -6747,8 +7375,8 @@ async def remove_member(project_id: str, username: str, db: Session = Depends(ge
 
 @app.post("/api/projects/{project_id}/invite")
 async def create_invite(project_id: str, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
-    inv = ProjectInviteDB(project_id=project_id, created_by=body.get("user", ""))
+    project = _require_project(db, request, project_id, owner_only=True)
+    inv = ProjectInviteDB(project_id=project_id, created_by=project.user_id)
     db.add(inv)
     db.commit()
     return JSONResponse({"ok": True, "code": inv.code})
@@ -6773,7 +7401,7 @@ async def invite_page(request: Request, code: str, db: Session = Depends(get_db)
 @app.post("/api/invite/{code}/accept")
 async def accept_invite(code: str, request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    username = body.get("username", "")
+    username = _active_username(request)
     inv = db.query(ProjectInviteDB).filter(ProjectInviteDB.code == code).first()
     if not inv:
         return JSONResponse({"ok": False, "error": "Invite not found"}, status_code=404)
@@ -6787,11 +7415,12 @@ async def accept_invite(code: str, request: Request, db: Session = Depends(get_d
 @app.get("/api/users/search")
 async def search_users(q: str, db: Session = Depends(get_db)):
     users = db.query(UserDB).filter(UserDB.username.ilike(f"%{q}%")).limit(10).all()
-    return JSONResponse({"users": [{"username": u.username, "email": u.email or ""} for u in users]})
+    return JSONResponse({"users": [{"username": u.username} for u in users]})
 
 @app.get("/api/project/{project_id}/gantt")
 @app.get("/api/projects/{project_id}/gantt")
-async def get_gantt_data(project_id: str, db: Session = Depends(get_db)):
+async def get_gantt_data(project_id: str, request: Request, db: Session = Depends(get_db)):
+    _require_project(db, request, project_id)
     """Return tasks with date info for Gantt chart rendering."""
     p = db.query(ProjectDB).filter(ProjectDB.id == project_id).first()
     if not p:
@@ -6816,7 +7445,8 @@ async def get_gantt_data(project_id: str, db: Session = Depends(get_db)):
     })
 
 @app.post("/experiment/{user}/{exp_id}/toggle_public")
-async def toggle_public(user: str, exp_id: str, db: Session = Depends(get_db)):
+async def toggle_public(user: str, exp_id: str, request: Request, db: Session = Depends(get_db)):
+    _owned_experiment(db, request, exp_id)
     exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id, ExperimentDB.user_id == user).first()
     if exp:
         exp.is_public = "true" if exp.is_public == "false" else "false"
@@ -7092,14 +7722,17 @@ def _admin_activity_insights(db: Session, users: list, days: int = 30) -> dict:
     }
 
 
-def _admin_key_matches(value: object) -> bool:
-    return bool(
-        ADMIN_KEY and isinstance(value, str) and hmac.compare_digest(value.encode(), ADMIN_KEY.encode())
-    )
+def _admin_signature(expires: str) -> str:
+    return hmac.new(SESSION_SECRET.encode(), f"admin:{ADMIN_KEY}:{expires}".encode(), hashlib.sha256).hexdigest()
 
 
 def admin_required(request: Request) -> bool:
-    return _admin_key_matches(request.headers.get("X-Admin-Key", ""))
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    expires, _, signature = token.partition(".")
+    return bool(ADMIN_KEY and expires.isascii() and expires.isdecimal() and len(expires) <= 12
+                and int(expires) > time.time() and signature.isascii()
+                and hmac.compare_digest(signature, _admin_signature(expires)))
+
 
 @app.get(LAB_ADMIN_PATH, response_class=HTMLResponse)
 async def admin_login_page(request: Request, error: str = None):
@@ -7112,22 +7745,24 @@ async def admin_legacy_entry_redirect():
 @app.post("/admin")
 @app.post(LAB_ADMIN_PATH)
 async def admin_login(admin_key: str = Form(...)):
-    if _admin_key_matches(admin_key):
-        return RedirectResponse(
-            url=f"{BASE_PATH}{LAB_ADMIN_PATH}/dashboard?key={admin_key}", status_code=302
-        )
+    if ADMIN_KEY and hmac.compare_digest(admin_key.encode(), ADMIN_KEY.encode()):
+        expiry = str(int(time.time()) + ADMIN_SESSION_SECONDS)
+        response = RedirectResponse(url=f"{BASE_PATH}{LAB_ADMIN_PATH}/dashboard", status_code=302)
+        response.set_cookie(ADMIN_COOKIE, f"{expiry}.{_admin_signature(expiry)}",
+                            max_age=ADMIN_SESSION_SECONDS, path=f"{BASE_PATH}{LAB_ADMIN_PATH}",
+                            secure=COOKIE_SECURE, httponly=True, samesite="strict")
+        return response
     return RedirectResponse(
         url=f"{BASE_PATH}{LAB_ADMIN_PATH}?error=InvalidKey", status_code=302
     )
 
 @app.get("/admin/dashboard", include_in_schema=False)
-async def admin_legacy_dashboard_redirect(key: str = ""):
-    q = f"?key={key}" if key else ""
-    return RedirectResponse(url=f"{BASE_PATH}{LAB_ADMIN_PATH}/dashboard{q}", status_code=301)
+async def admin_legacy_dashboard_redirect():
+    return RedirectResponse(url=f"{BASE_PATH}{LAB_ADMIN_PATH}/dashboard", status_code=302)
 
 @app.get(f"{LAB_ADMIN_PATH}/dashboard", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return RedirectResponse(
             url=f"{BASE_PATH}{LAB_ADMIN_PATH}?error=InvalidKey", status_code=302
         )
@@ -7244,7 +7879,6 @@ async def admin_dashboard(request: Request, key: str, db: Session = Depends(get_
     return templates.TemplateResponse(
         request, "admin.html",
         {
-            "admin_key": key,
             "users": user_list,
             "all_experiments": exp_list,
             "stats": stats,
@@ -7253,60 +7887,126 @@ async def admin_dashboard(request: Request, key: str, db: Session = Depends(get_
         }
     )
 
+def _queue_file_cleanup(db: Session, path: str, *, directory: bool = False):
+    normalized = os.path.abspath(path)
+    roots = (UPLOADS_DIR, EXPERIMENT_FILES_DIR, NOTEBOOKS_BASE, KERNEL_OUTPUT_ROOT)
+    if any(normalized.startswith(os.path.abspath(root) + os.sep) for root in roots):
+        if not db.get(DataCleanupDB, normalized):
+            db.add(DataCleanupDB(path=normalized, is_directory=int(directory)))
+
+
+def _drain_file_cleanup(db: Session):
+    roots = [os.path.realpath(root) + os.sep for root in
+             (UPLOADS_DIR, EXPERIMENT_FILES_DIR, NOTEBOOKS_BASE, KERNEL_OUTPUT_ROOT)]
+    for row in db.query(DataCleanupDB).all():
+        parent_path = os.path.realpath(os.path.dirname(row.path)) + os.sep
+        if not any(parent_path.startswith(root) for root in roots):
+            continue
+        try:
+            if row.is_directory and not os.path.islink(row.path):
+                shutil.rmtree(row.path)
+            else:
+                os.unlink(row.path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            # Keep the durable entry for a retry on the next cleanup/startup.
+            continue
+        db.delete(row)
+    db.commit()
+
+
+def _delete_project_rows(db: Session, project: ProjectDB):
+    for model in (ProjectTaskDB, ProjectMemberDB, ProjectInviteDB):
+        db.query(model).filter_by(project_id=project.id).delete()
+    db.delete(project)
+
+
+def _delete_experiment_rows(db: Session, exp: ExperimentDB):
+    for upload in db.query(MediaUploadDB).filter_by(exp_id=exp.id):
+        _queue_file_cleanup(db, os.path.join(UPLOADS_DIR, upload.filename))
+    for model in (MediaUploadDB, NodeNotesDB, NodeVersionDB, ExperimentFileDB, WikiPageDB):
+        db.query(model).filter_by(exp_id=exp.id).delete()
+    _queue_file_cleanup(db, os.path.join(EXPERIMENT_FILES_DIR, exp.id), directory=True)
+    _queue_file_cleanup(db, os.path.join(KERNEL_OUTPUT_ROOT, _kernel_user_hash(exp.user_id), exp.id), directory=True)
+    notebook_root = os.path.join(NOTEBOOKS_BASE, exp.user_id)
+    if os.path.isdir(notebook_root):
+        for part in os.listdir(notebook_root):
+            if part == exp.id or part.endswith("_" + exp.id):
+                _queue_file_cleanup(db, os.path.join(notebook_root, part), directory=True)
+    db.delete(exp)
+
+
+def _delete_user_rows(db: Session, user: UserDB):
+    username = user.username
+    for exp in db.query(ExperimentDB).filter_by(user_id=username).all():
+        _delete_experiment_rows(db, exp)
+    for project in db.query(ProjectDB).filter_by(user_id=username).all():
+        _delete_project_rows(db, project)
+    for chat in db.query(FriendChatDB).filter((FriendChatDB.user1 == username) | (FriendChatDB.user2 == username)).all():
+        for upload in db.query(MediaUploadDB).filter_by(chat_id=chat.id):
+            _queue_file_cleanup(db, os.path.join(UPLOADS_DIR, upload.filename))
+        db.query(MediaUploadDB).filter_by(chat_id=chat.id).delete()
+        db.query(FriendMessageDB).filter_by(chat_id=chat.id).delete()
+        db.delete(chat)
+    for ticket in db.query(SupportTicketDB).filter_by(user_id=username).all():
+        db.query(SupportReplyDB).filter_by(ticket_id=ticket.id).delete()
+        db.delete(ticket)
+    for equipment in db.query(EquipmentDB).filter_by(owner_id=username).all():
+        db.query(EquipmentBookingDB).filter_by(equipment_id=equipment.id).delete()
+        db.delete(equipment)
+    for organization in db.query(OrganizationDB).filter_by(owner_id=username).all():
+        db.query(OrganizationMemberDB).filter_by(org_id=organization.id).delete()
+        db.delete(organization)
+    for model in (ReagentDB, ConsumableDB, LoginSessionDB, ExportTemplateDB, ReferralLinkDB,
+                  EquipmentBookingDB, OrganizationMemberDB):
+        db.query(model).filter_by(user_id=username).delete()
+    db.query(ProjectMemberDB).filter_by(username=username).delete()
+    db.query(ProjectInviteDB).filter_by(created_by=username).delete()
+    db.query(FriendDB).filter((FriendDB.user_id == username) | (FriendDB.friend_id == username)).delete()
+    avatar = _avatar_local_path(user.avatar_url or "")
+    if avatar:
+        _queue_file_cleanup(db, avatar)
+    for upload in db.query(MediaUploadDB).filter_by(owner_id=username):
+        _queue_file_cleanup(db, os.path.join(UPLOADS_DIR, upload.filename))
+    db.query(MediaUploadDB).filter_by(owner_id=username).delete()
+    db.delete(user)
+
+
 @app.post("/admin/delete_user")
 @app.post(f"{LAB_ADMIN_PATH}/delete_user")
 async def admin_delete_user(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
+        raise HTTPException(403, "Unauthorized")
     body = await request.json()
-    provided_key = body.get("admin_key", "")
-    username = body.get("username", "")
-
-    if not _admin_key_matches(provided_key):
-        return JSONResponse({"ok": False, "error": "Invalid admin key"}, status_code=403)
-    if not username:
-        return JSONResponse({"ok": False, "error": "Username required"}, status_code=400)
-
-    user = db.query(UserDB).filter(UserDB.username == username).first()
+    user = db.get(UserDB, body.get("username"))
     if not user:
-        return JSONResponse({"ok": False, "error": "User not found"}, status_code=404)
-
-    # Delete all user data
-    db.query(ExperimentDB).filter(ExperimentDB.user_id == username).delete()
-    db.query(ProjectDB).filter(ProjectDB.user_id == username).delete()
-    db.query(ReagentDB).filter(ReagentDB.user_id == username).delete()
-    db.query(ConsumableDB).filter(ConsumableDB.user_id == username).delete()
-    db.delete(user)
+        raise HTTPException(404, "Пользователь не найден.")
+    _delete_user_rows(db, user)
     db.commit()
+    _drain_file_cleanup(db)
+    return {"ok": True}
 
-    return JSONResponse({"ok": True})
 
 @app.post("/admin/delete_experiment")
 @app.post(f"{LAB_ADMIN_PATH}/delete_experiment")
 async def admin_delete_experiment(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
+        raise HTTPException(403, "Unauthorized")
     body = await request.json()
-    provided_key = body.get("admin_key", "")
-    exp_id = body.get("exp_id", "")
+    exp = db.get(ExperimentDB, body.get("exp_id"))
+    if not exp:
+        raise HTTPException(404, "Эксперимент не найден.")
+    _delete_experiment_rows(db, exp)
+    db.commit()
+    _drain_file_cleanup(db)
+    return {"ok": True}
 
-    if not _admin_key_matches(provided_key):
-        return JSONResponse({"ok": False, "error": "Invalid admin key"}, status_code=403)
-    if not exp_id:
-        return JSONResponse({"ok": False, "error": "Experiment ID required"}, status_code=400)
-
-    # Delete experiment and related data
-    db.query(NodeNotesDB).filter(NodeNotesDB.exp_id == exp_id).delete()
-    db.query(NodeVersionDB).filter(NodeVersionDB.exp_id == exp_id).delete()
-    exp = db.query(ExperimentDB).filter(ExperimentDB.id == exp_id).first()
-    if exp:
-        db.delete(exp)
-        db.commit()
-
-    return JSONResponse({"ok": True})
-
-# ── Admin API: User Dashboard ──
 
 @app.get("/admin/api/user_dashboard")
 @app.get(f"{LAB_ADMIN_PATH}/api/user_dashboard")
-async def admin_user_dashboard(key: str, user: str = None, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_user_dashboard(request: Request, user: str = None, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     if user:
@@ -7347,8 +8047,8 @@ async def admin_user_dashboard(key: str, user: str = None, db: Session = Depends
 
 @app.get("/admin/api/corporate")
 @app.get(f"{LAB_ADMIN_PATH}/api/corporate")
-async def admin_corporate(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_corporate(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     all_users = db.query(UserDB).all()
@@ -7372,8 +8072,8 @@ async def admin_corporate(key: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/api/referrals")
 @app.get(f"{LAB_ADMIN_PATH}/api/referrals")
-async def admin_referrals(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_referrals(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     friends_count = db.query(FriendDB).filter(FriendDB.status == "accepted").count()
@@ -7403,8 +8103,8 @@ async def admin_referrals(key: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/api/support")
 @app.get(f"{LAB_ADMIN_PATH}/api/support")
-async def admin_support(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_support(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     total_users = db.query(UserDB).count()
@@ -7426,8 +8126,8 @@ async def admin_support(key: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/api/logs")
 @app.get(f"{LAB_ADMIN_PATH}/api/logs")
-async def admin_logs(key: str, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_logs(request: Request, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     cap = max(1, min(int(limit or 100), 500))
@@ -7452,8 +8152,8 @@ async def admin_logs(key: str, limit: int = 100, offset: int = 0, db: Session = 
 
 @app.get("/admin/api/analytics")
 @app.get(f"{LAB_ADMIN_PATH}/api/analytics")
-async def admin_analytics(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_analytics(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     users = db.query(UserDB).all()
@@ -7497,8 +8197,8 @@ async def admin_analytics(key: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/api/tickets")
 @app.get(f"{LAB_ADMIN_PATH}/api/tickets")
-async def admin_get_tickets(key: str, status: str = None, priority: str = None, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_get_tickets(request: Request, status: str = None, priority: str = None, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     q = db.query(SupportTicketDB)
     if status and status != "all":
@@ -7533,7 +8233,7 @@ async def admin_get_tickets(key: str, status: str = None, priority: str = None, 
 @app.post(f"{LAB_ADMIN_PATH}/api/tickets/reply")
 async def admin_reply_ticket(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if not _admin_key_matches(body.get("key")):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     reply = SupportReplyDB(ticket_id=body.get("ticket_id"), author="admin", message=body.get("message", ""))
     db.add(reply)
@@ -7548,7 +8248,7 @@ async def admin_reply_ticket(request: Request, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/tickets/status")
 async def admin_update_ticket_status(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if not _admin_key_matches(body.get("key")):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     ticket = db.query(SupportTicketDB).filter(SupportTicketDB.id == body.get("ticket_id")).first()
     if not ticket:
@@ -7564,7 +8264,7 @@ async def admin_update_ticket_status(request: Request, db: Session = Depends(get
 @app.post(f"{LAB_ADMIN_PATH}/api/user/edit")
 async def admin_edit_user(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if not _admin_key_matches(body.get("key")):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     user = db.query(UserDB).filter(UserDB.username == body.get("username")).first()
     if not user:
@@ -7572,7 +8272,9 @@ async def admin_edit_user(request: Request, db: Session = Depends(get_db)):
     if "email" in body:
         user.email = body["email"]
     if "is_banned" in body:
-        user.is_banned = body["is_banned"]
+        user.is_banned = "true" if body["is_banned"] in ("true", True) else "false"
+        if user.is_banned == "true":
+            db.query(LoginSessionDB).filter(LoginSessionDB.user_id == user.username).delete()
     db.commit()
     audit_log(db, "admin", "update", "user", body.get("username", ""), json.dumps(body))
     return JSONResponse({"ok": True})
@@ -7581,23 +8283,23 @@ async def admin_edit_user(request: Request, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/user/bulk")
 async def admin_bulk_user_action(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if not _admin_key_matches(body.get("key")):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     action = body.get("action", "")
     usernames = body.get("usernames", [])
     if action == "delete":
-        for u in usernames:
-            db.query(ExperimentDB).filter(ExperimentDB.user_id == u).delete()
-            db.query(ProjectDB).filter(ProjectDB.user_id == u).delete()
-            db.query(ReagentDB).filter(ReagentDB.user_id == u).delete()
-            db.query(ConsumableDB).filter(ConsumableDB.user_id == u).delete()
-            db.query(FriendDB).filter((FriendDB.user_id == u) | (FriendDB.friend_id == u)).delete()
-            db.query(UserDB).filter(UserDB.username == u).delete()
+        for username in set(usernames):
+            user = db.get(UserDB, username)
+            if user:
+                _delete_user_rows(db, user)
         db.commit()
+        _drain_file_cleanup(db)
     elif action == "ban":
         for u in usernames:
             usr = db.query(UserDB).filter(UserDB.username == u).first()
-            if usr: usr.is_banned = "true"
+            if usr:
+                usr.is_banned = "true"
+                db.query(LoginSessionDB).filter(LoginSessionDB.user_id == u).delete()
         db.commit()
     elif action == "unban":
         for u in usernames:
@@ -7610,8 +8312,8 @@ async def admin_bulk_user_action(request: Request, db: Session = Depends(get_db)
 
 @app.get("/admin/api/organizations")
 @app.get(f"{LAB_ADMIN_PATH}/api/organizations")
-async def admin_get_organizations(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_get_organizations(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     orgs = db.query(OrganizationDB).all()
     result = []
@@ -7631,7 +8333,7 @@ async def admin_get_organizations(key: str, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/organizations/create")
 async def admin_create_organization(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if not _admin_key_matches(body.get("key")):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     org = OrganizationDB(name=body.get("name"), owner_id=body.get("owner_id"))
     db.add(org)
@@ -7646,8 +8348,8 @@ async def admin_create_organization(request: Request, db: Session = Depends(get_
 
 @app.get("/admin/api/referral_codes")
 @app.get(f"{LAB_ADMIN_PATH}/api/referral_codes")
-async def admin_get_referral_codes(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_get_referral_codes(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     links = db.query(ReferralLinkDB).all()
     result = []
@@ -7667,8 +8369,8 @@ async def admin_get_referral_codes(key: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/api/export/users")
 @app.get(f"{LAB_ADMIN_PATH}/api/export/users")
-async def admin_export_users_csv(key: str, db: Session = Depends(get_db)):
-    if not _admin_key_matches(key):
+async def admin_export_users_csv(request: Request, db: Session = Depends(get_db)):
+    if not admin_required(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     users = db.query(UserDB).all()
     import csv, io
@@ -7680,13 +8382,6 @@ async def admin_export_users_csv(key: str, db: Session = Depends(get_db)):
     return JSONResponse({"csv": output.getvalue()})
 
 # ── Admin API: Login as user ──
-
-@app.get("/admin/api/login_as")
-@app.get(f"{LAB_ADMIN_PATH}/api/login_as")
-async def admin_login_as(key: str, username: str):
-    if not _admin_key_matches(key):
-        return JSONResponse({"error": "Unauthorized"}, status_code=403)
-    return RedirectResponse(url=f"{BASE_PATH}/dashboard?user={username}")
 
 # ── AI Planner: чат на дашборде (план эксперимента → создание) ──
 
@@ -7815,7 +8510,7 @@ async def _llm_planner_chat(messages) -> tuple[str | None, str | None]:
             return msg, None
     except Exception as e:
         msg = format_ai_request_error(e)
-        tg_notify_ai_issue("planner", msg)
+        tg_notify_ai_issue("planner", msg, exception=e)
         return None, msg
 
 @app.post("/api/planner/chat")
@@ -8122,7 +8817,7 @@ async def planner_create(request: Request, db: Session = Depends(get_db)):
     # Папка-ноутбук — по возможности (на сервере с NOTEBOOKS_PATH), иначе пропускаем
     try:
         user_dir = os.path.join(NOTEBOOKS_BASE, username)
-        exp_dir = os.path.join(user_dir, f"{title}_{exp_id}")
+        exp_dir = os.path.join(user_dir, exp_id)
         os.makedirs(exp_dir, exist_ok=True)
         notebook_content = {
             "cells": [{"cell_type": "markdown", "id": "intro", "metadata": {},

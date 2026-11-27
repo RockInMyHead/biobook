@@ -4,6 +4,7 @@
 {% block nav_subtitle %}Сообщения{% endblock %}
 
 {% block extra_head %}
+<script src="{{ base_path }}/static/mobile-viewport.js" defer></script>
 <style>
     /* ═══════════════════════════════════════════════
        CHAT - Full Page Override (no page scroll)
@@ -11,8 +12,12 @@
 
     /* Lock body scroll */
     body {
+        position: fixed;
+        inset: var(--app-viewport-top, 0px) 0 auto;
         overflow: hidden !important;
         height: 100vh !important;
+        height: var(--app-viewport-height, 100dvh) !important;
+        min-height: 0 !important;
         background-image: var(--bg-radial) !important;
     }
 
@@ -22,7 +27,8 @@
         padding: 0 !important;
         margin: 0 !important;
         overflow: hidden !important;
-        height: calc(100vh - 64px) !important;
+        min-height: 0;
+        height: max(0px, calc(var(--app-viewport-height, 100dvh) - var(--app-navbar-height, 64px))) !important;
     }
 
     /* ───── Animations ───── */
@@ -691,10 +697,10 @@
     @media (max-width: 700px) {
         .chat-wrapper { width: 100%; max-width: 100vw; overflow: hidden; }
         .chat-sidebar { width: 100%; max-width: 100%; border-right: none; }
-        .chat-sidebar.hidden-on-mobile { display: none; }
+        .chat-wrapper.has-active-chat .chat-sidebar { display: none; }
         /* Hide conversation pane in list mode — otherwise a blue sliver peeks on the right */
         .chat-main { display: none; width: 100%; max-width: 100%; }
-        .chat-main.shown-on-mobile { display: flex !important; }
+        .chat-wrapper.has-active-chat .chat-main { display: flex; }
         .chat-main-head .mobile-back { display: flex; }
         .chat-msgs { padding: 10px 12px; }
         .msg-bubble { max-width: 88%; }
@@ -706,32 +712,48 @@
         .chat-list-avatar { width: 32px; height: 32px; font-size: 13px; }
     }
     .chat-new-btn {
-        width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--glass-border);
+        width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--glass-border);
         background: var(--glass-bg); color: var(--text-main); cursor: pointer;
         display: inline-flex; align-items: center; justify-content: center;
     }
     .chat-new-btn:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--glass-border)); }
     .new-chat-picker {
-        position: absolute; inset: 0; z-index: 30;
-        background: color-mix(in srgb, var(--bg-main, #0b0f14) 55%, transparent);
-        display: flex; align-items: center; justify-content: center; padding: 1rem;
+        position: fixed;
+        inset: 0;
+        margin: auto;
+        width: min(360px, calc(100% - 2rem));
+        max-height: calc(var(--app-viewport-height, 100dvh) - 2rem);
+        overflow: auto;
+        padding: 0;
+        border-radius: 1rem;
+        border: 1px solid var(--glass-strong-border);
+        background: #111b25;
+        color: var(--text-main);
     }
-    .new-chat-picker[hidden] { display: none !important; }
-    .new-chat-picker-card {
-        width: min(360px, 100%); max-height: 70vh; overflow: hidden;
-        border-radius: 1rem; border: 1px solid var(--glass-border); background: var(--glass-bg);
-        display: flex; flex-direction: column;
+    [data-theme="light"] .new-chat-picker { background: #fff; }
+    .new-chat-picker::backdrop { background: rgba(0,0,0,.55); }
+    .chat-composer-error, .new-chat-error {
+        margin: 0;
+        padding: .4rem .8rem;
+        color: var(--text-main);
+        font-size: .875rem;
+    }
+    @media (max-width: 700px) {
+        .chat-input-wrap { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+        .chat-input-wrap textarea { font-size: 1rem; }
     }
     .new-chat-picker-head {
         display: flex; align-items: center; justify-content: space-between;
         padding: 0.85rem 1rem; border-bottom: 1px solid var(--glass-border);
     }
     .new-chat-picker-head button {
-        border: none; background: transparent; font-size: 1.25rem; cursor: pointer; color: var(--text-muted);
+        min-width: 44px; min-height: 44px;
+        border: none; background: transparent; cursor: pointer; color: var(--text-main);
     }
     .new-chat-friend-list { overflow-y: auto; padding: 0.5rem; }
     .new-chat-friend-item {
         width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
+        min-height: 44px;
         padding: 0.7rem 0.75rem; border-radius: 0.65rem; color: var(--text-main); font-size: 0.9rem;
     }
     .new-chat-friend-item:hover { background: var(--glass-hover, rgba(255,255,255,0.05)); }
@@ -772,16 +794,6 @@
             </button>
         </div>
 
-        <div id="newChatPicker" class="new-chat-picker" hidden>
-            <div class="new-chat-picker-card">
-                <div class="new-chat-picker-head">
-                    <strong>Новый чат</strong>
-                    <button type="button" onclick="closeNewChatPicker()" aria-label="Закрыть">×</button>
-                </div>
-                <div id="newChatFriendList" class="new-chat-friend-list"></div>
-            </div>
-        </div>
-
         <!-- Active chat -->
         <div id="chatActive" style="display:none;flex:1;flex-direction:column;min-height:0;">
             <div class="chat-main-head">
@@ -790,7 +802,7 @@
                 </button>
                 <div class="chat-main-avatar" id="chatHeadAvatar">-</div>
                 <div>
-                    <div class="chat-main-name" id="chatHeadName">-</div>
+                    <h2 class="chat-main-name" id="chatHeadName" tabindex="-1">-</h2>
                 </div>
             </div>
             <div class="chat-msgs-container">
@@ -804,6 +816,7 @@
                     <i data-lucide="chevron-down" class="w-4 h-4"></i>
                 </button>
             </div>
+            <p id="chatComposerError" class="chat-composer-error" role="status" hidden></p>
             <div class="chat-input-wrap" id="chatInputWrap">
                 <div class="recording-indicator" id="recordingIndicator">
                     <div class="rec-waveform">
@@ -815,7 +828,7 @@
                         <i data-lucide="x" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
-                <textarea id="chatInput" rows="1" placeholder="Написать..." onkeydown="chatInputKeydown(event)" oninput="autoResize(this)"></textarea>
+                <textarea id="chatInput" rows="1" aria-label="Сообщение" placeholder="Написать сообщение" onkeydown="chatInputKeydown(event)" oninput="updateChatDraft(this)"></textarea>
                 <span class="chat-voice-timer" id="voiceBtnTimer">00:00</span>
                 <button class="chat-attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Прикрепить файл">
                     <i data-lucide="paperclip" class="w-4 h-4"></i>
@@ -824,13 +837,21 @@
                 <button class="chat-voice-btn" id="voiceBtn" onclick="toggleVoiceRecord()" title="Голосовое сообщение">
                     <i data-lucide="mic" class="w-4 h-4"></i>
                 </button>
-                <button class="chat-send" id="chatSendBtn" onclick="sendMsg()" disabled>
+                <button class="chat-send" id="chatSendBtn" onclick="sendMsg()" aria-label="Отправить сообщение" disabled>
                     <i data-lucide="send" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
     </div>
 </div>
+<dialog id="newChatPicker" class="new-chat-picker" aria-labelledby="newChatTitle">
+    <div class="new-chat-picker-head">
+        <strong id="newChatTitle">Новый чат</strong>
+        <form method="dialog"><button aria-label="Закрыть"><i data-lucide="x" class="w-4 h-4 mx-auto"></i></button></form>
+    </div>
+    <p id="newChatError" class="new-chat-error" role="status" hidden></p>
+    <div id="newChatFriendList" class="new-chat-friend-list"></div>
+</dialog>
 
 {% endblock %}
 
@@ -842,7 +863,8 @@ const FRIEND_USERNAMES = {{ friend_usernames|default([])|tojson }};
 
 // ── State ──
 let curChatId = null;
-let curFriend = null;
+const chatDrafts = new Map();
+const pendingChatSends = new Set();
 let pollTimer = null;
 let readPollTimer = null;
 let lastTime = '0';
@@ -856,7 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const msgsEl = document.getElementById('chatMessages');
     msgsEl.addEventListener('scroll', onMsgScroll);
     {% if start_chat %}
-    setTimeout(() => openChat('{{ start_chat }}'), 200);
+    openChat({{ start_chat | tojson }});
     {% endif %}
 });
 
@@ -871,15 +893,11 @@ function onMsgScroll() {
 
 // ── Mobile back ──
 function closeMobileChat() {
-    if (window.innerWidth <= 700) {
-        document.getElementById('chatSidebar').classList.remove('hidden-on-mobile');
-        document.getElementById('chatMain').classList.remove('shown-on-mobile');
-        document.getElementById('chatMain').querySelector('#chatActive').style.display = 'none';
-        document.getElementById('chatEmpty').style.display = 'flex';
-        stopPoll();
-        curChatId = null;
-        curFriend = null;
-    }
+    document.querySelector('.chat-wrapper').classList.remove('has-active-chat');
+    document.getElementById('chatActive').style.display = 'none';
+    document.getElementById('chatEmpty').style.display = 'flex';
+    stopPoll();
+    curChatId = null;
 }
 
 // ── Gradient helper ──
@@ -959,7 +977,6 @@ async function loadChats() {
 async function switchChat(chatId, friend) {
     stopPoll();
     curChatId = chatId;
-    curFriend = friend;
     prevMsgDateStr = null; // reset date tracking
 
     document.querySelectorAll('.chat-list-item').forEach(el => el.classList.remove('active'));
@@ -974,13 +991,16 @@ async function switchChat(chatId, friend) {
     headAvatar.textContent = friend.charAt(0).toUpperCase();
     headAvatar.className = 'chat-main-avatar ' + gradClass;
     headAvatar.dataset.gradient = '1';
-    document.getElementById('chatHeadName').textContent = friend;
-
-    // Mobile: show conversation pane, hide chat list
-    if (window.innerWidth <= 700) {
-        document.getElementById('chatSidebar').classList.add('hidden-on-mobile');
-        document.getElementById('chatMain').classList.add('shown-on-mobile');
-    }
+    const heading = document.getElementById('chatHeadName');
+    heading.textContent = friend;
+    document.querySelector('.chat-wrapper').classList.add('has-active-chat');
+    heading.focus({ preventScroll: true });
+    const input = document.getElementById('chatInput');
+    input.value = chatDrafts.get(chatId) || '';
+    input.placeholder = 'Сообщение для ' + friend;
+    input.setAttribute('aria-label', input.placeholder);
+    setChatComposerError('');
+    updateChatDraft(input);
 
     const msgs = document.getElementById('chatMessages');
     msgs.innerHTML = '<div class="text-center py-10" style="color:var(--text-muted);"><i data-lucide="loader" class="w-5 h-5 mx-auto mb-1 animate-spin"></i></div>';
@@ -988,7 +1008,9 @@ async function switchChat(chatId, friend) {
 
     try {
         const r = await fetch(`${BASE}/api/friends/chats/${chatId}/messages`, { credentials: 'same-origin' });
+        if (!r.ok) throw new Error('Не удалось загрузить сообщения. Откройте чат ещё раз.');
         const payload = await r.json();
+        if (curChatId !== chatId) return;
         const data = Array.isArray(payload) ? payload : (payload.messages || []);
         peerLastReadAt = payload.peer_last_read_at || '0';
         myLastReadAt = payload.my_last_read_at || '0';
@@ -996,54 +1018,68 @@ async function switchChat(chatId, friend) {
         renderMsgs(data);
         await markChatRead(lastTime !== '0' ? lastTime : null);
         refreshReadReceipts();
-    } catch(e) {}
+    } catch (error) {
+        if (curChatId === chatId) setChatComposerError(error.message);
+    }
 
-    document.getElementById('chatInput').focus();
-    document.getElementById('chatSendBtn').disabled = false;
+    if (curChatId !== chatId) return;
     pollTimer = setInterval(pollNew, 3000);
     readPollTimer = setInterval(pollReadState, 3000);
     pollReadState();
 }
 
 async function openChat(friend) {
+    const picker = document.getElementById('newChatPicker');
+    const errorBox = document.getElementById('newChatError');
+    const buttons = picker.querySelectorAll('.new-chat-friend-item');
+    errorBox.hidden = true;
+    buttons.forEach(button => { button.disabled = true; });
     try {
-        const r = await fetch(`${BASE}/api/friends/chats/create`, {
+        const response = await fetch(BASE + '/api/friends/chats/create', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({other: friend}),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ other: friend }),
         });
-        const d = await r.json();
-        if (d.chat_id) {
-            await loadChats();
-            await switchChat(d.chat_id, friend);
+        const data = await response.json();
+        if (!response.ok || !data.chat_id) throw new Error(data.error || 'Не удалось открыть чат.');
+        if (picker.open) picker.close();
+        await loadChats();
+        await switchChat(data.chat_id, friend);
+    } catch (error) {
+        if (picker.open) {
+            errorBox.textContent = error.message;
+            errorBox.hidden = false;
+        } else {
+            openNewChatPicker();
+            errorBox.textContent = error.message;
+            errorBox.hidden = false;
         }
-    } catch(e) {}
+    } finally {
+        buttons.forEach(button => { button.disabled = false; });
+    }
 }
 
 function openNewChatPicker() {
     const picker = document.getElementById('newChatPicker');
     const list = document.getElementById('newChatFriendList');
-    if (!picker || !list) return;
-    if (!FRIEND_USERNAMES.length) {
-        list.innerHTML = `<div class="text-sm p-3" style="color:var(--text-muted);">Сначала добавьте друзей на странице
-            <a href="${BASE}/friends?user=${encodeURIComponent(ME)}" style="color:var(--primary);">Друзья</a>.</div>`;
+    document.getElementById('newChatError').hidden = true;
+    list.replaceChildren();
+    if (FRIEND_USERNAMES.length) {
+        for (const name of FRIEND_USERNAMES) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'new-chat-friend-item';
+            button.textContent = name;
+            button.addEventListener('click', () => openChat(name));
+            list.append(button);
+        }
     } else {
-        list.innerHTML = FRIEND_USERNAMES.map(name =>
-            `<button type="button" class="new-chat-friend-item" onclick="startChatWithFriend('${String(name).replace(/'/g, "\\'")}')">${esc(name)}</button>`
-        ).join('');
+        const link = document.createElement('a');
+        link.href = BASE + '/friends?user=' + encodeURIComponent(ME);
+        link.textContent = 'Друзья';
+        list.append('Сначала добавьте друзей на странице ', link, '.');
     }
-    picker.hidden = false;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function closeNewChatPicker() {
-    const picker = document.getElementById('newChatPicker');
-    if (picker) picker.hidden = true;
-}
-
-async function startChatWithFriend(name) {
-    closeNewChatPicker();
-    await openChat(name);
+    if (!picker.open) picker.showModal();
 }
 
 function bumpChatWatermark(iso) {
@@ -1229,11 +1265,12 @@ function scrollDown() {
 
 // ── Polling ──
 async function pollNew() {
-    if (!curChatId) return;
+    const chatId = curChatId;
+    if (!chatId) return;
     try {
-        const r = await fetch(`${BASE}/api/friends/chats/${curChatId}/unread?after=${encodeURIComponent(lastTime)}`);
+        const r = await fetch(`${BASE}/api/friends/chats/${chatId}/unread?after=${encodeURIComponent(lastTime)}`);
         const msgs = await r.json();
-        if (msgs.length) {
+        if (curChatId === chatId && msgs.length) {
             lastTime = msgs[msgs.length - 1].created_at;
             appendMsgs(msgs);
             await markChatRead(lastTime);
@@ -1248,34 +1285,54 @@ function stopPoll() {
 }
 
 // ── Send ──
-async function sendMsg() {
-    const inp = document.getElementById('chatInput');
-    const text = inp.value.trim();
-    if (!text || !curChatId) return;
-    inp.value = '';
-    inp.style.height = 'auto';
-    document.getElementById('chatSendBtn').disabled = true;
-    try {
-        const r = await fetch(`${BASE}/api/friends/chats/${curChatId}/send`, {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({content: text}),
-        });
-        const d = await r.json();
-        if (d.id) {
-            lastTime = d.created_at;
-            appendMsgs([d]);
-            loadChats();
-        }
-    } catch(e) {
-        inp.value = text;
-    }
-    document.getElementById('chatSendBtn').disabled = false;
-    inp.focus();
+function setChatComposerError(message) {
+    const status = document.getElementById('chatComposerError');
+    status.textContent = message;
+    status.hidden = !message;
 }
 
-function chatInputKeydown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+function updateChatDraft(input) {
+    if (curChatId) chatDrafts.set(curChatId, input.value);
+    document.getElementById('chatSendBtn').disabled =
+        !curChatId || !input.value.trim() || pendingChatSends.has(curChatId);
+    autoResize(input);
+}
+
+async function sendMsg() {
+    const input = document.getElementById('chatInput');
+    const chatId = curChatId;
+    const draft = input.value;
+    if (!draft.trim() || !chatId || pendingChatSends.has(chatId)) return;
+    pendingChatSends.add(chatId);
+    setChatComposerError('');
+    updateChatDraft(input);
+    try {
+        const response = await fetch(BASE + '/api/friends/chats/' + chatId + '/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: draft.trim() }),
+        });
+        const message = await response.json();
+        if (!response.ok || !message.id) throw new Error(message.error || 'Не удалось отправить сообщение.');
+        if (chatDrafts.get(chatId) === draft) chatDrafts.delete(chatId);
+        if (curChatId === chatId) {
+            if (input.value === draft) input.value = '';
+            lastTime = message.created_at;
+            appendMsgs([message]);
+        }
+        loadChats();
+    } catch (error) {
+        if (curChatId === chatId) setChatComposerError(error.message);
+    } finally {
+        pendingChatSends.delete(chatId);
+        if (curChatId === chatId) updateChatDraft(input);
+    }
+}
+
+function chatInputKeydown(event) {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing || window.matchMedia('(pointer: coarse)').matches) return;
+    event.preventDefault();
+    sendMsg();
 }
 
 function autoResize(el) {
@@ -1390,6 +1447,8 @@ async function stopVoiceRecording() {
         const formData = new FormData();
         // Append as field "file" to match the upload endpoint
         formData.append('file', blob, 'voice_' + Date.now() + '.webm');
+        formData.set('chat_id', curChatId);
+        formData.set('kind', 'voice');
 
         const r = await fetch(BASE + '/api/upload', {
             method: 'POST',
@@ -1539,6 +1598,7 @@ async function sendFile(input) {
     try {
         const formData = new FormData();
         formData.append('file', file);
+        formData.set('chat_id', curChatId);
 
         const r = await fetch(BASE + '/api/upload', {
             method: 'POST',

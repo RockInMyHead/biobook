@@ -394,7 +394,13 @@
             </button>
         </div>
         <div class="liquid-glass rounded-2xl p-6" style="border-color: var(--glass-border);" id="ganttChartContainer">
+            <style>#ganttPagination[hidden] { display: none; }</style>
             <div class="gantt-container">
+                <div id="ganttPagination" class="flex flex-wrap items-center gap-2 mb-4" hidden>
+                    <button type="button" id="ganttPrev" class="liquid-glass rounded-lg px-3 py-2">Назад</button>
+                    <button type="button" id="ganttNext" class="liquid-glass rounded-lg px-3 py-2">Далее</button>
+                    <span id="ganttRange" class="text-sm" aria-live="polite"></span>
+                </div>
                 <div id="ganttChart"></div>
             </div>
         </div>
@@ -404,10 +410,12 @@
     <div id="tab-members" class="tab-content" style="display:none;">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-heading">Участники проекта</h2>
+            {% if current_project.user_id == user %}
             <button onclick="openInviteModal()" class="font-bold py-2.5 px-5 rounded-full transition-colors flex items-center gap-2 text-sm" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">
                 <i data-lucide="link" class="w-4 h-4"></i>
                 Пригласить
             </button>
+            {% endif %}
         </div>
 
         <div class="liquid-glass rounded-2xl p-6" style="border-color: var(--glass-border);">
@@ -426,8 +434,8 @@
                             {% endif %}
                         </div>
                     </div>
-                    {% if m != current_project.user_id %}
-                    <button onclick="removeMember('{{ m }}')" class="text-xs px-3 py-1.5 rounded-full border" style="border-color: var(--glass-border); color: var(--text-muted);">
+                    {% if current_project.user_id == user and m != user %}
+                    <button data-member="{{ m }}" onclick="removeMember(this.dataset.member)" class="text-xs px-3 py-1.5 rounded-full border" style="border-color: var(--glass-border); color: var(--text-muted);">
                         <i data-lucide="x" class="w-3 h-3"></i>
                     </button>
                     {% endif %}
@@ -440,7 +448,7 @@
 </div>
 
 <!-- Task Modal -->
-<div id="taskModal" class="modal">
+<div id="taskModal" class="modal" aria-labelledby="taskModalTitle">
     <div class="liquid-glass-strong modal-content rounded-[1.5rem] p-8 relative">
         <button type="button" onclick="closeTaskModal()" class="modal-close absolute top-4 right-4 p-2" style="color: var(--text-muted);" aria-label="Закрыть">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -497,9 +505,10 @@
                     <input id="taskEnd" type="date" class="form-input" />
                 </div>
             </div>
+            <p id="taskSaveError" role="alert" class="text-sm" style="color:var(--low-stock-text)" hidden></p>
             <div class="flex gap-3 pt-2">
                 <button id="taskDeleteBtn" onclick="deleteTask()" class="px-5 py-2.5 rounded-full text-sm border" style="display:none; border-color: var(--glass-border); color: #ef4444;">Удалить</button>
-                <button onclick="saveTask()" class="flex-1 font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
+                <button id="taskSaveBtn" onclick="saveTask()" class="flex-1 font-bold py-3 rounded-full transition-colors" style="background: var(--primary); color: var(--primary-fg);" onmouseover="this.style.background='var(--primary-hover)'" onmouseout="this.style.background='var(--primary)'">Сохранить</button>
             </div>
         </div>
     </div>
@@ -855,6 +864,7 @@ async function createProject() {
 let editingTaskId = null;
 
 function openTaskModal(task) {
+    document.getElementById('taskSaveError').hidden = true;
     editingTaskId = null;
     document.getElementById('taskModalTitle').textContent = 'Новая задача';
     document.getElementById('taskId').value = '';
@@ -898,7 +908,15 @@ document.getElementById('taskModal')?.addEventListener('click', function(e) { if
 
 async function saveTask() {
     const title = document.getElementById('taskTitle').value.trim();
-    if (!title) { alert('Введите название задачи'); return; }
+    const error = document.getElementById('taskSaveError');
+    const save = document.getElementById('taskSaveBtn');
+    const showError = message => { error.textContent = message; error.hidden = false; };
+    error.hidden = true;
+    if (!title) {
+        showError('Введите название задачи.');
+        document.getElementById('taskTitle').focus();
+        return;
+    }
     const body = {
         user: USER,
         title,
@@ -913,9 +931,27 @@ async function saveTask() {
         ? BASE_PATH + '/api/projects/' + PROJECT_ID + '/tasks/' + editingTaskId
         : BASE_PATH + '/api/projects/' + PROJECT_ID + '/tasks';
     const method = editingTaskId ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    closeTaskModal();
-    location.reload();
+    if (body.start_date && body.end_date && body.end_date < body.start_date) {
+        showError('Дата окончания не может быть раньше начала.');
+        document.getElementById('taskEnd').focus();
+        return;
+    }
+    if (save.disabled) return;
+    save.disabled = true;
+    try {
+        const result = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await result.json().catch(() => ({}));
+        if (!result.ok || !data.ok) {
+            showError(typeof data.detail === 'string' ? data.detail : data.error || 'Не удалось сохранить задачу. Повторите попытку.');
+            return;
+        }
+        closeTaskModal();
+        location.reload();
+    } catch {
+        showError('Не удалось подключиться. Повторите попытку.');
+    } finally {
+        save.disabled = false;
+    }
 }
 
 async function deleteTask() {
@@ -991,62 +1027,62 @@ function formatGanttDate(raw) {
     return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
+let ganttPage = 0;
 function paintGanttChart(container, tasks) {
-    if (!tasks.length) {
-        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Нет задач с датами для отображения на диаграмме Ганта. Укажите даты начала и окончания в карточках задач.</p>';
-        return;
-    }
-    let minDate = Infinity, maxDate = -Infinity;
-    tasks.forEach(t => {
-        const s = new Date(t.start_date).getTime();
-        const e = new Date(t.end_date).getTime();
-        if (!Number.isNaN(s) && s < minDate) minDate = s;
-        if (!Number.isNaN(e) && e > maxDate) maxDate = e;
-    });
-    if (minDate === Infinity) {
-        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Не удалось разобрать даты задач</p>';
-        return;
-    }
-    const start = new Date(minDate);
-    const end = new Date(maxDate);
-    end.setDate(end.getDate() + 1);
+    const pagination = document.getElementById('ganttPagination');
     const dayMs = 86400000;
-    const totalDays = Math.max(Math.ceil((end - start) / dayMs), 1);
-    const clampedDays = Math.min(totalDays, 90);
-
-    let html = '<div class="gantt-header" style="grid-template-columns:220px repeat(' + clampedDays + ', minmax(40px,1fr));">';
-    html += '<div></div>';
-    for (let d = 0; d < clampedDays; d++) {
-        const date = new Date(start.getTime() + d * dayMs);
-        html += '<div class="gantt-day">' + date.getDate() + '</div>';
+    const pageDays = 90;
+    const parse = raw => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw || '')) return NaN;
+        const value = Date.parse(raw + 'T00:00:00Z');
+        return Number.isFinite(value) && new Date(value).toISOString().slice(0, 10) === raw ? value : NaN;
+    };
+    const eligible = tasks.map(task => ({ task, start: parse(task.start_date), end: parse(task.end_date) }))
+        .filter(item => Number.isFinite(item.start) && Number.isFinite(item.end) && item.start <= item.end);
+    if (!eligible.length) {
+        pagination.hidden = true;
+        container.textContent = tasks.length ? 'Нет задач с корректным диапазоном дат.' : 'Укажите даты начала и окончания в карточках задач.';
+        return;
+    }
+    const first = Math.min(...eligible.map(item => item.start));
+    const last = Math.max(...eligible.map(item => item.end));
+    const pages = Math.ceil(((last - first) / dayMs + 1) / pageDays);
+    ganttPage = Math.min(Math.max(ganttPage, 0), pages - 1);
+    const from = first + ganttPage * pageDays * dayMs;
+    const to = Math.min(last, from + (pageDays - 1) * dayMs);
+    const days = (to - from) / dayMs + 1;
+    const shown = eligible.filter(item => item.end >= from && item.start <= to);
+    const skipped = eligible.length - shown.length;
+    const invalid = tasks.length - eligible.length;
+    const iso = day => new Date(day).toISOString().slice(0, 10);
+    pagination.hidden = pages === 1 && !invalid;
+    const prev = document.getElementById('ganttPrev');
+    const next = document.getElementById('ganttNext');
+    prev.disabled = ganttPage === 0;
+    next.disabled = ganttPage + 1 === pages;
+    prev.onclick = () => { ganttPage--; paintGanttChart(container, tasks); };
+    next.onclick = () => { ganttPage++; paintGanttChart(container, tasks); };
+    document.getElementById('ganttRange').textContent = iso(from) + ' — ' + iso(to)
+        + (skipped ? ' · вне диапазона: ' + skipped : '')
+        + (invalid ? ' · неверные даты: ' + invalid : '');
+    let html = '<div class="gantt-header" style="grid-template-columns:220px repeat(' + days + ', minmax(40px,1fr));"><div></div>';
+    for (let i = 0; i < days; i++) {
+        const day = new Date(from + i * dayMs);
+        html += '<div class="gantt-day" title="' + iso(day) + '">' + day.getUTCDate() + '</div>';
     }
     html += '</div>';
-
-    let bars = 0;
-    tasks.forEach(t => {
-        const tStart = new Date(t.start_date);
-        const tEnd = new Date(t.end_date);
-        if (Number.isNaN(tStart.getTime()) || Number.isNaN(tEnd.getTime())) return;
-        const offset = Math.floor((tStart - start) / dayMs);
-        const duration = Math.max(Math.ceil((tEnd - tStart) / dayMs), 1);
-        if (offset < 0 || offset >= clampedDays) return;
-        bars += 1;
-        const leftPct = (offset / clampedDays) * 100;
-        const widthPct = Math.min(duration, clampedDays - offset) / clampedDays * 100;
-        const prioCls = ganttPriorityClass(t.priority);
-        const range = formatGanttDate(t.start_date) + ' → ' + formatGanttDate(t.end_date);
-
-        html += '<div class="gantt-row">';
-        html += '<div class="gantt-label" title="' + escapeHtml(t.title) + '">' + escapeHtml(t.title) + '</div>';
-        html += '<div class="gantt-track">';
-        html += '<div class="gantt-bar priority-' + prioCls + '" style="left:' + leftPct + '%;width:' + widthPct + '%;" title="' + escapeHtml(t.title) + ' - ' + range + '">' + escapeHtml(t.title) + '</div>';
-        html += '</div></div>';
+    if (!shown.length) html += '<p class="py-4 text-sm">В этом диапазоне задач нет.</p>';
+    shown.forEach(({ task, start, end }) => {
+        const firstDay = Math.max(start, from);
+        const lastDay = Math.min(end, to);
+        const left = (firstDay - from) / dayMs / days * 100;
+        const width = ((lastDay - firstDay) / dayMs + 1) / days * 100;
+        const title = escapeHtml(task.title || '');
+        const range = formatGanttDate(task.start_date) + ' → ' + formatGanttDate(task.end_date);
+        html += '<div class="gantt-row"><div class="gantt-label" title="' + title + '">' + title + '</div>'
+            + '<div class="gantt-track"><div class="gantt-bar priority-' + ganttPriorityClass(task.priority)
+            + '" style="left:' + left + '%;width:' + width + '%;" title="' + title + ' - ' + range + '">' + title + '</div></div></div>';
     });
-
-    if (!bars) {
-        container.innerHTML = '<p class="text-sm text-center py-8" style="color:var(--text-muted);">Задачи с датами есть, но они не попадают в отображаемый диапазон (макс. 90 дней)</p>';
-        return;
-    }
     container.innerHTML = html;
 }
 

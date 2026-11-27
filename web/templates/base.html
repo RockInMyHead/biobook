@@ -19,7 +19,7 @@
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
 
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="{{ base_path }}/static/styles.css?v=20261121-modal">
+    <link rel="stylesheet" href="{{ base_path }}/static/styles.css?v=20261126-mobile">
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -153,7 +153,7 @@
             height: 100%;
             min-height: 100dvh;
             margin: 0;
-            padding: 4.75rem 1.25rem 1.5rem;
+            padding: calc(var(--app-navbar-height, 64px) + 12px) 1.25rem 1.5rem;
             background: var(--bg-page, #0b1018);
             color: var(--text-main);
             overflow-y: auto;
@@ -515,6 +515,11 @@
             const btn = document.getElementById('navMobileBtn');
             const drawer = document.getElementById('navMobileDrawer');
             if (!nav || !btn || !drawer) return;
+            const measureNavbar = () => {
+                document.documentElement.style.setProperty('--app-navbar-height', Math.ceil(nav.getBoundingClientRect().height) + 'px');
+            };
+            measureNavbar();
+            new ResizeObserver(measureNavbar).observe(nav);
             if (drawer.parentElement !== document.body) {
                 document.body.appendChild(drawer);
             }
@@ -579,14 +584,24 @@
                 document.querySelectorAll('.modal'),
                 function (m) {
                     if (m.classList.contains('active')) return true;
+                    if (m.style.opacity === '0') return false;
                     const d = (m.style.display || '').toLowerCase();
                     return d === 'flex' || d === 'block';
                 }
             );
             document.body.classList.toggle('modal-open', anyOpen);
         }
+        const modalTrigger = new WeakMap();
+        function modalTargets(modalEl) {
+            return [...modalEl.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')]
+                .filter(el => el.tabIndex >= 0 && !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+        }
         function openModalFn(modalEl) {
             if (!modalEl) return;
+            modalTrigger.set(modalEl, document.activeElement);
+            modalEl.setAttribute('role', 'dialog');
+            modalEl.setAttribute('aria-modal', 'true');
+            modalEl.tabIndex = -1;
             modalEl.style.display = 'flex';
             modalEl.classList.add('active');
             document.body.classList.add('modal-open');
@@ -594,31 +609,46 @@
                 modalEl.style.opacity = '1';
                 const mc = modalEl.querySelector('.modal-content');
                 if (mc) mc.style.transform = 'scale(1)';
+                const targets = modalTargets(modalEl);
+                (targets.find(el => el.matches('input:not([type=hidden]), textarea, select')) || targets[0] || modalEl).focus();
             }, 10);
         }
         function closeModalFn(modalEl) {
             if (!modalEl) return;
             modalEl.style.opacity = '0';
             modalEl.classList.remove('active');
+            modalEl.removeAttribute('aria-modal');
+            modalTrigger.get(modalEl)?.focus();
+            modalTrigger.delete(modalEl);
             const mc = modalEl.querySelector('.modal-content');
             if (mc) mc.style.transform = 'scale(0.95)';
             setTimeout(function () {
-                modalEl.style.display = 'none';
+                if (!modalEl.classList.contains('active')) modalEl.style.display = 'none';
                 syncModalOpenClass();
             }, 300);
         }
         document.addEventListener('keydown', function (e) {
-            if (e.key !== 'Escape') return;
+            if (!['Escape', 'Tab'].includes(e.key)) return;
             const open = Array.prototype.filter.call(
                 document.querySelectorAll('.modal'),
                 function (m) {
                     if (m.classList.contains('active')) return true;
+                    if (m.style.opacity === '0') return false;
                     const d = (m.style.display || '').toLowerCase();
                     return d === 'flex' || d === 'block';
                 }
             );
             if (!open.length) return;
             const top = open[open.length - 1];
+            if (e.key === 'Tab') {
+                const targets = modalTargets(top);
+                const edge = e.shiftKey ? targets[0] : targets[targets.length - 1];
+                if (!top.contains(document.activeElement) || !edge || document.activeElement === edge) {
+                    e.preventDefault();
+                    (targets[e.shiftKey ? targets.length - 1 : 0] || top).focus();
+                }
+                return;
+            }
             const closer = top.querySelector('[onclick*="close"], .modal-close, [aria-label="Закрыть"]');
             if (closer) closer.click();
             else closeModalFn(top);
@@ -725,16 +755,16 @@
     {% block extra_scripts %}{% endblock %}
 
     <!-- ── Cookie Consent Banner ── -->
-    <div id="cookieBanner" class="fixed bottom-0 left-0 right-0 z-[200] transition-all duration-500 ease-out" style="transform:translateY(100%);opacity:0;">
-        <div class="mx-auto max-w-7xl px-4 pb-4">
-            <div class="liquid-glass-strong rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xl" style="border:1px solid var(--glass-border);">
+    <div id="cookieBanner" class="app-cookie-banner" hidden>
+        <div class="mx-auto max-w-7xl">
+            <div class="app-cookie-card">
                 <div class="flex-grow min-w-0">
-                    <div class="font-heading font-semibold text-sm mb-1" style="color:var(--text-main);">Мы используем cookies</div>
-                    <p class="text-xs leading-relaxed" style="color:var(--text-muted);">
+                    <div class="font-heading font-semibold text-sm mb-1">Мы используем cookies</div>
+                    <p class="app-cookie-copy">
                         Нужны для входа и корректной работы сервиса. Согласие сохраняется на год.
                     </p>
                 </div>
-                <button onclick="acceptCookies()" class="font-bold py-2.5 px-8 rounded-full transition-all duration-200 flex-shrink-0 text-sm whitespace-nowrap" style="background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+                <button type="button" id="acceptAppCookies" class="app-cookie-accept">
                     Принять
                 </button>
             </div>
@@ -774,12 +804,9 @@
             const banner = document.getElementById('cookieBanner');
             if (!banner) return;
             if (hasValidConsent()) return;
-            requestAnimationFrame(() => {
-                banner.style.transform = 'translateY(0)';
-                banner.style.opacity = '1';
-            });
+            banner.hidden = false;
 
-            window.acceptCookies = function acceptCookies() {
+            document.getElementById('acceptAppCookies').addEventListener('click', () => {
                 const now = String(Date.now());
                 try {
                     localStorage.setItem(KEY, 'accepted');
@@ -787,10 +814,8 @@
                 } catch (e) {}
                 writeCookie(KEY, 'accepted', DAYS);
                 writeCookie(DATE_KEY, now, DAYS);
-                banner.style.transform = 'translateY(100%)';
-                banner.style.opacity = '0';
-                setTimeout(() => { banner.style.display = 'none'; }, 500);
-            };
+                banner.hidden = true;
+            });
         })();
     </script>
     {% include "yandex_metrika.html" %}

@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <script>(function(){try{var t=localStorage.getItem('biobook-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>{{ node.title }} | Lab-Journal</title>
     
@@ -14,6 +14,7 @@
     
     <!-- Lucide Icons -->
     <script src="{{ base_path }}/static/lucide.min.js" defer></script>
+    <script src="{{ base_path }}/static/mobile-viewport.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 
@@ -132,9 +133,12 @@
         }
 
         body {
+            position: fixed; inset: var(--app-viewport-top, 0px) 0 auto;
             background-color: var(--nb-bg); color: var(--nb-text); margin: 0;
             font-family: 'Inter', system-ui, sans-serif;
-            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            height: 100vh;
+            height: var(--app-viewport-height, 100dvh);
+            display: flex; flex-direction: column; overflow: hidden;
             background-image:
                 radial-gradient(ellipse 80% 50% at 20% -10%, var(--nb-radial-1), transparent 55%),
                 radial-gradient(ellipse 60% 40% at 90% 0%, var(--nb-radial-2), transparent 50%),
@@ -162,7 +166,8 @@
             flex-shrink: 0;
             display: flex; align-items: center; justify-content: space-between; gap: 0.65rem;
             flex-wrap: wrap;
-            padding: 0.65rem 1rem 0.65rem 0.85rem;
+            padding: max(.65rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+                     .65rem max(.85rem, env(safe-area-inset-left));
             border-bottom: 1px solid var(--nb-border);
             background: var(--nb-topbar-bg);
             backdrop-filter: blur(16px);
@@ -261,15 +266,17 @@
 
         /* Layout */
         .main-layout {
-            display: flex; flex: 1; overflow: hidden; position: relative;
+            display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative;
             gap: 0; padding: 0;
         }
         .main-layout.chat-collapsed .chat-sidebar { display: none; }
         .main-layout.chat-collapsed .workspace { border-radius: 0; }
 
         .workspace {
-            flex: 1; min-width: 0;
-            overflow-y: auto; position: relative; scroll-behavior: smooth;
+            flex: 1; min-width: 0; min-height: 0;
+            overflow-y: auto;
+            scroll-padding-block: 5.5rem 1.5rem;
+            position: relative;
             border-right: 1px solid var(--nb-border);
             background: var(--nb-workspace-bg);
             padding: 0;
@@ -277,7 +284,7 @@
 
         .editor-container { max-width: 880px; margin: 0 auto; color: var(--nb-text); padding: 0 1.25rem 3rem; }
         .editable-area {
-            min-height: calc(100vh - 220px); outline: none;
+            min-height: max(6rem, calc(var(--app-viewport-height, 100dvh) - 220px)); outline: none;
             font-size: 1.02rem; line-height: 1.75; color: var(--nb-editor-text);
             padding: 0.25rem 0.35rem 2rem;
             position: relative;
@@ -286,10 +293,10 @@
         .editable-area.is-empty {
             min-height: 220px;
         }
-        .editable-area.is-empty::before {
-            content: 'Пишите здесь\A Текст заметки, протокол опыта или выводы. Сверху: Фото · Аудио · Рисунок · Код.';
+        .editable-area.is-empty[contenteditable="true"]:not(:focus-within)::before {
+            content: 'Начните писать заметку этапа';
             white-space: pre-line;
-            color: var(--nb-editor-placeholder);
+            color: var(--nb-text);
             pointer-events: none;
             display: block;
             position: absolute;
@@ -329,10 +336,11 @@
         }
         .toolbar-main {
             display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
-            flex: 1; min-width: 0;
+            flex: 1 1 auto; min-width: 0; max-width: 100%;
         }
         .tool-group {
-            display: flex; align-items: center; gap: 0.25rem;
+            display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;
+            max-width: 100%;
             padding: 0.2rem;
             border-radius: 11px;
             background: rgba(255,255,255,0.025);
@@ -360,7 +368,7 @@
         .tool-btn .tool-label { display: none; }
         @media (min-width: 900px) { .tool-btn .tool-label { display: inline; } }
         .tool-sep { width: 1px; height: 22px; background: var(--nb-border); margin: 0 0.15rem; }
-        .history-group { margin-left: 0; flex-shrink: 0; }
+        .history-group { margin-inline-start: auto; flex-shrink: 0; }
         .version-panel {
             position: absolute;
             top: calc(100% + 8px);
@@ -376,7 +384,7 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.28);
             z-index: 80;
         }
-        .version-panel[hidden] { display: none !important; }
+        .version-panel[hidden] { display: none; }
         .version-panel-head {
             display: flex; align-items: center; justify-content: space-between;
             padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--nb-border);
@@ -409,6 +417,7 @@
         .chat-sidebar {
             flex: 0 0 min(380px, 34vw);
             min-width: 300px;
+            min-height: 0;
             max-width: 420px;
             display: flex;
             flex-direction: column;
@@ -689,7 +698,7 @@
             .main-layout { flex-direction: column; }
             .workspace { border-right: none; border-bottom: 1px solid var(--nb-border); }
             .chat-sidebar {
-                flex: none; width: 100%; max-width: none; min-width: 0; height: 42vh;
+                flex: none; width: 100%; max-width: none; min-width: 0; height: 42%;
                 border-left: none; border-top: 1px solid var(--nb-border);
             }
             .main-layout.chat-collapsed .workspace { height: auto; }
@@ -700,22 +709,28 @@
             .user-menu-btn { padding-right: 8px; }
         }
 
-        @media (max-width: 960px) {
-            .sketchpad-container {
-                top: auto;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                transform: none;
-                width: 100%;
-                max-width: 100%;
-                max-height: min(92dvh, 720px);
-                border-radius: 18px 18px 0 0;
-                padding: 0.7rem 0.85rem max(0.85rem, env(safe-area-inset-bottom, 0));
+        @media (max-width: 700px) {
+            .main-layout.chat-phone-open .workspace { display: none; }
+            .main-layout:not(.chat-phone-open) .chat-sidebar:not(:focus-within) { display: none; }
+            .main-layout .chat-sidebar {
+                flex: 1;
+                height: auto;
+                padding-bottom: env(safe-area-inset-bottom);
             }
-            .sketchpad-head { font-size: 0.62rem; letter-spacing: 0.03em; }
-            #sketchCanvas { aspect-ratio: 4 / 3; }
+            .workspace-toolbar { align-items: flex-start; flex-direction: column; }
+            .toolbar-main { flex: auto; }
+            .history-group { margin-inline-start: 0; }
+            .workspace-toolbar .tool-btn,
+            .history-center {
+                min-height: 44px;
+                min-width: 44px;
+                justify-content: center;
+            }
+            .version-panel { right: auto; left: 0; }
+            .workspace { scroll-padding-block-start: 10rem; }
         }
+        [data-short-viewport] .workspace-toolbar { position: static; }
+        [data-short-viewport] .workspace { scroll-padding-block-start: 1rem; }
 
         /* Save toast (fallback) */
         .save-indicator {
@@ -732,50 +747,72 @@
         .img-toolbar button { background: none; border: none; color: #fff; padding: 5px 10px; cursor: pointer; border-radius: 0.5rem; transition: background 0.2s; font-size: 1rem;}
         .img-toolbar button:hover { background: rgba(100, 206, 251, 0.3); }
 
-        .sketchpad-backdrop {
-            display: none; position: fixed; inset: 0; z-index: 1990;
-            background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
-        }
-        .sketchpad-backdrop.open { display: block; }
-        .sketchpad-container {
-            display: none; flex-direction: column; align-items: stretch; gap: 0.65rem;
-            z-index: 2000; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: min(720px, calc(100vw - 2rem));
-            max-height: calc(100dvh - 2rem);
+        .note-dialog {
+            position: fixed;
+            inset: 0;
+            margin: auto;
+            width: min(440px, calc(100% - 2rem));
+            max-height: calc(var(--app-viewport-height, 100dvh) - 1.5rem);
+            overflow: auto;
             box-sizing: border-box;
-            background: var(--nb-panel-solid); border: 1px solid var(--nb-accent); border-radius: 16px;
-            padding: 1rem 1.1rem 1.15rem; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-            overflow: hidden;
+            color: var(--nb-text);
+            background: var(--nb-panel-solid);
+            border: 1px solid var(--nb-border-strong);
+            border-radius: 16px;
+            padding: 1rem;
         }
-        .sketchpad-container.open { display: flex; }
-        .sketchpad-head {
-            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
-            line-height: 1.35; color: var(--nb-accent);
+        .note-dialog::backdrop { background: rgba(0,0,0,0.58); }
+        .note-dialog h2 { font-weight: 650; margin: 0 0 .55rem; }
+        .note-dialog p { margin: .55rem 0; font-size: .875rem; }
+        .note-dialog select {
+            background: var(--nb-panel-solid);
+            color: var(--nb-text);
+            min-height: 44px;
+            border: 1px solid var(--nb-border-strong);
+            border-radius: 8px;
+            padding: .35rem .6rem;
         }
+        .sketchpad-container { width: min(680px, calc(100% - 1.5rem)); }
         .sketchpad-canvas-wrap {
-            width: 100%;
-            box-sizing: border-box;
+            margin-inline: auto;
+            width: min(100%, max(9rem, (var(--app-viewport-height, 100dvh) - 11rem) * 1.6));
+            background: var(--nb-code-bg);
+            border: 1px solid var(--nb-border-strong);
             border-radius: 10px;
             overflow: hidden;
-            border: 1px solid rgba(100,206,251,0.25);
-            background: var(--nb-code-bg);
-            line-height: 0;
         }
         #sketchCanvas {
-            cursor: crosshair; touch-action: none; display: block;
-            width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9;
-            border: none; border-radius: 0; background: transparent;
+            cursor: crosshair;
+            touch-action: none;
+            display: block;
+            width: 100%;
+            height: auto;
         }
-        .sketchpad-actions {
-            display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem;
+        .note-dialog-actions, .history-mode {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .45rem;
+            margin-top: .65rem;
         }
-        .sketchpad-actions .tool-btn,
-        .sketchpad-actions .btn-primary {
-            min-height: 44px; flex: 1 1 calc(33% - 0.5rem);
-        }
-        .sketchpad-actions .btn-primary { flex: 1 1 100%; justify-content: center; }
-        .drawing-controls {
-            display: none !important;
+        .note-dialog-actions > *, .history-mode button { min-height: 44px; }
+        .note-dialog-actions .tool-btn:disabled { opacity: .55; cursor: default; }
+        .history-mode { color: var(--nb-text); font-size: .875rem; }
+        .history-mode[hidden], .note-dialog [hidden] { display: none; }
+        .version-notice {
+            position: fixed;
+            z-index: 60;
+            inset: auto 1rem max(1rem, env(safe-area-inset-bottom));
+            width: fit-content;
+            max-width: calc(100% - 2rem);
+            margin-inline: auto;
+            padding: .55rem .8rem;
+            background: var(--nb-panel-solid);
+            color: var(--nb-text);
+            border: 1px solid var(--nb-border-strong);
+            border-radius: 12px;
+            font-size: .85rem;
+            pointer-events: none;
         }
 
         /* Code cells - Colab-like */
@@ -974,7 +1011,7 @@
         <div class="node-topbar-right">
             <div class="save-pill" id="savePill"><i data-lucide="check" class="w-3 h-3"></i> Сохранено</div>
             {% if not is_public_view %}
-            <button type="button" class="chat-toggle-btn" id="chatToggleBtn" onclick="toggleChatPanel()" title="Показать/скрыть ассистента">
+            <button type="button" class="chat-toggle-btn" id="chatToggleBtn" onclick="toggleChatPanel()" aria-controls="noteAssistant" aria-expanded="false">
                 <i data-lucide="panel-right" class="w-3.5 h-3.5"></i>
                 <span>Ассистент</span>
             </button>
@@ -1021,14 +1058,14 @@
         </div>
     </header>
 
-    <div class="main-layout" id="mainLayout">
+    <div class="main-layout chat-collapsed" id="mainLayout">
         <!-- Research Workspace -->
         <section class="workspace">
             <div class="editor-container">
                 {% if not is_public_view %}
                 <div class="workspace-toolbar">
                     <div class="toolbar-main">
-                    <div class="tool-group">
+                    <div class="tool-group" id="noteInsertTools">
                         <span class="tool-group-label">Вставка</span>
                             <button type="button" class="tool-btn" data-media-tool="photo" title="Фото" onclick="requestMediaTool('photo')">
                             <i data-lucide="image" class="w-4 h-4"></i><span class="tool-label">Фото</span>
@@ -1059,6 +1096,9 @@
                             </button>
                             <button type="button" class="tool-btn" onclick="downloadExport('pptx')" title="Скачать PPTX">
                                 <i data-lucide="presentation" class="w-4 h-4"></i><span class="tool-label">PPTX</span>
+                            </button>
+                            <button type="button" class="tool-btn" onclick="openExportShare()" title="Поделиться файлом">
+                                <i data-lucide="share-2" class="w-4 h-4"></i><span class="tool-label">Поделиться</span>
                             </button>
                             <button type="button" class="tool-btn" onclick="requestCustomExportTemplate()" title="Добавить свой шаблон">
                                 <i data-lucide="file-plus" class="w-4 h-4"></i><span class="tool-label">Добавить свой шаблон</span>
@@ -1093,8 +1133,15 @@
                     <button class="btn-primary text-xs py-1" onclick="stopRecording()">Стоп</button>
                 </div>
 
+                {% if not is_public_view %}
+                <div id="historyMode" class="history-mode" hidden>
+                    <span>Просмотр версии</span>
+                    <button type="button" class="tool-btn" onclick="returnToCurrentNote()">К текущей заметке</button>
+                    <button type="button" class="tool-btn" onclick="restoreActiveVersion()">Восстановить версию</button>
+                </div>
+                {% endif %}
                 <div id="editorWrap" class="relative">
-                    <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}" oninput="autoSave(); updateEditorEmptyState()">
+                    <div id="editor" class="editable-area" contenteditable="{{ 'false' if is_public_view else 'true' }}"{% if not is_public_view %} role="textbox" aria-label="Заметка этапа" aria-multiline="true"{% endif %} oninput="autoSave(); updateEditorEmptyState()">
                         {{ (notes.notes_html | fix_uploads) | safe if notes else '' }}
                     </div>
                 </div>
@@ -1102,7 +1149,7 @@
         </section>
 
         <!-- AI Chat -->
-        <aside class="chat-sidebar" data-chat-ui="v3">
+        <aside class="chat-sidebar" id="noteAssistant" data-chat-ui="v3">
                 {% if not is_public_view %}
             <div class="chat-header chat-header-minimal">
                 <div class="chat-header-actions">
@@ -1175,21 +1222,36 @@
 
     <div id="saveIndicator" class="save-indicator">Сохранено</div>
 
-    <div id="sketchpadBackdrop" class="sketchpad-backdrop" onclick="cancelDrawing()"></div>
-    <div id="sketchpadModal" class="sketchpad-container" role="dialog" aria-label="Рисунок" onclick="event.stopPropagation()">
-        <div class="sketchpad-head">Нарисуйте здесь - сохранится как изображение в заметке</div>
+    {% if not is_public_view %}
+    <div id="versionNotice" class="version-notice" role="status" hidden></div>
+    <dialog id="sketchpadModal" class="note-dialog sketchpad-container" aria-labelledby="sketchTitle">
+        <h2 id="sketchTitle">Рисунок для заметки</h2>
         <div class="sketchpad-canvas-wrap">
-            <canvas id="sketchCanvas"></canvas>
+            <canvas id="sketchCanvas" width="960" height="600" aria-label="Холст для рисования"></canvas>
         </div>
-        <div class="sketchpad-actions">
-            <button type="button" class="tool-btn" onclick="cancelDrawing()">Отмена</button>
-            <button type="button" class="tool-btn" onclick="clearDrawing()">Очистить</button>
-            <button type="button" class="btn-primary" onclick="finishDrawing()">Сохранить рисунок</button>
+        <p id="sketchStatus" role="status" hidden></p>
+        <div class="note-dialog-actions">
+            <form method="dialog"><button id="closeSketch" class="tool-btn">Отмена</button></form>
+            <button type="button" id="clearSketch" class="tool-btn" onclick="clearDrawing()">Очистить</button>
+            <button type="button" id="saveSketch" class="tool-btn primary" onclick="finishDrawing()" disabled>Сохранить рисунок</button>
         </div>
-    </div>
-
-    <!-- legacy anchor (hidden) -->
-    <div id="drawingControls" class="drawing-controls" hidden aria-hidden="true"></div>
+    </dialog>
+    <dialog id="exportShareDialog" class="note-dialog" aria-labelledby="exportShareTitle">
+        <h2 id="exportShareTitle">Поделиться файлом</h2>
+        <label for="exportShareKind">Формат</label>
+        <select id="exportShareKind">
+            <option value="pdf">PDF</option>
+            <option value="docx">DOCX</option>
+            <option value="pptx">PPTX</option>
+        </select>
+        <p id="exportShareStatus" role="status"></p>
+        <div class="note-dialog-actions">
+            <button type="button" id="shareExportFile" class="tool-btn primary" hidden disabled>Поделиться</button>
+            <a id="downloadSharedExport" class="tool-btn" hidden>Скачать файл</a>
+            <form method="dialog"><button class="tool-btn">Закрыть</button></form>
+        </div>
+    </dialog>
+    {% endif %}
 
     <!-- Image Toolbar -->
     <div id="imgToolbar" class="img-toolbar">
@@ -1206,6 +1268,10 @@
 
     <script>
         let saveTimeout = null;
+        let noteRevision = {{ (notes.revision if notes else 0) | tojson }};
+        let noteDirty = false;
+        let noteSave = null;
+        let activeVersion = null;
         const exp_id = "{{ exp.id }}";
         const node_id = "{{ node.id }}";
 
@@ -1330,49 +1396,66 @@
             }
         }
 
-        // AutoSave Logic with Retry
-        async function autoSave(retries = 3) {
+        function autoSave() {
+            if (activeVersion || document.getElementById('editor').contentEditable !== 'true') return;
+            noteDirty = true;
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(async () => {
-                const html = getEditorHtmlForSave();
-                const annotationUrl = document.getElementById('editor').dataset.annotationUrl || '';
-                
-                const performSave = async (count) => {
+            saveTimeout = setTimeout(flushAutosave, 1000);
+        }
+
+        function flushAutosave() {
+            clearTimeout(saveTimeout);
+            if (noteSave) return noteSave;
+            if (!noteDirty || activeVersion) return Promise.resolve(true);
+            noteSave = (async () => {
+                while (noteDirty && !activeVersion) {
+                    noteDirty = false;
+                    const annotation_url = document.getElementById('editor').dataset.annotationUrl || '';
+                    const html = getEditorHtmlForSave();
                     try {
-                        const resp = await fetch('{{ base_path }}/api/node/save', {
+                        const response = await fetch('{{ base_path }}/api/node/save', {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ exp_id, node_id, html, annotation_url: annotationUrl })
+                            body: JSON.stringify({ exp_id, node_id, html, annotation_url, revision: noteRevision }),
                         });
-                        if (!resp.ok) throw new Error('Server error');
-                        showSaveIndicator();
-                    } catch (e) {
-                        console.error(`Save failed (${count} retries left)`, e);
-                        if (count > 0) {
-                            setTimeout(() => performSave(count - 1), 2000);
-                        } else {
-                            showSaveIndicator(true);
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Не удалось сохранить. Попробуйте ещё раз.');
                         }
+                        noteRevision = (await response.json()).revision;
+                        showSaveIndicator();
+                    } catch (error) {
+                        noteDirty = true;
+                        clearTimeout(saveTimeout);
+                        showSaveIndicator(true, error.message);
+                        return false;
                     }
-                };
-                
-                performSave(retries);
-            }, 1000);
+                }
+                return true;
+            })().finally(() => { noteSave = null; });
+            return noteSave;
         }
 
-        function showSaveIndicator(isError = false) {
+        function showSaveIndicator(isError = false, message = "Не удалось сохранить") {
             const pill = document.getElementById('savePill');
             const ind = document.getElementById('saveIndicator');
             if (pill) {
                 pill.classList.toggle('is-error', !!isError);
-                pill.innerHTML = isError
-                    ? '<i data-lucide="alert-circle" class="w-3 h-3"></i> Ошибка'
-                    : '<i data-lucide="check" class="w-3 h-3"></i> Сохранено';
+                pill.textContent = isError ? message : 'Сохранено';
+                pill.setAttribute('role', isError ? 'alert' : 'status');
+                if (isError) {
+                    const retry = document.createElement('button');
+                    retry.type = 'button';
+                    retry.className = 'ml-2 underline';
+                    retry.textContent = 'Повторить';
+                    retry.addEventListener('click', flushAutosave);
+                    pill.append(retry);
+                }
                 pill.classList.add('visible');
                 if (window.lucide) lucide.createIcons();
                 clearTimeout(showSaveIndicator._t);
-                showSaveIndicator._t = setTimeout(() => pill.classList.remove('visible'), 1800);
+                if (!isError) showSaveIndicator._t = setTimeout(() => pill.classList.remove('visible'), 1800);
             }
             if (ind) {
                 ind.classList.add('active');
@@ -1380,18 +1463,46 @@
             }
         }
 
-        function toggleChatPanel() {
+        const notePhone = window.matchMedia('(max-width: 700px)');
+        const noteChatPreference = { mobile: false, desktop: true };
+        try {
+            noteChatPreference.desktop = localStorage.getItem('biobook_chat_collapsed') !== '1';
+        } catch (error) {}
+
+        function updateNotePane(showChat) {
+            const toggle = document.getElementById('chatToggleBtn');
+            if (!toggle) return;
             const layout = document.getElementById('mainLayout');
-            const btn = document.getElementById('chatToggleBtn');
-            if (!layout) return;
-            layout.classList.toggle('chat-collapsed');
-            const off = layout.classList.contains('chat-collapsed');
-            if (btn) {
-                btn.classList.toggle('is-off', off);
-                btn.title = off ? 'Показать ассистента' : 'Скрыть ассистента';
-            }
-            localStorage.setItem('biobook_chat_collapsed', off ? '1' : '0');
+            layout.classList.toggle('chat-collapsed', !showChat);
+            layout.classList.toggle('chat-phone-open', showChat && notePhone.matches);
+            toggle.classList.toggle('is-off', !showChat);
+            toggle.setAttribute('aria-expanded', String(showChat));
+            toggle.title = showChat ? 'Скрыть ассистента' : 'Показать ассистента';
         }
+
+        function syncNotePane() {
+            const focused = document.activeElement;
+            if (notePhone.matches && focused?.closest('.workspace')) {
+                updateNotePane(false);
+            } else if (notePhone.matches && focused?.closest('.chat-sidebar')) {
+                updateNotePane(true);
+            } else {
+                updateNotePane(noteChatPreference[notePhone.matches ? 'mobile' : 'desktop']);
+            }
+        }
+
+        function toggleChatPanel() {
+            const toggle = document.getElementById('chatToggleBtn');
+            const showChat = toggle.getAttribute('aria-expanded') !== 'true';
+            noteChatPreference[notePhone.matches ? 'mobile' : 'desktop'] = showChat;
+            updateNotePane(showChat);
+            if (!notePhone.matches) {
+                try { localStorage.setItem('biobook_chat_collapsed', showChat ? '0' : '1'); } catch (error) {}
+            }
+        }
+
+        notePhone.addEventListener('change', syncNotePane);
+        syncNotePane();
 
         (function initPageChrome() {
             const html = document.documentElement;
@@ -1408,12 +1519,6 @@
                 setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
             });
 
-            const layout = document.getElementById('mainLayout');
-            if (layout && localStorage.getItem('biobook_chat_collapsed') === '1') {
-                layout.classList.add('chat-collapsed');
-                const btn = document.getElementById('chatToggleBtn');
-                if (btn) btn.classList.add('is-off');
-            }
             const menu = document.getElementById('userMenu');
             const menuBtn = document.getElementById('userMenuBtn');
             if (menu && menuBtn) {
@@ -1733,6 +1838,7 @@
         }
 
         function applyAssistantNotebookActions(data) {
+            if (activeVersion) return;
             let changed = false;
             if (data.edit_html) {
                 const editor = getNoteEditor();
@@ -1879,25 +1985,6 @@
             return document.getElementById('editor');
         }
 
-        function exitEditorOverlayModes() {
-            // "Рисунок" sets contentEditable=false - always restore before other inserts
-            if (typeof isDrawingMode !== 'undefined' && isDrawingMode && typeof cancelDrawing === 'function') {
-                cancelDrawing();
-            }
-            const editor = getNoteEditor();
-            if (!editor) return;
-            {% if not is_public_view %}
-            editor.contentEditable = 'true';
-            {% endif %}
-            const drawingControls = document.getElementById('drawingControls');
-            if (drawingControls) drawingControls.style.display = 'none';
-            const sketchModal = document.getElementById('sketchpadModal');
-            const sketchBackdrop = document.getElementById('sketchpadBackdrop');
-            if (sketchModal) sketchModal.classList.remove('open');
-            if (sketchBackdrop) sketchBackdrop.classList.remove('open');
-            document.body.style.overflow = '';
-        }
-
         function saveEditorSelection() {
             const editor = getNoteEditor();
             const sel = window.getSelection();
@@ -1913,7 +2000,7 @@
             if (!editor) return;
             editor.focus();
             const sel = window.getSelection();
-            if (savedEditorRange && sel) {
+            if (savedEditorRange && sel && editor.contains(savedEditorRange.commonAncestorContainer)) {
                 try {
                     sel.removeAllRanges();
                     sel.addRange(savedEditorRange);
@@ -1954,17 +2041,12 @@
         function placeCaretInElement(el) {
             const editor = getNoteEditor();
             if (!editor || !el) return;
-            exitEditorOverlayModes();
+            if (editor.contentEditable !== 'true') return;
             editor.focus();
             const range = document.createRange();
             const sel = window.getSelection();
-            if (el.childNodes.length) {
-                range.setStart(el, Math.min(1, el.childNodes.length));
-                range.collapse(true);
-            } else {
-                range.selectNodeContents(el);
-                range.collapse(true);
-            }
+            range.selectNodeContents(el);
+            range.collapse(!el.textContent);
             sel.removeAllRanges();
             sel.addRange(range);
             savedEditorRange = range.cloneRange();
@@ -1978,12 +2060,9 @@
 
         function insertHtmlIntoEditor(html) {
             const editor = getNoteEditor();
-            if (!editor) return;
-            exitEditorOverlayModes();
+            if (!editor || editor.contentEditable !== 'true') return;
             restoreEditorSelection();
-            try {
-                document.execCommand('insertHTML', false, html);
-            } catch (e) {
+            if (!document.execCommand('insertHTML', false, html)) {
                 editor.insertAdjacentHTML('beforeend', html);
             }
             placeCaretAtEditableTail();
@@ -1995,28 +2074,6 @@
             if (e.target.closest('button, .tool-btn')) saveEditorSelection();
         });
 
-        // Click empty note area / after code cells → return to typing
-        document.getElementById('editor')?.addEventListener('mousedown', (e) => {
-            exitEditorOverlayModes();
-            const editor = getNoteEditor();
-            if (!editor) return;
-            // Click on editor padding / empty zone
-            if (e.target === editor) {
-                e.preventDefault();
-                placeCaretAtEditableTail();
-                return;
-            }
-            // Click on a non-editable block but not on its inputs → jump to text after it
-            const blocked = e.target.closest('.code-cell, .anchored-drawing');
-            if (blocked && !e.target.closest('textarea, input, select, button, a')) {
-                // Allow focusing textarea normally; only redirect chrome clicks
-                if (e.target.classList?.contains('code-editor')) return;
-                if (e.target.closest('.code-editor')) return;
-                // If user clicked the cell border/head (not the textarea), place caret after cell
-                if (e.target.closest('.code-cell-head, .code-actions, .code-output')) return;
-            }
-        });
-
         // Image Upload
         async function uploadImage(input) {
             if (!input.files || !input.files[0]) return;
@@ -2024,6 +2081,7 @@
             formData.append('file', input.files[0]);
 
             try {
+                formData.set('exp_id', exp_id);
                 const resp = await fetch('{{ base_path }}/api/upload', {
                     method: 'POST',
                     body: formData
@@ -2216,216 +2274,224 @@
             }
         }
         // Sketch pad (compact modal - not full-note overlay)
-        const mainCanvas = document.getElementById('sketchCanvas');
-        const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
-        const drawingControls = document.getElementById('drawingControls');
         const sketchModal = document.getElementById('sketchpadModal');
-        const sketchBackdrop = document.getElementById('sketchpadBackdrop');
-        const editor = document.getElementById('editor');
-        
-        let isDrawingMode = false;
-        let isDrawing = false;
-        let drawingInsertRange = null;
-
-        function measureSketchCanvasCssSize() {
-            if (!mainCanvas) return { cssW: 320, cssH: 240 };
-            const rect = mainCanvas.getBoundingClientRect();
-            const cssW = Math.max(1, Math.floor(rect.width));
-            const cssH = Math.max(1, Math.floor(rect.height));
-            return { cssW, cssH };
-        }
-
-        function syncDrawingCanvasSize() {
-            if (!mainCanvas || !mainCtx) return;
-            mainCanvas.style.width = '100%';
-            mainCanvas.style.height = 'auto';
-            mainCanvas.style.maxWidth = '100%';
-            const { cssW, cssH } = measureSketchCanvasCssSize();
-            const dpr = window.devicePixelRatio || 1;
-            const w = Math.max(1, Math.round(cssW * dpr));
-            const h = Math.max(1, Math.round(cssH * dpr));
-            if (mainCanvas.width !== w || mainCanvas.height !== h) {
-                mainCanvas.width = w;
-                mainCanvas.height = h;
-            }
-            mainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        }
-
-        function getCanvasPoint(e) {
-            if (!mainCanvas) return { x: 0, y: 0 };
-            const rect = mainCanvas.getBoundingClientRect();
-            return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
+        const mainCanvas = document.getElementById('sketchCanvas');
+        const mainCtx = mainCanvas?.getContext('2d');
+        const saveSketch = document.getElementById('saveSketch');
+        const closeSketch = document.getElementById('closeSketch');
+        const clearSketch = document.getElementById('clearSketch');
+        const sketchStatus = document.getElementById('sketchStatus');
+        let drawingPointer = null;
+        let lastSketchPoint;
+        let drawingInsertRange;
+        let sketchSaving = false;
+        let sketchInserted = false;
 
         function openSketchpad() {
-            if (!mainCanvas || !mainCtx || !sketchModal) {
-                alert('Холст рисования недоступен');
-                return;
-            }
+            if (!mainCtx || activeVersion || sketchModal.open) return;
             saveEditorSelection();
-            isDrawingMode = true;
-            sketchModal.classList.add('open');
-            if (sketchBackdrop) sketchBackdrop.classList.add('open');
-            document.body.style.overflow = 'hidden';
-            
-            try {
-                if (savedEditorRange) {
-                    drawingInsertRange = savedEditorRange.cloneRange();
-                } else {
-                    const sel = window.getSelection();
-                    if (sel && sel.rangeCount > 0) {
-                        const r = sel.getRangeAt(0);
-                        if (editor.contains(r.startContainer)) drawingInsertRange = r.cloneRange();
-                    }
-                }
-            } catch (e) {
-                drawingInsertRange = null;
-            }
-
-            requestAnimationFrame(() => {
-            syncDrawingCanvasSize();
-                clearDrawing();
-            mainCtx.strokeStyle = '#00A3FF';
-                mainCtx.lineWidth = 3;
-            mainCtx.lineCap = 'round';
-            mainCtx.lineJoin = 'round';
-            });
-        }
-
-        function cancelDrawing() {
-            isDrawingMode = false;
-            if (sketchModal) sketchModal.classList.remove('open');
-            if (sketchBackdrop) sketchBackdrop.classList.remove('open');
-            document.body.style.overflow = '';
+            drawingInsertRange = savedEditorRange?.cloneRange();
+            sketchInserted = false;
+            closeSketch.textContent = 'Отмена';
+            clearSketch.disabled = false;
             clearDrawing();
-            setTimeout(() => placeCaretAtEditableTail(), 0);
+            sketchModal.showModal();
         }
 
         function clearDrawing() {
-            if (!mainCtx || !mainCanvas) return;
+            if (sketchSaving || sketchInserted) return;
             mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            drawingPointer = null;
+            saveSketch.disabled = true;
+            sketchStatus.hidden = true;
         }
 
-        window.addEventListener('resize', () => {
-            if (isDrawingMode) syncDrawingCanvasSize();
-        }, { passive: true });
-
-        if (mainCanvas) {
-            mainCanvas.addEventListener('mousedown', startDraw);
-            mainCanvas.addEventListener('mousemove', draw);
-            mainCanvas.addEventListener('mouseup', stopDraw);
-            mainCanvas.addEventListener('mouseleave', stopDraw);
+        function getCanvasPoint(event) {
+            const rect = mainCanvas.getBoundingClientRect();
+            return {
+                x: (event.clientX - rect.left) * mainCanvas.width / rect.width,
+                y: (event.clientY - rect.top) * mainCanvas.height / rect.height,
+            };
         }
 
-        function startDraw(e) {
-            if (!mainCtx) return;
-            isDrawing = true;
-            const pt = getCanvasPoint(e);
+        function drawSketchSegment(from, to) {
+            mainCtx.strokeStyle = '#007bb8';
+            mainCtx.lineWidth = 6;
+            mainCtx.lineCap = 'round';
+            mainCtx.lineJoin = 'round';
             mainCtx.beginPath();
-            mainCtx.moveTo(pt.x, pt.y);
-        }
-
-        function draw(e) {
-            if (!isDrawing || !mainCtx) return;
-            const pt = getCanvasPoint(e);
-            mainCtx.lineTo(pt.x, pt.y);
+            mainCtx.moveTo(from.x, from.y);
+            mainCtx.lineTo(to.x, to.y);
             mainCtx.stroke();
         }
 
-        function stopDraw() {
-            isDrawing = false;
+        mainCanvas?.addEventListener('pointerdown', event => {
+            if (!mainCtx || drawingPointer !== null || event.button !== 0 || sketchSaving || sketchInserted) return;
+            drawingPointer = event.pointerId;
+            mainCanvas.setPointerCapture(drawingPointer);
+            lastSketchPoint = getCanvasPoint(event);
+            mainCtx.fillStyle = '#007bb8';
+            mainCtx.beginPath();
+            mainCtx.arc(lastSketchPoint.x, lastSketchPoint.y, 3, 0, Math.PI * 2);
+            mainCtx.fill();
+            sketchStatus.hidden = true;
+            saveSketch.disabled = false;
+        });
+        mainCanvas?.addEventListener('pointermove', event => {
+            if (event.pointerId !== drawingPointer) return;
+            const point = getCanvasPoint(event);
+            drawSketchSegment(lastSketchPoint, point);
+            lastSketchPoint = point;
+        });
+        for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+            mainCanvas?.addEventListener(eventName, event => {
+                if (event.pointerId === drawingPointer) drawingPointer = null;
+            });
         }
 
         async function finishDrawing() {
-            // Make sure we don't save at wrong resolution after layout changes
-            syncDrawingCanvasSize();
-            const dataURL = mainCanvas.toDataURL('image/png');
-            // Check if canvas is empty to avoid saving blank overlays
-            const pixels = mainCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height).data;
-            let hasContent = false;
-            for(let i=3; i<pixels.length; i+=4) if(pixels[i] > 0) { hasContent = true; break; }
-            if(!hasContent) { cancelDrawing(); return; }
-
+            if (saveSketch.disabled || sketchSaving || activeVersion) return;
+            sketchSaving = true;
+            saveSketch.disabled = true;
+            sketchStatus.textContent = sketchInserted ? 'Сохраняем заметку…' : 'Загружаем рисунок…';
+            sketchStatus.hidden = false;
             try {
-                const blob = await (await fetch(dataURL)).blob();
-                const formData = new FormData();
-                formData.append('file', blob, 'sketch.png');
-                
-                const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
-                const data = await resp.json();
-                
-                // Insert drawing as a normal image at the remembered caret position
-                editor.contentEditable = "true";
-                editor.focus();
-                try {
-                    const sel = window.getSelection();
-                    if (drawingInsertRange && sel) {
-                        sel.removeAllRanges();
-                        sel.addRange(drawingInsertRange);
+                if (!sketchInserted) {
+                    const blob = await new Promise(resolve => mainCanvas.toBlob(resolve, 'image/png'));
+                    if (!blob) throw new Error('Не удалось подготовить рисунок.');
+                    const formData = new FormData();
+                    formData.set('file', blob, 'sketch.png');
+                    formData.set('exp_id', exp_id);
+                    const response = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (!response.ok || !data.url) throw new Error(data.detail || 'Не удалось загрузить рисунок.');
+                    const note = getNoteEditor();
+                    const paragraph = document.createElement('p');
+                    const image = document.createElement('img');
+                    image.src = data.url;
+                    image.alt = 'Рисунок';
+                    paragraph.append(image);
+
+                    let anchor = drawingInsertRange?.startContainer;
+                    if (anchor && note.contains(anchor) && anchor !== note) {
+                        while (anchor.parentNode !== note) anchor = anchor.parentNode;
+                        anchor.after(paragraph);
+                    } else {
+                        note.append(paragraph);
                     }
-                } catch (e) {}
-
-                const imgHTML = `<p><img src="${data.url}" alt="Рисунок"></p><p><br></p>`;
-                document.execCommand('insertHTML', false, imgHTML);
-
-                isDrawingMode = false;
-                if (sketchModal) sketchModal.classList.remove('open');
-                if (sketchBackdrop) sketchBackdrop.classList.remove('open');
-                document.body.style.overflow = '';
-                clearDrawing();
-                placeCaretAtEditableTail();
-                autoSave();
-            } catch (e) {
-                console.error('Save failed', e);
-                alert('Ошибка сохранения');
-                cancelDrawing();
+                    ensureEditableTail();
+                    updateEditorEmptyState();
+                    sketchInserted = true;
+                    clearSketch.disabled = true;
+                    closeSketch.textContent = 'Закрыть';
+                    autoSave();
+                }
+                sketchStatus.textContent = 'Сохраняем заметку…';
+                if (!await flushAutosave()) throw new Error('Заметка пока не сохранена. Повторите попытку.');
+                sketchModal.close();
+            } catch (error) {
+                sketchStatus.textContent = error.message;
+                saveSketch.disabled = false;
+            } finally {
+                sketchSaving = false;
             }
+        }
+
+        sketchModal?.addEventListener('cancel', event => {
+            if (sketchSaving) event.preventDefault();
+        });
+        sketchModal?.querySelector('form').addEventListener('submit', event => {
+            if (sketchSaving) event.preventDefault();
+        });
+
+        const exportTypes = {
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            pdf: 'application/pdf',
+            pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        };
+
+        function getExportUrl(kind) {
+            const params = new URLSearchParams({ exp_id, node_id });
+            if (activeVersion) params.set('version_id', activeVersion.id);
+            return '{{ base_path }}/api/node/export_' + kind + '?' + params.toString();
         }
 
         async function downloadExport(kind) {
-            const map = {
-                docx: { path: 'export_docx', ext: 'docx', label: 'DOCX' },
-                pdf: { path: 'export_pdf', ext: 'pdf', label: 'PDF' },
-                pptx: { path: 'export_pptx', ext: 'pptx', label: 'PPTX' },
-            };
-            const conf = map[kind] || map.docx;
+            if (kind === 'pptx' && !{{ pptx_export_enabled | default(false) | tojson }}) {
+                shareKind.value = kind;
+                openExportShare();
+                return;
+            }
+            if (!activeVersion && !await flushAutosave()) return;
+            if (window.bnGoal) window.bnGoal('bn_first_export', { format: kind });
+            window.location.assign(getExportUrl(kind));
+        }
+
+        const shareDialog = document.getElementById('exportShareDialog');
+        const shareKind = document.getElementById('exportShareKind');
+        const shareStatus = document.getElementById('exportShareStatus');
+        const shareButton = document.getElementById('shareExportFile');
+        const shareDownload = document.getElementById('downloadSharedExport');
+        let preparedShareFile;
+        let shareRequest;
+
+        function openExportShare() {
+            shareDialog.showModal();
+            prepareExportShare();
+        }
+
+        async function prepareExportShare() {
+            shareRequest?.abort();
+            const request = new AbortController();
+            shareRequest = request;
+            const kind = shareKind.value;
+            preparedShareFile = null;
+            shareButton.hidden = true;
+            shareButton.disabled = true;
+            shareDownload.hidden = true;
+            shareStatus.textContent = 'Готовим файл…';
             try {
-                await new Promise((resolve) => {
-                    try { autoSave(); } catch (e) {}
-                    setTimeout(resolve, 400);
-                });
-                const resp = await fetch(
-                    `{{ base_path }}/api/node/${conf.path}?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`,
-                    { credentials: 'same-origin' }
-                );
-                if (!resp.ok) {
-                    let detail = '';
-                    try { detail = (await resp.json()).error || ''; } catch (e) {}
-                    if (kind === 'pptx' && resp.status === 403) {
-                        alert(detail || 'PPTX — в тарифе Pro. На Free доступны DOCX и PDF.');
-                    return;
+                if (!activeVersion && !await flushAutosave()) {
+                    throw new Error('Сначала сохраните заметку.');
                 }
-                    alert(`Не удалось сформировать ${conf.label}` + (detail ? `: ${detail}` : ''));
-                    return;
+                const url = getExportUrl(kind);
+                const response = await fetch(url, { signal: request.signal });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || data.detail || 'Не удалось сформировать файл.');
                 }
-                if (window.bnGoal) window.bnGoal('bn_first_export', { format: conf.ext });
-                const blob = await resp.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `node_${node_id}.${conf.ext}`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-            } catch (e) {
-                alert('Ошибка скачивания');
+                const bytes = await response.arrayBuffer();
+                if (request.signal.aborted) return;
+                const filename = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/i)?.[1]
+                    || 'lab-journal.' + kind;
+                const file = new File([bytes], filename, { type: exportTypes[kind] });
+                shareDownload.href = url;
+                shareDownload.hidden = false;
+                if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                    preparedShareFile = file;
+                    shareButton.hidden = false;
+                    shareButton.disabled = false;
+                    shareStatus.textContent = 'Файл готов к отправке.';
+                } else {
+                    shareStatus.textContent = 'Файл готов. Скачайте его и отправьте как вложение.';
+                }
+            } catch (error) {
+                if (!request.signal.aborted) shareStatus.textContent = error.message;
             }
         }
-        function downloadDocx() { return downloadExport('docx'); }
+
+        shareKind?.addEventListener('change', prepareExportShare);
+        shareDialog?.addEventListener('close', () => shareRequest?.abort());
+        shareButton?.addEventListener('click', async () => {
+            if (!preparedShareFile) return;
+            try {
+                await navigator.share({ files: [preparedShareFile] });
+                shareDialog.close();
+            } catch (error) {
+                if (error.name !== 'AbortError') shareStatus.textContent = 'Поделиться не удалось. Скачайте файл и отправьте его как вложение.';
+            }
+        });
+
         function requestCustomExportTemplate() {
             const q = new URLSearchParams({
                 user: {{ user|tojson }},
@@ -2444,7 +2510,9 @@
             window.requestMediaTool = requestMediaTool;
 
         function upgradeLegacyCodeCells() {
-            document.querySelectorAll('.code-cell').forEach(cell => {
+            const editor = getNoteEditor();
+            const editable = editor.contentEditable === 'true';
+            editor.querySelectorAll('.code-cell').forEach(cell => {
                 cell.querySelectorAll('.compute-unit-select').forEach(el => el.remove());
                 if (!cell.querySelector('.code-cell-head')) {
                     const head = document.createElement('div');
@@ -2457,13 +2525,13 @@
                 if (actions) {
                     const legacyDel = actions.querySelector('button:not(.run-btn):not(.cell-del-btn)');
                     if (legacyDel && !actions.querySelector('.cell-del-btn')) {
-                        const id = cell.id;
                         legacyDel.className = 'cell-del-btn';
                         legacyDel.removeAttribute('style');
                         legacyDel.title = 'Удалить ячейку';
                         legacyDel.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
-                        if (id) legacyDel.setAttribute('onclick', `deleteCodeCell('${id}')`);
                     }
+                    const deleteButton = actions.querySelector('.cell-del-btn');
+                    if (deleteButton) deleteButton.disabled = !editable;
                     actions.querySelectorAll('span').forEach(s => {
                         if ((s.textContent || '').includes('автодополнение')) s.remove();
                     });
@@ -2472,13 +2540,16 @@
                 if (runBtn) {
                     runBtn.removeAttribute('style');
                     runBtn.className = 'run-btn';
-                    runBtn.disabled = false;
+                    runBtn.disabled = !editable;
                     if (!runBtn.querySelector('i')) {
                         runBtn.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> Run';
                     }
                 }
                 const area = cell.querySelector('.code-editor');
-                if (area) refreshCodeHighlight(area);
+                if (area) {
+                    area.readOnly = !editable;
+                    autoExpand(area);
+                }
             });
             if (window.lucide) lucide.createIcons();
         }
@@ -2571,7 +2642,7 @@
         }
 
         document.getElementById('editor')?.addEventListener('input', (e) => {
-            if (e.target.classList?.contains('code-editor')) refreshCodeHighlight(e.target);
+            if (e.target.classList?.contains('code-editor')) autoExpand(e.target);
         });
 
         function buildCodeCellElement(initialCode) {
@@ -2586,10 +2657,9 @@
                     <textarea
                         class="code-editor"
                         placeholder="Пишите Python-код здесь…"
-                        oninput="autoExpand(this)"
                     ></textarea>
                     <div class="code-actions">
-                        <button type="button" class="cell-del-btn" title="Удалить ячейку" onclick="deleteCodeCell('${cellId}')">
+                        <button type="button" class="cell-del-btn" title="Удалить ячейку">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>
                         <div class="code-actions-right">
@@ -2645,7 +2715,7 @@
         }
 
         function insertCodeFromAssistant(code) {
-            exitEditorOverlayModes();
+            if (activeVersion) return;
             const { cell, cellId } = buildCodeCellElement(code);
             mountCodeCell(cell, { appendToEnd: true, skipCaret: true });
             updateEditorEmptyState();
@@ -2675,7 +2745,7 @@
         }
 
         function addCodeCell() {
-            exitEditorOverlayModes();
+            if (activeVersion) return;
             const { cell, cellId } = buildCodeCellElement('');
             mountCodeCell(cell);
             updateEditorEmptyState();
@@ -2699,8 +2769,14 @@
             }
         }
 
-        // Event delegation for Run buttons and Autocomplete
         document.getElementById('editor').addEventListener('click', (e) => {
+            if (e.currentTarget.contentEditable !== 'true') return;
+            const deleteButton = e.target.closest('.cell-del-btn');
+            if (deleteButton) {
+                const cell = deleteButton.closest('.code-cell');
+                if (cell?.id) deleteCodeCell(cell.id);
+                return;
+            }
             const runBtn = e.target.closest('.run-btn');
             if (runBtn) {
                 const cellId = runBtn.dataset.cellId;
@@ -2864,6 +2940,7 @@
                     formData.append('file', blob, 'pasted-image.png');
                     
                     try {
+                        formData.set('exp_id', exp_id);
                         const resp = await fetch('{{ base_path }}/api/upload', { method: 'POST', body: formData });
                         const data = await resp.json();
                         const imgHTML = `<img src="${data.url}" alt="Pasted Image">`;
@@ -2878,7 +2955,9 @@
 
         // --- Time travel / version history ---
         let currentVersions = [];
-        let timeOffset = 0;
+        let liveNoteHtml = null;
+        let versionBusy = false;
+        let versionNoticeTimer;
 
         function formatVersionWhen(iso) {
             try {
@@ -2893,8 +2972,9 @@
                 `{{ base_path }}/api/node/version/list?exp_id=${encodeURIComponent(exp_id)}&node_id=${encodeURIComponent(node_id)}`,
                 { credentials: 'same-origin' }
             );
-                const data = await resp.json();
-                currentVersions = data.versions || [];
+            if (!resp.ok) throw new Error('Не удалось загрузить историю версий.');
+            const data = await resp.json();
+            currentVersions = data.versions || [];
             return currentVersions;
         }
 
@@ -2916,24 +2996,30 @@
                     list.textContent = 'Пока нет снимков. Отредактируйте заметку и подождите автосохранение.';
                     return;
                 }
-                list.innerHTML = versions.map((v, idx) => {
-                    const author = (v.author || '').trim() || 'без автора';
-                    const msg = (v.message || 'Снимок').replace(/[<>&]/g, '');
-                    return `<button type="button" class="version-item" data-version-idx="${idx}">
-                        <span class="version-item-msg">${msg}</span>
-                        <span class="version-item-meta">${formatVersionWhen(v.created_at)} · ${author}</span>
-                    </button>`;
-                }).join('');
-                list.querySelectorAll('.version-item').forEach((btn) => {
-                    btn.addEventListener('click', async () => {
-                        const idx = Number(btn.getAttribute('data-version-idx'));
-                        const version = currentVersions[idx];
-                        if (!version) return;
-                        timeOffset = idx + 1;
-                        await applyVersionToUI(version);
-                        showVersionIndicator(version);
-                        panel.setAttribute('hidden', '');
+                list.replaceChildren();
+                versions.forEach(version => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'version-item';
+                    const message = document.createElement('span');
+                    message.className = 'version-item-msg';
+                    message.textContent = version.message || 'Снимок';
+                    const meta = document.createElement('span');
+                    meta.className = 'version-item-meta';
+                    meta.textContent = formatVersionWhen(version.created_at) + ' · ' + (version.author || 'без автора');
+                    button.append(message, meta);
+                    button.addEventListener('click', async () => {
+                        if (versionBusy) return;
+                        versionBusy = true;
+                        try {
+                            if (await applyVersionToUI(version)) panel.hidden = true;
+                        } catch (error) {
+                            showVersionNotice(error.message);
+                        } finally {
+                            versionBusy = false;
+                        }
                     });
+                    list.append(button);
                 });
             } catch (e) {
                 if (list) list.textContent = 'Не удалось загрузить историю.';
@@ -2941,66 +3027,106 @@
             }
         }
 
-        function showVersionIndicator(version, prefix) {
-            const author = (version.author || '').trim();
-            const indicator = document.createElement('div');
-            indicator.id = 'time-travel-indicator';
-            indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; font-size: 0.8rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;';
-            const head = prefix || (version.message || 'снимок');
-            indicator.innerText = `${head} · ${formatVersionWhen(version.created_at)}${author ? ' · ' + author : ''}`;
-            const old = document.getElementById('time-travel-indicator');
-            if (old) old.remove();
-            document.body.appendChild(indicator);
-            setTimeout(() => { indicator.style.opacity = '0.7'; }, 2000);
+        function showVersionNotice(message) {
+            const notice = document.getElementById('versionNotice');
+            clearTimeout(versionNoticeTimer);
+            notice.hidden = !message;
+            notice.textContent = message || '';
+            if (message) versionNoticeTimer = setTimeout(() => {
+                notice.hidden = true;
+                notice.textContent = '';
+            }, 2400);
         }
 
-        let travelBusy = false;
+        function setVersionMode(version) {
+            const note = getNoteEditor();
+            activeVersion = version;
+            note.contentEditable = String(!version);
+            note.setAttribute('aria-readonly', String(Boolean(version)));
+            if (version) {
+                note.querySelectorAll('[contenteditable]').forEach(element => {
+                    element.contentEditable = 'false';
+                });
+            }
+            savedEditorRange = null;
+            upgradeLegacyCodeCells();
+            document.querySelectorAll('#noteInsertTools button, #noteInsertTools input').forEach(control => {
+                control.disabled = Boolean(version);
+            });
+            document.getElementById('historyMode').hidden = !version;
+            updateEditorEmptyState();
+        }
+
+        function returnToCurrentNote(fromHistoryArrow = false) {
+            if ((!fromHistoryArrow && versionBusy) || !activeVersion || liveNoteHtml === null) return;
+            getNoteEditor().innerHTML = liveNoteHtml;
+            liveNoteHtml = null;
+            setVersionMode(null);
+            ensureEditableTail();
+            showVersionNotice();
+        }
 
         async function travelTime(direction) {
-            if (travelBusy) return;
-            travelBusy = true;
+            if (versionBusy) return;
+            versionBusy = true;
             try {
-                await fetchVersions();
-                if (currentVersions.length === 0) {
-                    alert('Нет сохранённых снимков для этого этапа. Отредактируйте текст - снимок появится после автосохранения.');
+                const versions = await fetchVersions();
+                if (!versions.length) {
+                    showVersionNotice('У этапа пока нет сохранённых версий.');
                     return;
                 }
-
-                // From live (0): first «назад» skips the newest snapshot (usually = current text).
-                if (timeOffset === 0 && direction > 0) {
-                    timeOffset = currentVersions.length >= 2 ? 2 : 1;
-                } else {
-                timeOffset += direction;
+                if (!activeVersion && direction < 0) return;
+                const index = activeVersion ? versions.findIndex(version => version.id === activeVersion.id) : -1;
+                const nextIndex = index < 0 ? Math.min(1, versions.length - 1) : index + direction;
+                if (nextIndex < 0) {
+                    returnToCurrentNote(true);
+                } else if (nextIndex < versions.length) {
+                    await applyVersionToUI(versions[nextIndex]);
                 }
-                if (timeOffset < 0) timeOffset = 0;
-                if (timeOffset > currentVersions.length) timeOffset = currentVersions.length;
-
-                if (timeOffset === 0) {
-                    window.location.reload();
-                    return;
-                }
-
-                const version = currentVersions[timeOffset - 1];
-                await applyVersionToUI(version);
-                const n = currentVersions.length;
-                const idx = timeOffset;
-                showVersionIndicator(version, `версия ${idx} из ${n}`);
-            } catch (e) {
-                console.error('Time travel error', e);
+            } catch (error) {
+                showVersionNotice(error.message);
             } finally {
-                travelBusy = false;
+                versionBusy = false;
             }
         }
 
         async function applyVersionToUI(version) {
-            const r = await fetch(`{{ base_path }}/api/node/version/${version.id}`, { credentials: 'same-origin' });
-            if (!r.ok) return;
-            const data = await r.json();
-            const editor = document.getElementById('editor');
-            editor.innerHTML = data.html_snapshot || '';
-            document.querySelectorAll('.code-editor').forEach(autoExpand);
-            upgradeLegacyCodeCells();
-            updateEditorEmptyState();
+            const response = await fetch(
+                '{{ base_path }}/api/node/version/' + encodeURIComponent(version.id),
+                { credentials: 'same-origin' }
+            );
+            if (!response.ok) throw new Error('Не удалось открыть версию.');
+            const data = await response.json();
+            if (!activeVersion) {
+                if (!await flushAutosave()) return false;
+                liveNoteHtml = getEditorHtmlForSave();
+            }
+            getNoteEditor().innerHTML = data.html_snapshot || '';
+            setVersionMode(version);
+            const index = currentVersions.findIndex(item => item.id === version.id);
+            const counter = index >= 0 ? 'Версия ' + (index + 1) + ' из ' + currentVersions.length + ' · ' : '';
+            showVersionNotice(counter + formatVersionWhen(version.created_at));
+            return true;
+        }
+
+        async function restoreActiveVersion() {
+            if (!activeVersion || versionBusy || !confirm('Сделать эту версию текущей?')) return;
+            versionBusy = true;
+            try {
+                const response = await fetch('{{ base_path }}/api/node/version/rollback', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version_id: activeVersion.id, revision: noteRevision }),
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Не удалось восстановить версию.');
+                }
+                window.location.reload();
+            } catch (error) {
+                showVersionNotice(error.message);
+            } finally {
+                versionBusy = false;
+            }
         }
 
         document.addEventListener('click', (e) => {
