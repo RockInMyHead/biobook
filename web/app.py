@@ -290,7 +290,21 @@ if not LAB_ADMIN_PATH.startswith("/"):
 SITE_ORIGIN = os.environ.get("SITE_ORIGIN", "https://labjournal.tech").rstrip("/")
 YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID", "")
 YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET", "")
-SESSION_SECRET = os.environ.get("SESSION_SECRET") or secrets.token_urlsafe(48)
+
+
+def _stored_auth_signing_secret() -> str:
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE IF NOT EXISTS auth_signing_secret (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        connection.exec_driver_sql(
+            "INSERT OR IGNORE INTO auth_signing_secret (id, value) VALUES (1, ?)",
+            (secrets.token_urlsafe(48),),
+        )
+        return connection.exec_driver_sql("SELECT value FROM auth_signing_secret WHERE id = 1").scalar_one()
+
+
+SESSION_SECRET = os.environ.get("SESSION_SECRET") or _stored_auth_signing_secret()
 OAUTH_STATE_SECRET = os.environ.get("OAUTH_STATE_SECRET") or SESSION_SECRET
 LEGAL_BASE_URL = os.environ.get("LEGAL_BASE_URL", SITE_ORIGIN).rstrip("/")
 # Legacy hosts that should 301 to SITE_ORIGIN (same app / same VM).
