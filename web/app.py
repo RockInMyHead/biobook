@@ -276,14 +276,33 @@ LAB_PLANNER_ENABLED = os.environ.get("LAB_PLANNER_ENABLED", "").strip().lower() 
     "yes",
     "on",
 )
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "admin123")
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 LAB_ADMIN_PATH = (os.environ.get("LAB_ADMIN_PATH", "/lab-admin") or "/lab-admin").rstrip("/")
 if not LAB_ADMIN_PATH.startswith("/"):
     LAB_ADMIN_PATH = "/" + LAB_ADMIN_PATH
 SITE_ORIGIN = os.environ.get("SITE_ORIGIN", "https://labjournal.tech").rstrip("/")
 YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID", "")
 YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET", "")
-OAUTH_STATE_SECRET = os.environ.get("OAUTH_STATE_SECRET", ADMIN_KEY)
+
+
+def _stored_auth_signing_secret() -> str:
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE IF NOT EXISTS auth_signing_secret (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        connection.exec_driver_sql(
+            "INSERT OR IGNORE INTO auth_signing_secret (id, value) VALUES (1, ?)",
+            (secrets.token_urlsafe(48),),
+        )
+        return connection.exec_driver_sql("SELECT value FROM auth_signing_secret WHERE id = 1").scalar_one()
+
+
+OAUTH_STATE_SECRET = (
+    os.environ.get("OAUTH_STATE_SECRET")
+    or ADMIN_KEY
+    or os.environ.get("SESSION_SECRET")
+    or _stored_auth_signing_secret()
+)
 LEGAL_BASE_URL = os.environ.get("LEGAL_BASE_URL", SITE_ORIGIN).rstrip("/")
 # Legacy hosts that should 301 to SITE_ORIGIN (same app / same VM).
 LEGACY_HOSTS = {
@@ -7073,13 +7092,14 @@ def _admin_activity_insights(db: Session, users: list, days: int = 30) -> dict:
     }
 
 
-def admin_required(request: Request):
-    """Check admin authorization."""
-    auth = request.headers.get("X-Admin-Key", "")
-    if auth == ADMIN_KEY:
-        return True
-    # Also check query param or form field
-    return False
+def _admin_key_matches(value: object) -> bool:
+    return bool(
+        ADMIN_KEY and isinstance(value, str) and hmac.compare_digest(value.encode(), ADMIN_KEY.encode())
+    )
+
+
+def admin_required(request: Request) -> bool:
+    return _admin_key_matches(request.headers.get("X-Admin-Key", ""))
 
 @app.get(LAB_ADMIN_PATH, response_class=HTMLResponse)
 async def admin_login_page(request: Request, error: str = None):
@@ -7092,7 +7112,7 @@ async def admin_legacy_entry_redirect():
 @app.post("/admin")
 @app.post(LAB_ADMIN_PATH)
 async def admin_login(admin_key: str = Form(...)):
-    if admin_key == ADMIN_KEY:
+    if _admin_key_matches(admin_key):
         return RedirectResponse(
             url=f"{BASE_PATH}{LAB_ADMIN_PATH}/dashboard?key={admin_key}", status_code=302
         )
@@ -7107,7 +7127,7 @@ async def admin_legacy_dashboard_redirect(key: str = ""):
 
 @app.get(f"{LAB_ADMIN_PATH}/dashboard", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return RedirectResponse(
             url=f"{BASE_PATH}{LAB_ADMIN_PATH}?error=InvalidKey", status_code=302
         )
@@ -7240,7 +7260,7 @@ async def admin_delete_user(request: Request, db: Session = Depends(get_db)):
     provided_key = body.get("admin_key", "")
     username = body.get("username", "")
 
-    if provided_key != ADMIN_KEY:
+    if not _admin_key_matches(provided_key):
         return JSONResponse({"ok": False, "error": "Invalid admin key"}, status_code=403)
     if not username:
         return JSONResponse({"ok": False, "error": "Username required"}, status_code=400)
@@ -7266,7 +7286,7 @@ async def admin_delete_experiment(request: Request, db: Session = Depends(get_db
     provided_key = body.get("admin_key", "")
     exp_id = body.get("exp_id", "")
 
-    if provided_key != ADMIN_KEY:
+    if not _admin_key_matches(provided_key):
         return JSONResponse({"ok": False, "error": "Invalid admin key"}, status_code=403)
     if not exp_id:
         return JSONResponse({"ok": False, "error": "Experiment ID required"}, status_code=400)
@@ -7286,7 +7306,7 @@ async def admin_delete_experiment(request: Request, db: Session = Depends(get_db
 @app.get("/admin/api/user_dashboard")
 @app.get(f"{LAB_ADMIN_PATH}/api/user_dashboard")
 async def admin_user_dashboard(key: str, user: str = None, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     if user:
@@ -7328,7 +7348,7 @@ async def admin_user_dashboard(key: str, user: str = None, db: Session = Depends
 @app.get("/admin/api/corporate")
 @app.get(f"{LAB_ADMIN_PATH}/api/corporate")
 async def admin_corporate(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     all_users = db.query(UserDB).all()
@@ -7353,7 +7373,7 @@ async def admin_corporate(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/referrals")
 @app.get(f"{LAB_ADMIN_PATH}/api/referrals")
 async def admin_referrals(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     friends_count = db.query(FriendDB).filter(FriendDB.status == "accepted").count()
@@ -7384,7 +7404,7 @@ async def admin_referrals(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/support")
 @app.get(f"{LAB_ADMIN_PATH}/api/support")
 async def admin_support(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     total_users = db.query(UserDB).count()
@@ -7407,7 +7427,7 @@ async def admin_support(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/logs")
 @app.get(f"{LAB_ADMIN_PATH}/api/logs")
 async def admin_logs(key: str, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     cap = max(1, min(int(limit or 100), 500))
@@ -7433,7 +7453,7 @@ async def admin_logs(key: str, limit: int = 100, offset: int = 0, db: Session = 
 @app.get("/admin/api/analytics")
 @app.get(f"{LAB_ADMIN_PATH}/api/analytics")
 async def admin_analytics(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     
     users = db.query(UserDB).all()
@@ -7478,7 +7498,7 @@ async def admin_analytics(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/tickets")
 @app.get(f"{LAB_ADMIN_PATH}/api/tickets")
 async def admin_get_tickets(key: str, status: str = None, priority: str = None, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     q = db.query(SupportTicketDB)
     if status and status != "all":
@@ -7513,7 +7533,7 @@ async def admin_get_tickets(key: str, status: str = None, priority: str = None, 
 @app.post(f"{LAB_ADMIN_PATH}/api/tickets/reply")
 async def admin_reply_ticket(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if body.get("key") != ADMIN_KEY:
+    if not _admin_key_matches(body.get("key")):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     reply = SupportReplyDB(ticket_id=body.get("ticket_id"), author="admin", message=body.get("message", ""))
     db.add(reply)
@@ -7528,7 +7548,7 @@ async def admin_reply_ticket(request: Request, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/tickets/status")
 async def admin_update_ticket_status(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if body.get("key") != ADMIN_KEY:
+    if not _admin_key_matches(body.get("key")):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     ticket = db.query(SupportTicketDB).filter(SupportTicketDB.id == body.get("ticket_id")).first()
     if not ticket:
@@ -7544,7 +7564,7 @@ async def admin_update_ticket_status(request: Request, db: Session = Depends(get
 @app.post(f"{LAB_ADMIN_PATH}/api/user/edit")
 async def admin_edit_user(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if body.get("key") != ADMIN_KEY:
+    if not _admin_key_matches(body.get("key")):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     user = db.query(UserDB).filter(UserDB.username == body.get("username")).first()
     if not user:
@@ -7561,7 +7581,7 @@ async def admin_edit_user(request: Request, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/user/bulk")
 async def admin_bulk_user_action(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if body.get("key") != ADMIN_KEY:
+    if not _admin_key_matches(body.get("key")):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     action = body.get("action", "")
     usernames = body.get("usernames", [])
@@ -7591,7 +7611,7 @@ async def admin_bulk_user_action(request: Request, db: Session = Depends(get_db)
 @app.get("/admin/api/organizations")
 @app.get(f"{LAB_ADMIN_PATH}/api/organizations")
 async def admin_get_organizations(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     orgs = db.query(OrganizationDB).all()
     result = []
@@ -7611,7 +7631,7 @@ async def admin_get_organizations(key: str, db: Session = Depends(get_db)):
 @app.post(f"{LAB_ADMIN_PATH}/api/organizations/create")
 async def admin_create_organization(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    if body.get("key") != ADMIN_KEY:
+    if not _admin_key_matches(body.get("key")):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     org = OrganizationDB(name=body.get("name"), owner_id=body.get("owner_id"))
     db.add(org)
@@ -7627,7 +7647,7 @@ async def admin_create_organization(request: Request, db: Session = Depends(get_
 @app.get("/admin/api/referral_codes")
 @app.get(f"{LAB_ADMIN_PATH}/api/referral_codes")
 async def admin_get_referral_codes(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     links = db.query(ReferralLinkDB).all()
     result = []
@@ -7648,7 +7668,7 @@ async def admin_get_referral_codes(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/export/users")
 @app.get(f"{LAB_ADMIN_PATH}/api/export/users")
 async def admin_export_users_csv(key: str, db: Session = Depends(get_db)):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     users = db.query(UserDB).all()
     import csv, io
@@ -7664,7 +7684,7 @@ async def admin_export_users_csv(key: str, db: Session = Depends(get_db)):
 @app.get("/admin/api/login_as")
 @app.get(f"{LAB_ADMIN_PATH}/api/login_as")
 async def admin_login_as(key: str, username: str):
-    if key != ADMIN_KEY:
+    if not _admin_key_matches(key):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
     return RedirectResponse(url=f"{BASE_PATH}/dashboard?user={username}")
 

@@ -21,7 +21,7 @@ rm /tmp/bio-notebook-deploy.tar.gz
 - **URL:** https://anticus.tech/bio-notebook/
 - **Путь:** `/opt/bio-notebook/web`
 - **Сервис:** `biobook.service` (uvicorn, порт `127.0.0.1:3001`)
-- **Админка лаб. журнала (отдельно от сайта):** https://anticus.tech/bio-notebook/lab-admin — ключ `ADMIN_KEY` (`admin123` по умолчанию)
+- **Админка лаб. журнала (отдельно от сайта):** https://anticus.tech/bio-notebook/lab-admin — задайте ADMIN_KEY в окружении
 - Старый URL `/bio-notebook/admin` перенаправляет на `/lab-admin`
 
 ## Канонический домен (актуально)
