@@ -39,24 +39,24 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           PORT="${DEPLOY_PORT:-22}"
           ssh-keyscan -p "$PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          cat > ~/.ssh/config <<EOF
-          Host lj-prod
-            HostName ${DEPLOY_HOST}
-            User ${DEPLOY_USER}
-            Port ${PORT}
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking accept-new
-            ServerAliveInterval 15
-            IPQoS throughput
-          EOF
-          chmod 600 ~/.ssh/config
+          cat > "$HOME/.ssh/config" <<EOF
+Host lj-prod
+  HostName ${DEPLOY_HOST}
+  User ${DEPLOY_USER}
+  Port ${PORT}
+  IdentityFile $HOME/.ssh/deploy_key
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+  ServerAliveInterval 15
+  IPQoS throughput
+EOF
+          chmod 600 "$HOME/.ssh/config"
           # Warm up flaky SSH banner
-          for i in 1 2 3 4 5 6 7 8; do
-            if ssh -o ConnectTimeout=20 lj-prod 'echo SSH_OK'; then
+          for i in 1 2 3 4 5 6 7 8 10 12; do
+            if ssh -F "$HOME/.ssh/config" -o ConnectTimeout=25 lj-prod 'echo SSH_OK'; then
               exit 0
             fi
-            sleep 3
+            sleep 4
           done
           echo "SSH to production failed" >&2
           exit 1
@@ -64,13 +64,15 @@ jobs:
       - name: Sync web tree
         run: |
           set -euo pipefail
+          test -f "$HOME/.ssh/config"
+          test -f "$HOME/.ssh/deploy_key"
           rsync -az --delete \
             --exclude 'data/' \
             --exclude '__pycache__/' \
             --exclude '*.pyc' \
             --exclude '.DS_Store' \
             --exclude '._*' \
-            -e 'ssh -F ~/.ssh/config' \
+            -e "ssh -F $HOME/.ssh/config" \
             web/ lj-prod:/tmp/biobook-web-release/
 
       - name: Install & restart biobook
